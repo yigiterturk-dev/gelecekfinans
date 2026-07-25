@@ -23,11 +23,28 @@
 import OpenAI from "openai";
 import { put } from "@vercel/blob";
 import { getCrypto, getFxHistory, getFx, CRYPTO_COINS } from "@/lib/market";
+import {
+  auditVisual,
+  buildImagePrompt,
+  createVisualBrief,
+  type VisualAudit,
+  type VisualBrief,
+} from "./visual-director";
 
 export interface ArticleImageInput {
   title: string;
   keyword?: string | null;
   category: string;
+  recentConcepts?: string[];
+  maxAttempts?: number;
+}
+
+export interface ArticleImageResult {
+  url: string | null;
+  strategy: "MARKET_CHART" | "AI_EDITORIAL" | "NONE";
+  brief: VisualBrief;
+  audit: VisualAudit | null;
+  attempts: number;
 }
 
 const TROY_OUNCE_GRAMS = 31.1035;
@@ -45,47 +62,54 @@ const CHART_TEXT = "#cbd5e1";
  * düşer; o da yoksa null döner (çağıran null'ı imageUrl=null olarak yazar).
  */
 export async function getArticleImage(article: ArticleImageInput): Promise<string | null> {
+  return (await getArticleImageResult(article)).url;
+}
+
+export async function getArticleImageResult(article: ArticleImageInput): Promise<ArticleImageResult> {
   const cat = article.category;
+  const brief = await createVisualBrief(article, article.recentConcepts);
 
   try {
-    // 1) Fiyat kategorileri → gerçek piyasa grafiği
-    if (cat === "kripto" || cat === "doviz" || cat === "altin") {
+    // Grafik ancak görsel brief haberin gerçekten fiyat/rate hareketi olduğunu
+    // söylüyorsa kullanılır; yanlış kategori tek başına grafik üretemez.
+    if (brief.mode === "DATA_CHART" && (cat === "kripto" || cat === "doviz" || cat === "altin")) {
       const chartUrl = await buildMarketChart(cat, article);
       if (chartUrl) {
         const stored = await uploadToBlob(chartUrl, `chart-${cat}`);
-        if (stored) return stored;
+        if (stored) {
+          return { url: stored, strategy: "MARKET_CHART", brief, audit: null, attempts: 1 };
+        }
       }
-      // Grafik üretilemedi → borsa gibi AI'a düşürmek yerine bu kategorilerde
-      // doğrudan AI editoryal görsele geç (konuya daha alakalı durur).
-      const ai = await tryAiImage(article);
-      if (ai) return ai;
     }
 
-    // 2) borsa + ekonomi (ve grafik üretilemeyen fiyat kategorileri) → AI
-    if (cat === "borsa" || cat === "ekonomi") {
-      const ai = await tryAiImage(article);
-      if (ai) return ai;
-    }
+    const ai = await tryAiImage(article, brief);
+    return ai;
   } catch {
     // sessizce fallback'e düş
   }
 
   // Alakasız stok görsel, görselsiz içerikten daha zararlıdır. Görsel üretimi
   // ve denetimi başarısızsa null dön; yayın kapısı makaleyi incelemeye bıraksın.
-  return null;
+  return { url: null, strategy: "NONE", brief, audit: null, attempts: 0 };
 }
 
 /** AI görsel üretir, ayrı bir vision modeliyle denetler; yalnızca onaylıysa yükler. */
-async function tryAiImage(article: ArticleImageInput): Promise<string | null> {
+async function tryAiImage(article: ArticleImageInput, brief: VisualBrief): Promise<ArticleImageResult> {
   let correction = "";
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const dataUrl = await generateAiImage(article, correction);
-    if (!dataUrl) return null;
-    const audit = await auditAiImage(article, dataUrl);
-    if (audit.approved) return uploadToBlob(dataUrl, `ai-${article.category}`);
+  let lastAudit: VisualAudit | null = null;
+  const maxAttempts = Math.max(1, Math.min(article.maxAttempts || 2, 2));
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const dataUrl = await generateAiImage(article, brief, correction);
+    if (!dataUrl) break;
+    const audit = await auditVisual(article, brief, dataUrl, article.recentConcepts);
+    lastAudit = audit;
+    if (audit.approved) {
+      const url = await uploadToBlob(dataUrl, `ai-${article.category}`);
+      if (url) return { url, strategy: "AI_EDITORIAL", brief, audit, attempts: attempt + 1 };
+    }
     correction = audit.feedback;
   }
-  return null;
+  return { url: null, strategy: "NONE", brief, audit: lastAudit, attempts: maxAttempts };
 }
 
 /* --------------------------------------------------------------------------
@@ -264,104 +288,35 @@ function quickChartUrl(points: number[], label: string, unit: string): string {
  * 1536x1024 (yatay), 'medium' kalite (~$0.04-0.07). base64 (data URL) döner.
  * Görselde METİN/SEMBOL/LOGO YASAK (AI bozuk yazı üretir). Env yok/hata → null.
  */
-async function generateAiImage(article: ArticleImageInput, correction = ""): Promise<string | null> {
+async function generateAiImage(
+  article: ArticleImageInput,
+  brief: VisualBrief,
+  correction = "",
+): Promise<string | null> {
   if (!process.env.OPENAI_API_KEY) return null;
   try {
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    const prompt = [
-      "A realistic editorial news photograph for a Turkish financial news article,",
-      "in the documentary photojournalism style of Reuters, AP or Bloomberg.",
-      `NEWS HEADLINE (this is the single source of truth): "${article.title}".`,
-      "First infer the concrete real-world event, industry, place and objects named",
-      "in that headline. Depict those specific elements literally and visibly.",
-      "Never substitute a generic stock exchange, currency exchange office, trading",
-      "screen, bank counter or business meeting unless the headline explicitly concerns it.",
-      "Style: authentic press photography — natural lighting, cinematic, shallow",
-      "depth of field, candid and grounded, true-to-life colors with a slightly",
-      "muted, restrained, corporate tone. Magazine / newswire quality.",
-      "It must read as a real photograph that genuinely fits the news topic,",
-      "NOT a generic finance stock image.",
-      "STRICT — do NOT include any of the following anywhere in the image:",
-      "no text, no letters, no numbers, no words, no logos, no watermarks;",
-      "no currency symbols ($ € ₺) and no money-symbol clipart;",
-      "no 3D renders, no vector illustrations, no glossy fintech graphics;",
-      "no floating coins, no abstract dashboards, no arrows or chart cliches;",
-      "no cream-and-gold luxury kitsch; no person looking at the camera;",
-      "no distorted hands or faces.",
-      correction ? `A previous image was rejected. Correct these exact problems: ${correction}` : "",
-      "Wide landscape composition suitable as an article header photo.",
-    ].filter(Boolean).join(" ");
+    const prompt = buildImagePrompt(brief, article.title, correction);
 
     const result = await openai.images.generate({
-      model: "gpt-image-1",
+      model: process.env.OPENAI_IMAGE_MODEL || "gpt-image-1",
       prompt,
       size: "1536x1024",
-      quality: "medium",
+      // Günlük cron bütçesi içinde kalmak için varsayılan low; bağımsız vision
+      // denetçisi kaliteyi yine sert biçimde kapılar. İstenirse env ile medium.
+      quality: process.env.OPENAI_IMAGE_QUALITY === "medium" ? "medium" : "low",
       n: 1,
-    });
+    }, { timeout: 140000 });
 
     const b64 = result.data?.[0]?.b64_json;
-    if (!b64) return null;
+    if (!b64) {
+      console.error("[images] AI görsel yanıtında görüntü verisi yok.");
+      return null;
+    }
     return `data:image/png;base64,${b64}`;
-  } catch {
+  } catch (error) {
+    console.error("[images] AI görsel üretimi başarısız:", error instanceof Error ? error.message : "Bilinmeyen hata");
     return null;
-  }
-}
-
-interface ImageAudit {
-  approved: boolean;
-  feedback: string;
-}
-
-async function auditAiImage(article: ArticleImageInput, dataUrl: string): Promise<ImageAudit> {
-  if (!process.env.OPENAI_API_KEY) return { approved: false, feedback: "Görsel denetçisi yapılandırılmamış." };
-  try {
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      response_format: { type: "json_object" },
-      temperature: 0,
-      max_tokens: 300,
-      messages: [{
-        role: "user",
-        content: [
-          {
-            type: "text",
-            text: [
-              `Başlık: "${article.title}"`,
-              "Bu görseli sert bir ekonomi haber editörü gibi denetle.",
-              "0-100 konu alakası puanı ver. Görsel başlıktaki somut olayı/kurumu/sektörü",
-              "yansıtmıyorsa; jenerik borsa/döviz/banka klişesiyse; okunabilir veya bozuk",
-              "yazı/rakam/logo içeriyorsa; belirgin AI yüz/el/nesne hatası varsa reddet.",
-              "Onay için relevanceScore >= 85, textArtifacts=false, visualArtifacts=false",
-              "ve genericFinanceCliche=false şartlarının tamamı gerekir.",
-              'Yalnız JSON: {"relevanceScore":0,"textArtifacts":false,"visualArtifacts":false,"genericFinanceCliche":false,"feedback":"kısa düzeltme"}',
-            ].join(" "),
-          },
-          { type: "image_url", image_url: { url: dataUrl, detail: "low" } },
-        ],
-      }],
-    });
-    const raw = response.choices[0]?.message?.content || "{}";
-    const result = JSON.parse(raw) as {
-      relevanceScore?: number;
-      textArtifacts?: boolean;
-      visualArtifacts?: boolean;
-      genericFinanceCliche?: boolean;
-      feedback?: string;
-    };
-    const approved =
-      (result.relevanceScore || 0) >= 85 &&
-      result.textArtifacts === false &&
-      result.visualArtifacts === false &&
-      result.genericFinanceCliche === false;
-    return {
-      approved,
-      feedback: result.feedback || "Başlıktaki somut olayla daha doğrudan ve yazısız bir sahne üret.",
-    };
-  } catch {
-    // Denetçi hata verirse fail-open değil fail-closed: görsel kullanılmaz.
-    return { approved: false, feedback: "Başlığa doğrudan bağlı, tamamen yazısız ve klişesiz sahne üret." };
   }
 }
 

@@ -5,11 +5,11 @@ import { analyzeSeo } from "@/lib/seo";
 import { isDuplicate } from "@/lib/duplicate";
 import { autoLink } from "@/lib/bot/linker";
 import { ensureExternalLink } from "@/lib/bot/external-link";
-import { getArticleImage } from "@/lib/bot/images";
+import { getArticleImageResult } from "@/lib/bot/images";
 import { getTopics } from "@/lib/bot/topics";
 import { writeArticle } from "@/lib/bot/writer";
 import {
-  chooseImageStrategy, classifyRisk, decidePublication, scoreSource,
+  classifyRisk, decidePublication, scoreSource,
 } from "@/lib/bot/autonomy";
 
 export interface OrchestratorOptions {
@@ -52,8 +52,15 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
 
   const recent = await prisma.article.findMany({
     where: { createdAt: { gte: new Date(Date.now() - 7 * 86400000) } },
-    select: { id: true, title: true, content: true },
+    select: { id: true, title: true, content: true, automationMeta: true },
   });
+  const recentConcepts = recent
+    .map((item) => {
+      const meta = item.automationMeta as { visual?: { brief?: { conceptKey?: string } } } | null;
+      return meta?.visual?.brief?.conceptKey;
+    })
+    .filter((value): value is string => Boolean(value))
+    .slice(-12);
   let added = 0;
   let autoPublished = 0;
   let reviewQueued = 0;
@@ -73,7 +80,6 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
 
       const source = scoreSource(topic);
       const risk = classifyRisk(topic);
-      const imageStrategy = chooseImageStrategy(topic.category, risk.level);
       const article = await writeArticle(topic, targetWords);
       const slug = slugify(article.title);
       if (await prisma.article.findUnique({ where: { slug }, select: { id: true } })) {
@@ -90,9 +96,11 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
         article.category,
         article.keyword,
       );
-      const imageUrl = await getArticleImage({
+      const image = await getArticleImageResult({
         title: article.title, keyword: article.keyword, category: article.category,
+        recentConcepts, maxAttempts: 1,
       });
+      const imageUrl = image.url;
       if (!imageUrl) imageFallbacks++;
       const seo = analyzeSeo({
         title: article.title, meta: article.meta, keyword: article.keyword,
@@ -111,6 +119,12 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
         riskReasons: risk.reasons,
         decisionReasons: publication.reasons,
         seoIssues: seo.issues,
+        visual: {
+          strategy: image.strategy,
+          brief: image.brief,
+          audit: image.audit,
+          attempts: image.attempts,
+        },
       };
       const created = await prisma.article.create({
         data: {
@@ -123,21 +137,27 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
           publishedAt: publication.decision === "AUTO_PUBLISH" ? new Date() : null,
           seoScore: seo.score, riskLevel: risk.level,
           publicationDecision: publication.decision,
-          sourceScore: source.score, imageStrategy,
+          sourceScore: source.score, imageStrategy: image.strategy,
           automationMeta: asJson(metadata),
           autoPublished: publication.decision === "AUTO_PUBLISH",
         },
       });
       await logEvent(run.id, "decision", publication.reasons.join("; "), {
         decision: publication.decision, risk: risk.level, sourceScore: source.score,
-        seoScore: seo.score, imageStrategy,
+        seoScore: seo.score, imageStrategy: image.strategy,
       }, created.id);
       // Sayaçlar yalnızca makale gerçekten kaydedildikten sonra artar. Böylece
       // DB hataları karar istatistiklerini şişirmez.
       if (publication.decision === "AUTO_PUBLISH") autoPublished++;
       else if (publication.decision === "BLOCK") blocked++;
       else reviewQueued++;
-      recent.push({ id: created.id, title: created.title, content: created.content });
+      recent.push({
+        id: created.id, title: created.title, content: created.content,
+        // Çeşitlilik hafızası aşağıdaki recentConcepts dizisinde ayrıca tutulur.
+        automationMeta: null,
+      });
+      recentConcepts.push(image.brief.conceptKey);
+      if (recentConcepts.length > 12) recentConcepts.shift();
       added++;
     } catch (error) {
       const message = `${topic.title.slice(0, 60)}: ${(error as Error).message}`;

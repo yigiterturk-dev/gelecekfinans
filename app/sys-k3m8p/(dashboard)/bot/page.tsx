@@ -35,6 +35,27 @@ interface DecisionRow {
   seoScore: number | null;
   imageStrategy: string | null;
   createdAt: string;
+  automationMeta?: {
+    visual?: {
+      attempts?: number;
+      brief?: {
+        conceptKey?: string;
+        subject?: string;
+        mode?: string;
+        rationale?: string;
+      };
+      audit?: {
+        relevance?: number;
+        authenticity?: number;
+        artifactFree?: number;
+        editorialValue?: number;
+        cropSafety?: number;
+        originality?: number;
+        approved?: boolean;
+        feedback?: string;
+      } | null;
+    };
+  } | null;
 }
 
 const CATEGORIES = [
@@ -162,6 +183,29 @@ export default function BotPage() {
                       <p style={{ color: "var(--muted)", fontSize: 11, marginTop: 5 }}>
                         Kaynak {item.sourceScore ?? "—"}/100 · SEO {item.seoScore ?? "—"}/100 · {item.imageStrategy || "görsel bekliyor"}
                       </p>
+                      {item.automationMeta?.visual?.brief && (
+                        <details style={{ marginTop: 8 }}>
+                          <summary style={{ fontSize: 12, color: "var(--ink2)", cursor: "pointer" }}>
+                            Görsel kararı · {item.automationMeta.visual.brief.conceptKey || item.automationMeta.visual.brief.mode}
+                          </summary>
+                          <div style={{ marginTop: 8, display: "grid", gap: 5, fontSize: 12, color: "var(--muted)" }}>
+                            <p><b style={{ color: "var(--ink2)" }}>Brief:</b> {item.automationMeta.visual.brief.subject}</p>
+                            {item.automationMeta.visual.audit ? (
+                              <p>
+                                <b style={{ color: "var(--ink2)" }}>Kalite:</b>{" "}
+                                Alaka {item.automationMeta.visual.audit.relevance ?? "—"} ·
+                                Gerçekçilik {item.automationMeta.visual.audit.authenticity ?? "—"} ·
+                                Artefakt {item.automationMeta.visual.audit.artifactFree ?? "—"} ·
+                                Kırpma {item.automationMeta.visual.audit.cropSafety ?? "—"} ·
+                                Özgünlük {item.automationMeta.visual.audit.originality ?? "—"}
+                              </p>
+                            ) : (
+                              <p>Veri grafiği · görsel üretim denetimi gerektirmedi</p>
+                            )}
+                            <p>Deneme: {item.automationMeta.visual.attempts ?? 1}</p>
+                          </div>
+                        </details>
+                      )}
                     </div>
                     <span style={{
                       whiteSpace: "nowrap", fontSize: 10, padding: "4px 8px", borderRadius: 5,

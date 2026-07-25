@@ -17,6 +17,7 @@ export async function GET() {
         id: true, title: true, slug: true, status: true, createdAt: true,
         riskLevel: true, publicationDecision: true, sourceScore: true,
         seoScore: true, imageStrategy: true, autoPublished: true,
+        automationMeta: true,
       },
     }),
   ]);
