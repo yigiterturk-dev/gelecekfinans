@@ -46,7 +46,6 @@ const CHART_TEXT = "#cbd5e1";
  */
 export async function getArticleImage(article: ArticleImageInput): Promise<string | null> {
   const cat = article.category;
-  const keyword = article.keyword || "";
 
   try {
     // 1) Fiyat kategorileri → gerçek piyasa grafiği
@@ -71,15 +70,22 @@ export async function getArticleImage(article: ArticleImageInput): Promise<strin
     // sessizce fallback'e düş
   }
 
-  // 3) Fallback: mevcut Unsplash zinciri
-  return fetchUnsplashImage(keyword, cat);
+  // Alakasız stok görsel, görselsiz içerikten daha zararlıdır. Görsel üretimi
+  // ve denetimi başarısızsa null dön; yayın kapısı makaleyi incelemeye bıraksın.
+  return null;
 }
 
-/** AI görsel üretip Blob'a yükler. Hata/eksik env → null. */
+/** AI görsel üretir, ayrı bir vision modeliyle denetler; yalnızca onaylıysa yükler. */
 async function tryAiImage(article: ArticleImageInput): Promise<string | null> {
-  const dataUrl = await generateAiImage(article);
-  if (!dataUrl) return null;
-  return uploadToBlob(dataUrl, `ai-${article.category}`);
+  let correction = "";
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const dataUrl = await generateAiImage(article, correction);
+    if (!dataUrl) return null;
+    const audit = await auditAiImage(article, dataUrl);
+    if (audit.approved) return uploadToBlob(dataUrl, `ai-${article.category}`);
+    correction = audit.feedback;
+  }
+  return null;
 }
 
 /* --------------------------------------------------------------------------
@@ -250,21 +256,6 @@ function quickChartUrl(points: number[], label: string, unit: string): string {
  * AI EDİTORYAL GÖRSEL (gpt-image-1)
  * ------------------------------------------------------------------------ */
 
-// Kategori ipuçları artık GERÇEK SAHNE odaklı (foto-gazetecilik). Klişe
-// coin/sembol/3D illüstrasyon yerine haberde gerçekten görülebilecek mekânlar.
-const CATEGORY_VISUAL_HINT: Record<string, string> = {
-  borsa:
-    "a real stock exchange trading floor with traders at desks and large electronic display boards in the background",
-  ekonomi:
-    "a real-world economic scene: a city financial district, a busy marketplace or bazaar, or a central bank headquarters building exterior",
-  kripto:
-    "a realistic technology scene: a data center server room or rows of computer hardware, professional and grounded (no glowing sci-fi clichés)",
-  doviz:
-    "a realistic currency exchange office or a bank branch interior with an exchange-rate board, everyday documentary feel",
-  altin:
-    "a realistic scene of gold bars in a vault or a jeweler's workshop handling precious metal, natural lighting",
-};
-
 /**
  * gpt-image-1 ile makale başlığına özgü GERÇEKÇİ EDİTORYAL HABER FOTOĞRAFI
  * üretir (foto-gazetecilik / Reuters-AP-Bloomberg estetiği). Klişe finans
@@ -273,17 +264,18 @@ const CATEGORY_VISUAL_HINT: Record<string, string> = {
  * 1536x1024 (yatay), 'medium' kalite (~$0.04-0.07). base64 (data URL) döner.
  * Görselde METİN/SEMBOL/LOGO YASAK (AI bozuk yazı üretir). Env yok/hata → null.
  */
-async function generateAiImage(article: ArticleImageInput): Promise<string | null> {
+async function generateAiImage(article: ArticleImageInput, correction = ""): Promise<string | null> {
   if (!process.env.OPENAI_API_KEY) return null;
   try {
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    const hint = CATEGORY_VISUAL_HINT[article.category] || CATEGORY_VISUAL_HINT.ekonomi;
-
     const prompt = [
       "A realistic editorial news photograph for a Turkish financial news article,",
       "in the documentary photojournalism style of Reuters, AP or Bloomberg.",
-      `The photo should depict the actual subject of this news story: "${article.title}".`,
-      `If a concrete scene is not obvious from the headline, default to: ${hint}.`,
+      `NEWS HEADLINE (this is the single source of truth): "${article.title}".`,
+      "First infer the concrete real-world event, industry, place and objects named",
+      "in that headline. Depict those specific elements literally and visibly.",
+      "Never substitute a generic stock exchange, currency exchange office, trading",
+      "screen, bank counter or business meeting unless the headline explicitly concerns it.",
       "Style: authentic press photography — natural lighting, cinematic, shallow",
       "depth of field, candid and grounded, true-to-life colors with a slightly",
       "muted, restrained, corporate tone. Magazine / newswire quality.",
@@ -296,8 +288,9 @@ async function generateAiImage(article: ArticleImageInput): Promise<string | nul
       "no floating coins, no abstract dashboards, no arrows or chart cliches;",
       "no cream-and-gold luxury kitsch; no person looking at the camera;",
       "no distorted hands or faces.",
+      correction ? `A previous image was rejected. Correct these exact problems: ${correction}` : "",
       "Wide landscape composition suitable as an article header photo.",
-    ].join(" ");
+    ].filter(Boolean).join(" ");
 
     const result = await openai.images.generate({
       model: "gpt-image-1",
@@ -312,6 +305,63 @@ async function generateAiImage(article: ArticleImageInput): Promise<string | nul
     return `data:image/png;base64,${b64}`;
   } catch {
     return null;
+  }
+}
+
+interface ImageAudit {
+  approved: boolean;
+  feedback: string;
+}
+
+async function auditAiImage(article: ArticleImageInput, dataUrl: string): Promise<ImageAudit> {
+  if (!process.env.OPENAI_API_KEY) return { approved: false, feedback: "Görsel denetçisi yapılandırılmamış." };
+  try {
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      response_format: { type: "json_object" },
+      temperature: 0,
+      max_tokens: 300,
+      messages: [{
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: [
+              `Başlık: "${article.title}"`,
+              "Bu görseli sert bir ekonomi haber editörü gibi denetle.",
+              "0-100 konu alakası puanı ver. Görsel başlıktaki somut olayı/kurumu/sektörü",
+              "yansıtmıyorsa; jenerik borsa/döviz/banka klişesiyse; okunabilir veya bozuk",
+              "yazı/rakam/logo içeriyorsa; belirgin AI yüz/el/nesne hatası varsa reddet.",
+              "Onay için relevanceScore >= 85, textArtifacts=false, visualArtifacts=false",
+              "ve genericFinanceCliche=false şartlarının tamamı gerekir.",
+              'Yalnız JSON: {"relevanceScore":0,"textArtifacts":false,"visualArtifacts":false,"genericFinanceCliche":false,"feedback":"kısa düzeltme"}',
+            ].join(" "),
+          },
+          { type: "image_url", image_url: { url: dataUrl, detail: "low" } },
+        ],
+      }],
+    });
+    const raw = response.choices[0]?.message?.content || "{}";
+    const result = JSON.parse(raw) as {
+      relevanceScore?: number;
+      textArtifacts?: boolean;
+      visualArtifacts?: boolean;
+      genericFinanceCliche?: boolean;
+      feedback?: string;
+    };
+    const approved =
+      (result.relevanceScore || 0) >= 85 &&
+      result.textArtifacts === false &&
+      result.visualArtifacts === false &&
+      result.genericFinanceCliche === false;
+    return {
+      approved,
+      feedback: result.feedback || "Başlıktaki somut olayla daha doğrudan ve yazısız bir sahne üret.",
+    };
+  } catch {
+    // Denetçi hata verirse fail-open değil fail-closed: görsel kullanılmaz.
+    return { approved: false, feedback: "Başlığa doğrudan bağlı, tamamen yazısız ve klişesiz sahne üret." };
   }
 }
 
