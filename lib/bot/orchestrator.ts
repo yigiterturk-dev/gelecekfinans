@@ -102,10 +102,6 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
         risk: risk.level, sourceScore: source.score, seoScore: seo.score,
         hasImage: Boolean(imageUrl), autoPublishEnabled,
       });
-      if (publication.decision === "AUTO_PUBLISH") autoPublished++;
-      else if (publication.decision === "BLOCK") blocked++;
-      else reviewQueued++;
-
       const metadata = {
         pipelineVersion: "gf-autonomy-v1",
         trigger: options.trigger,
@@ -136,6 +132,11 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
         decision: publication.decision, risk: risk.level, sourceScore: source.score,
         seoScore: seo.score, imageStrategy,
       }, created.id);
+      // Sayaçlar yalnızca makale gerçekten kaydedildikten sonra artar. Böylece
+      // DB hataları karar istatistiklerini şişirmez.
+      if (publication.decision === "AUTO_PUBLISH") autoPublished++;
+      else if (publication.decision === "BLOCK") blocked++;
+      else reviewQueued++;
       recent.push({ id: created.id, title: created.title, content: created.content });
       added++;
     } catch (error) {
