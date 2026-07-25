@@ -1754,6 +1754,7 @@ input:focus-visible,
 
 @media (max-width: 640px) {
   .nav-brand-row { padding: 0 16px; height: 52px; }
+  .nav-brand-row .search-btn { display: none !important; }
   .logo-wordmark { font-size: 20px; }
   .nav-cat-row { padding: 0 16px; }
   .pbar { height: 34px; }
@@ -1763,6 +1764,7 @@ input:focus-visible,
   .hero-headline { font-size: clamp(24px, 6vw, 36px); }
   .container { padding: 0 16px; }
   .newsletter-form { flex-direction: column; }
+  html, body { overflow-x: clip; }
 }
 
 /* ============================================================

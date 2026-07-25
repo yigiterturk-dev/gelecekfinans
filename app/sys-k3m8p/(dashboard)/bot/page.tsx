@@ -16,8 +16,25 @@ interface BotRun {
   articlesFound: number;
   articlesAdded: number;
   duplicatesSkipped: number;
+  autoPublished: number;
+  reviewQueued: number;
+  blocked: number;
+  imageFallbacks: number;
   errors: string | null;
   status: string;
+}
+
+interface DecisionRow {
+  id: string;
+  title: string;
+  slug: string;
+  status: string;
+  riskLevel: "GREEN" | "YELLOW" | "RED";
+  publicationDecision: "AUTO_PUBLISH" | "REVIEW" | "BLOCK";
+  sourceScore: number | null;
+  seoScore: number | null;
+  imageStrategy: string | null;
+  createdAt: string;
 }
 
 const CATEGORIES = [
@@ -32,11 +49,13 @@ const CATEGORIES = [
 export default function BotPage() {
   const [topics, setTopics] = useState<Topic[]>([]);
   const [runs, setRuns] = useState<BotRun[]>([]);
+  const [decisions, setDecisions] = useState<DecisionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [category, setCategory] = useState("");
   const [count, setCount] = useState(3);
   const [result, setResult] = useState<string | null>(null);
+  const [autoPublish, setAutoPublish] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -46,6 +65,7 @@ export default function BotPage() {
       .then(([t, r]) => {
         setTopics(t.topics || []);
         setRuns(r.runs || []);
+        setDecisions(r.recentDecisions || []);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -64,20 +84,21 @@ export default function BotPage() {
       const res = await fetch("/api/bot/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ count, category, words: 1000 }),
+        body: JSON.stringify({ count, category, words: 1000, autoPublish }),
       });
       const data = await res.json();
       if (data.error) {
         setResult(`Hata: ${data.error}`);
       } else {
         setResult(
-          `${data.added} makale oluşturuldu, ${data.duplicatesSkipped} duplicate atlandı` +
+          `${data.added} makale oluşturuldu · ${data.autoPublished} otomatik yayında · ${data.reviewQueued} incelemede · ${data.duplicatesSkipped} benzer içerik atlandı` +
             (data.errors?.length ? `, ${data.errors.length} hata` : "")
         );
       }
       const runsRes = await fetch("/api/admin/bot-runs");
       const runsData = await runsRes.json();
       setRuns(runsData.runs || []);
+      setDecisions(runsData.recentDecisions || []);
     } catch (e) {
       setResult(`Hata: ${(e as Error).message}`);
     } finally {
@@ -89,10 +110,10 @@ export default function BotPage() {
 
   return (
     <div>
-      <div className="adm-page-head"><h1 className="adm-h1">Makale Botu</h1></div>
+      <div className="adm-page-head"><h1 className="adm-h1">Otonom Yayın Merkezi</h1></div>
 
       <div className="adm-card">
-        <div className="adm-card-h"><div><b>Makale Üret</b><small>Yapay zeka ile otomatik içerik oluştur</small></div></div>
+        <div className="adm-card-h"><div><b>Yayın Akışını Çalıştır</b><small>Kaynak → içerik → görsel → kalite kapısı → yayın kararı</small></div></div>
         <div className="adm-card-b">
         <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
           <div>
@@ -108,14 +129,52 @@ export default function BotPage() {
             </select>
           </div>
           <button onClick={generate} disabled={generating} className="adm-btn adm-btn-primary">
-            {generating ? "Üretiliyor..." : "Makale Üret"}
+            {generating ? "Akış çalışıyor..." : "Akışı Başlat"}
           </button>
         </div>
+        <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14, color: "var(--ink2)", fontSize: 13 }}>
+          <input type="checkbox" checked={autoPublish} onChange={(e) => setAutoPublish(e.target.checked)} />
+          Eşikleri geçen yeşil içerikleri otomatik yayımla
+        </label>
+        <p style={{ marginTop: 6, fontSize: 11, color: "var(--muted)" }}>
+          Kapalıyken tüm içerikler denetim için taslakta kalır. Hassas içerikler bu seçenek açık olsa da otomatik yayımlanmaz.
+        </p>
         {result && (
           <div style={{ marginTop: 16, padding: "10px 14px", background: "var(--surface)", borderRadius: 8, fontSize: 13, color: result.startsWith("Hata") ? "var(--dn)" : "var(--up)" }}>
             {result}
           </div>
         )}
+        </div>
+      </div>
+
+      <div className="adm-card">
+        <div className="adm-card-h"><div><b>Son Yayın Kararları</b><small>Karar motorunun son 20 içerik için verdiği sonuç</small></div></div>
+        <div className="adm-card-b">
+          {decisions.length === 0 ? (
+            <p style={{ color: "var(--muted)", fontSize: 13 }}>Henüz karar kaydı yok</p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {decisions.map((item) => (
+                <div key={item.id} style={{ padding: 14, border: "1px solid var(--border)", borderRadius: 10, background: "var(--surface)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start" }}>
+                    <div style={{ minWidth: 0 }}>
+                      <p style={{ color: "var(--ink)", fontSize: 13, fontWeight: 600 }}>{item.title}</p>
+                      <p style={{ color: "var(--muted)", fontSize: 11, marginTop: 5 }}>
+                        Kaynak {item.sourceScore ?? "—"}/100 · SEO {item.seoScore ?? "—"}/100 · {item.imageStrategy || "görsel bekliyor"}
+                      </p>
+                    </div>
+                    <span style={{
+                      whiteSpace: "nowrap", fontSize: 10, padding: "4px 8px", borderRadius: 5,
+                      background: item.publicationDecision === "AUTO_PUBLISH" ? "var(--up-soft)" : item.riskLevel === "RED" ? "#fef2f2" : "#fffbeb",
+                      color: item.publicationDecision === "AUTO_PUBLISH" ? "var(--up)" : item.riskLevel === "RED" ? "var(--dn)" : "#b45309",
+                    }}>
+                      {item.publicationDecision === "AUTO_PUBLISH" ? "YAYINLANDI" : item.riskLevel === "RED" ? "HASSAS · İNCELE" : "İNCELE"}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -155,9 +214,11 @@ export default function BotPage() {
                     {r.status}
                   </span>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(90px, 1fr))", gap: 12 }}>
                   <Stat label="Bulunan" value={r.articlesFound} />
                   <Stat label="Eklenen" value={r.articlesAdded} color="var(--up)" />
+                  <Stat label="Yayında" value={r.autoPublished} color="var(--up)" />
+                  <Stat label="İncelemede" value={r.reviewQueued} color="#d97706" />
                   <Stat label="Duplicate" value={r.duplicatesSkipped} color="#d97706" />
                 </div>
                 {r.errors && (

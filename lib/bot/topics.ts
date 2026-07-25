@@ -6,6 +6,7 @@ export interface Topic {
   summary: string;
   category: string;
   source: string;
+  sourceUrl?: string;
   imageUrl?: string;
 }
 
@@ -96,7 +97,15 @@ export async function getTopics(limit = 20, category?: string): Promise<Topic[]>
           else continue;
         }
 
-        all.push({ title, summary, category: cat, source: feed.title || url, imageUrl, pubDate });
+        all.push({
+          title,
+          summary,
+          category: cat,
+          source: feed.title || url,
+          sourceUrl: entry.link || url,
+          imageUrl,
+          pubDate,
+        });
       }
     })
   );
@@ -124,7 +133,14 @@ export async function getTopics(limit = 20, category?: string): Promise<Topic[]>
       const key = t.title.slice(0, 40).toLowerCase();
       if (!seen.has(key)) {
         seen.add(key);
-        unique.push({ title: t.title, summary: t.summary, category: t.category, source: t.source, imageUrl: t.imageUrl });
+        unique.push({
+          title: t.title,
+          summary: t.summary,
+          category: t.category,
+          source: t.source,
+          sourceUrl: t.sourceUrl,
+          imageUrl: t.imageUrl,
+        });
       }
     }
     if (unique.length >= 5) break; // yeterli konu bulundu, pencereyi genişletme

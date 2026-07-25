@@ -19,30 +19,49 @@ enum ArticleSource {
   MANUAL
 }
 
+enum AutonomyRisk {
+  GREEN
+  YELLOW
+  RED
+}
+
+enum PublicationDecision {
+  AUTO_PUBLISH
+  REVIEW
+  BLOCK
+}
+
 model Article {
-  id            String         @id @default(cuid())
-  title         String
-  slug          String         @unique
-  meta          String
-  keyword       String?
-  category      String
-  content       String
-  imageUrl      String?
-  source        String?
-  status        ArticleStatus  @default(DRAFT)
-  articleSource ArticleSource  @default(BOT)
-  premium       Boolean        @default(false)
-  duplicateOf   String?
-  seoScore      Int?
+  id                  String              @id @default(cuid())
+  title               String
+  slug                String              @unique
+  meta                String
+  keyword             String?
+  category            String
+  content             String
+  imageUrl            String?
+  source              String?
+  status              ArticleStatus       @default(DRAFT)
+  articleSource       ArticleSource       @default(BOT)
+  premium             Boolean             @default(false)
+  duplicateOf         String?
+  seoScore            Int?
   // AI üretimi okuyucu yardımcıları: { summary: string[], impact: string, faq: {q,a}[] }.
   // Eski makalelerde null kalır; sayfa null'da kutuyu/FAQ schema'yı gizler (graceful).
-  aiExtras      Json?
-  publishedAt   DateTime?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  aiExtras            Json?
+  riskLevel           AutonomyRisk        @default(YELLOW)
+  publicationDecision PublicationDecision @default(REVIEW)
+  sourceScore         Int?
+  imageStrategy       String?
+  automationMeta      Json?
+  autoPublished       Boolean             @default(false)
+  publishedAt         DateTime?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
 
   @@index([category, status])
   @@index([status, publishedAt(sort: Desc)])
+  @@index([publicationDecision, createdAt(sort: Desc)])
 }
 
 model AdminUser {
@@ -85,16 +104,16 @@ model Subscriber {
 
 // A/B konu satırı testli bülten gönderimleri + açılma oranı takibi
 model NewsletterCampaign {
-  id           String   @id @default(cuid())
-  segment      String?  // null = tüm aktif aboneler, aksi halde kategori
-  subjectA     String
-  subjectB     String?  // null ise A/B testi yok
-  recipients   Int      @default(0)
-  recipientsA  Int      @default(0)
-  recipientsB  Int      @default(0)
-  opensA       Int      @default(0)
-  opensB       Int      @default(0)
-  sentAt       DateTime @default(now())
+  id          String   @id @default(cuid())
+  segment     String? // null = tüm aktif aboneler, aksi halde kategori
+  subjectA    String
+  subjectB    String? // null ise A/B testi yok
+  recipients  Int      @default(0)
+  recipientsA Int      @default(0)
+  recipientsB Int      @default(0)
+  opensA      Int      @default(0)
+  opensB      Int      @default(0)
+  sentAt      DateTime @default(now())
 
   @@index([sentAt])
 }
@@ -114,6 +133,24 @@ model BotRun {
   articlesFound     Int       @default(0)
   articlesAdded     Int       @default(0)
   duplicatesSkipped Int       @default(0)
+  autoPublished     Int       @default(0)
+  reviewQueued      Int       @default(0)
+  blocked           Int       @default(0)
+  imageFallbacks    Int       @default(0)
   errors            String?
   status            String    @default("running")
+}
+
+model AutomationEvent {
+  id        String   @id @default(cuid())
+  runId     String?
+  articleId String?
+  stage     String
+  level     String   @default("info")
+  message   String
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([runId, createdAt])
+  @@index([articleId, createdAt])
 }

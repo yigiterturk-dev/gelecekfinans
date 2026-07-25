@@ -13,6 +13,11 @@ export interface Settings {
     afterArticle?: boolean;
   };
   breakingNewsEnabled?: boolean;
+  autonomy?: {
+    enabled?: boolean;
+    dailyArticleCount?: number;
+    targetWords?: number;
+  };
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -23,6 +28,7 @@ const DEFAULT_SETTINGS: Settings = {
   searchConsoleVerification: "4aVBJpoKMchlL_iSElublDYdFr8BMugU2qMg3zU32D8",
   adSlots: { headerBanner: false, inArticle: false, sidebar: false, afterArticle: false },
   breakingNewsEnabled: true,
+  autonomy: { enabled: true, dailyArticleCount: 3, targetWords: 1000 },
 };
 
 export async function getSettings(): Promise<Settings> {
@@ -42,7 +48,12 @@ export async function getSettings(): Promise<Settings> {
 
 export async function updateSettings(data: Partial<Settings>): Promise<Settings> {
   const current = await getSettings();
-  const merged = { ...current, ...data };
+  const merged = {
+    ...current,
+    ...data,
+    autonomy: { ...current.autonomy, ...data.autonomy },
+    adSlots: { ...current.adSlots, ...data.adSlots },
+  };
   await prisma.siteSettings.upsert({
     where: { id: "singleton" },
     update: { value: merged as object },
