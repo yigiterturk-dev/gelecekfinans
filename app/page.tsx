@@ -34,6 +34,21 @@ export default async function HomePage() {
 
   return (
     <div className="container page-home" style={{ paddingTop: 28 }}>
+      <h1
+        style={{
+          position: "absolute",
+          width: 1,
+          height: 1,
+          padding: 0,
+          margin: -1,
+          overflow: "hidden",
+          clip: "rect(0, 0, 0, 0)",
+          whiteSpace: "nowrap",
+          border: 0,
+        }}
+      >
+        Finans ve Ekonomi Haberleri
+      </h1>
 
       {/* ── HABER LİDER (CNBC/Reuters tarzı): sayfanın üstünü HABER yönetir.
            Üstteki dev "CANLI PİYASA" board'u kaldırıldı (slim top ticker +
