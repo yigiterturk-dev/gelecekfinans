@@ -10,11 +10,14 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const settings = await getSettings();
+  if (settings.autonomy?.cronEnabled === false) {
+    return NextResponse.json({ skipped: true, reason: "Otomatik üretim ayarlardan duraklatıldı" });
+  }
   const result = await runPublishingPipeline({
     trigger: "cron",
-    count: settings.autonomy?.dailyArticleCount ?? 3,
-    targetWords: settings.autonomy?.targetWords ?? 1000,
-    autoPublish: settings.autonomy?.enabled ?? true,
+    count: settings.autonomy?.dailyArticleCount ?? 1,
+    targetWords: settings.autonomy?.targetWords ?? 550,
+    autoPublish: settings.autonomy?.enabled ?? false,
   });
   return NextResponse.json(result);
 }

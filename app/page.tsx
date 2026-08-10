@@ -5,17 +5,52 @@ import MarketMini from "@/components/MarketMini";
 import MoversRail from "@/components/MoversRail";
 import AdSlot from "@/components/AdSlot";
 import Link from "next/link";
+import type { Metadata } from "next";
 export const dynamic = "force-dynamic";
 export const revalidate = 300;
+
+export const metadata: Metadata = {
+  title: "Finans ve Ekonomi Haberleri",
+  description: "Borsa, döviz, altın, kripto para ve ekonomi gündemini doğrulanmış kaynaklar, canlı piyasa verileri ve ücretsiz hesaplama araçlarıyla takip edin.",
+  alternates: { canonical: "https://gelecekfinans.com" },
+};
 
 export default async function HomePage() {
   const all = await getAllArticles();
   if (!all.length) return (
-    <div className="container empty-state">
-      <p className="empty-title">Henüz makale yok</p>
-      <p className="empty-desc">
-        Admin panelinden makale ürettikten sonra burada görünecek.
-      </p>
+    <div className="container" style={{ paddingTop: 40, paddingBottom: 72 }}>
+      <div className="home-split" style={{ display: "grid", gridTemplateColumns: "1fr 320px", alignItems: "start", gap: 28 }}>
+        <main style={{ minWidth: 0 }}>
+          <span style={{ fontFamily: "var(--mono)", fontSize: 11, fontWeight: 700, letterSpacing: ".12em", color: "var(--accent)" }}>
+            EDİTORYAL YENİLEME
+          </span>
+          <h1 style={{ marginTop: 14, maxWidth: 720, fontFamily: "var(--display)", fontSize: "clamp(32px, 5vw, 58px)", lineHeight: 1.04, letterSpacing: "-.035em", color: "var(--ink)" }}>
+            Doğrulanmış haber masamızı yeniden kuruyoruz.
+          </h1>
+          <p style={{ marginTop: 20, maxWidth: 650, fontSize: 17, lineHeight: 1.7, color: "var(--ink2)" }}>
+            Eski otomatik içerikleri kalite incelemesine aldık. Yeni haberler iki bağımsız kaynak,
+            iddia doğrulaması ve özgünlük kontrolünden geçtikten sonra burada yer alacak.
+          </p>
+          <nav aria-label="Finans araçları" className="resp-grid-4" style={{ marginTop: 32 }}>
+            {[
+              ["Döviz Kurları", "/doviz"],
+              ["Altın Fiyatları", "/altin"],
+              ["Kripto Piyasası", "/kripto"],
+              ["Hesaplama Araçları", "/araclar"],
+            ].map(([label, href]) => (
+              <Link key={href} href={href} className="page-btn" style={{ minHeight: 48, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                {label}
+              </Link>
+            ))}
+          </nav>
+          <section style={{ marginTop: 48 }}>
+            <Newsletter />
+          </section>
+        </main>
+        <aside className="home-rail">
+          <MarketMini />
+        </aside>
+      </div>
     </div>
   );
 

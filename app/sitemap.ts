@@ -1,4 +1,4 @@
-import { getAllArticles } from "@/lib/articles";
+import { prisma } from "@/lib/db";
 import { FX_PAIRS, GOLD_TYPES, CRYPTO_COINS } from "@/lib/market";
 import type { MetadataRoute } from "next";
 
@@ -17,16 +17,26 @@ const TOOL_SLUGS = [
 ];
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const articles = await getAllArticles();
+  // Sitemap sorgusu sayfa görüntüleme istatistiklerine ihtiyaç duymaz. Doğrudan
+  // makale tablosunu okumak hem daha ucuzdur hem yeni yayınların sitemap'e
+  // başka bir sorgunun başarısına bağlı kalmadan girmesini sağlar.
+  const articles = await prisma.article.findMany({
+    where: { status: "PUBLISHED" },
+    orderBy: { publishedAt: "desc" },
+    take: 5000,
+    select: { slug: true, category: true, publishedAt: true, updatedAt: true, imageUrl: true },
+  });
   const articleEntries = articles.map((a) => ({
     url: `${BASE}/${a.slug}`,
-    lastModified: new Date(a.updatedAt || a.created_at),
+    lastModified: a.updatedAt,
     changeFrequency: "daily" as const,
     priority: 0.8,
+    ...(a.imageUrl ? { images: [a.imageUrl] } : {}),
   }));
 
+  const publishedCategories = new Set(articles.map((article) => article.category));
   const categories = ["kripto", "borsa", "doviz", "altin", "ekonomi"];
-  const catEntries = categories.map((c) => ({
+  const catEntries = categories.filter((c) => publishedCategories.has(c)).map((c) => ({
     url: `${BASE}/kategori/${c}`,
     changeFrequency: "daily" as const,
     priority: 0.7,
@@ -63,6 +73,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: BASE, changeFrequency: "hourly", priority: 1 },
     { url: `${BASE}/arsiv`, changeFrequency: "daily", priority: 0.6 },
     { url: `${BASE}/hakkimizda`, changeFrequency: "monthly", priority: 0.3 },
+    { url: `${BASE}/yayincilik-ilkeleri`, changeFrequency: "monthly", priority: 0.5 },
     { url: `${BASE}/iletisim`, changeFrequency: "monthly", priority: 0.3 },
     { url: `${BASE}/gizlilik-politikasi`, changeFrequency: "yearly", priority: 0.2 },
     { url: `${BASE}/kullanim-kosullari`, changeFrequency: "yearly", priority: 0.2 },

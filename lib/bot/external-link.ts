@@ -73,9 +73,21 @@ function linkTerm(content: string, term: string, url: string): string | null {
 export function ensureExternalLink(
   content: string,
   category: string,
-  keyword?: string | null
+  keyword?: string | null,
+  preferredSourceUrl?: string,
 ): string {
   if (hasExternalLink(content)) return content;
+
+  if (preferredSourceUrl) {
+    try {
+      const source = new URL(preferredSourceUrl);
+      if (source.protocol === "https:" || source.protocol === "http:") {
+        return `${content.trimEnd()}\n<p>Haberin çıkış noktası: <a href="${source.toString()}" target="_blank" rel="nofollow noopener noreferrer">orijinal kaynak</a>.</p>`;
+      }
+    } catch {
+      // Geçersiz kaynak URL'sinde aşağıdaki kategori bazlı güvenli fallback kullanılır.
+    }
+  }
 
   const sources = CATEGORY_SOURCES[category] || [DEFAULT_SOURCE];
 

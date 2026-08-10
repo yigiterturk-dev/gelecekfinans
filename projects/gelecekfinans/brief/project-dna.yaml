@@ -1,0 +1,34 @@
+project_dna:
+  version: 2026-08-06.v2
+  strategic_insight: GelecekFinans should win as a daily Turkish finance cockpit that explains what changed and provides useful tools, not as a high-volume generic news mirror.
+  primary_narrative:
+    - See what changed in the markets.
+    - Understand why it matters in plain Turkish.
+    - Calculate the effect on your own money.
+    - Return for the next verified update.
+  visual_thesis: Preserve the supplied restrained editorial-finance system; this revision introduces no new art direction.
+  signature_behavior: Market facts, explanatory context and practical calculators connect without fabricated personalization.
+  content_proof:
+    - timestamped market data
+    - official source links
+    - transparent publication and update times
+    - deterministic calculators
+    - recorded automation decisions and rejection reasons
+    - two-publisher evidence packets and claim-level evidence IDs
+    - deterministic source and 90-day archive plagiarism reports
+    - licensed media asset and license identifiers when photography is used
+  forbidden_patterns:
+    - one template forced onto every news category
+    - invented quotations, numbers or causal claims
+    - irrelevant TCMB, TL or market-price paragraphs
+    - source-free AI summaries
+    - publishing solely to increase article count
+    - copying source phrasing or recycling recent in-house article passages
+    - synthetic people, premises or events presented as documentary news photography
+    - ads placed to induce accidental clicks
+  uniqueness_targets:
+    - tool-led rather than article-volume-led growth
+    - explain personal impact only when evidence supports it
+    - visible source and freshness provenance
+    - Turkish mobile-first daily utility
+  evidence_status: verified

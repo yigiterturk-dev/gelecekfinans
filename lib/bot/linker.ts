@@ -7,6 +7,29 @@ interface LinkableArticle {
   keyword: string | null;
 }
 
+const CATEGORY_HUBS: Record<string, Array<{ href: string; label: string }>> = {
+  borsa: [
+    { href: "/kategori/borsa", label: "borsa haberleri" },
+    { href: "/faiz", label: "güncel faiz oranları" },
+  ],
+  doviz: [
+    { href: "/doviz", label: "canlı döviz kurları" },
+    { href: "/kategori/doviz", label: "döviz haberleri" },
+  ],
+  altin: [
+    { href: "/altin", label: "güncel altın fiyatları" },
+    { href: "/kategori/altin", label: "altın haberleri" },
+  ],
+  kripto: [
+    { href: "/kripto", label: "kripto para fiyatları" },
+    { href: "/kategori/kripto", label: "kripto para haberleri" },
+  ],
+  ekonomi: [
+    { href: "/kategori/ekonomi", label: "ekonomi haberleri" },
+    { href: "/araclar", label: "finans hesaplama araçları" },
+  ],
+};
+
 export async function autoLink(
   content: string,
   category: string,
@@ -38,6 +61,18 @@ export async function autoLink(
   const internalLinksAdded = countInternalLinks(html);
   if (internalLinksAdded < 2 && pool.length > 0) {
     html = injectKeywordLinks(html, pool, currentSlug, 3 - internalLinksAdded);
+  }
+
+  // Yayının ilk günlerinde bağlantı verilecek eski makale olmayabilir. Bu
+  // durumda da her haber, kalıcı kategori/veri merkezlerine bağlanır; ilk
+  // içerikten itibaren kopuk (orphan) sayfa oluşmaz.
+  const remaining = Math.max(0, 2 - countInternalLinks(html));
+  if (remaining > 0) {
+    const hubs = CATEGORY_HUBS[category] || CATEGORY_HUBS.ekonomi;
+    const links = hubs.slice(0, remaining)
+      .map((hub) => `<a href="${hub.href}">${hub.label}</a>`)
+      .join(" ve ");
+    html = `${html.trimEnd()}\n<p>Konunun güncel görünümü için ${links} sayfalarını inceleyebilirsiniz.</p>`;
   }
 
   return html;

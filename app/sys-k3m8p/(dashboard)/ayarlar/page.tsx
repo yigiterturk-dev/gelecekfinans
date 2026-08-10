@@ -5,6 +5,7 @@ export default function SettingsPage() {
   const [settings, setSettings] = useState({
     ga4Id: "", adsenseId: "", searchConsoleVerification: "",
     adSlots: { headerBanner: false, inArticle: false, sidebar: false, afterArticle: false },
+    autonomy: { cronEnabled: true, enabled: false, dailyArticleCount: 1, targetWords: 650 },
   });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -62,6 +63,28 @@ export default function SettingsPage() {
         </div>
       </Section>
 
+      <Section title="Otonom Yayın">
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <Toggle label="Günlük zamanlanmış akış çalışsın" checked={settings.autonomy.cronEnabled}
+            onChange={v => setSettings(s => ({ ...s, autonomy: { ...s.autonomy, cronEnabled: v } }))} />
+          <Toggle label="Kalite kapısını geçen içerikleri otomatik yayımla" checked={settings.autonomy.enabled}
+            onChange={v => setSettings(s => ({ ...s, autonomy: { ...s.autonomy, enabled: v } }))} />
+        </div>
+        <p className="adm-label" style={{ margin: "10px 0 0", lineHeight: 1.5 }}>
+          Otomatik yayın kapalıyken cron içerikleri taslak olarak hazırlar. Editör onayı olmadan siteye çıkmaz.
+        </p>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 16 }}>
+          <NumberField label="Günlük aday üst sınırı" min={1} max={2} value={settings.autonomy.dailyArticleCount}
+            onChange={v => setSettings(s => ({ ...s, autonomy: { ...s.autonomy, dailyArticleCount: v } }))} />
+          <NumberField label="Hedef gövde uzunluğu" min={450} max={900} step={50} value={settings.autonomy.targetWords}
+            onChange={v => setSettings(s => ({ ...s, autonomy: { ...s.autonomy, targetWords: v } }))} />
+        </div>
+        <div style={{ marginTop: 8, padding: 12, borderRadius: 8, background: "var(--surface2)", fontSize: 12, lineHeight: 1.6, color: "var(--ink2)" }}>
+          <b>Önerilen başlangıç:</b> günde 1 güçlü aday, yaklaşık 650 kelime. Araştırma taraması her gün
+          10:00&apos;da (Türkiye saati) çalışır. Sayı kota değil üst sınırdır; kalite kapısı geçilmezse içerik üretilmez.
+        </div>
+      </Section>
+
       <button onClick={save} disabled={saving} className="adm-btn adm-btn-primary" style={{ marginTop: 2, padding: "12px 28px" }}>
         {saving ? "Kaydediliyor..." : saved ? "Kaydedildi ✓" : "Kaydet"}
       </button>
@@ -83,6 +106,16 @@ function Field({ label, value, onChange, placeholder }: { label: string; value: 
     <label style={{ display: "block", marginBottom: 12 }}>
       <span className="adm-label">{label}</span>
       <input type="text" value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} className="adm-input" />
+    </label>
+  );
+}
+
+function NumberField({ label, value, onChange, min, max, step = 1 }: { label: string; value: number; onChange: (v: number) => void; min: number; max: number; step?: number }) {
+  return (
+    <label style={{ display: "block" }}>
+      <span className="adm-label">{label}</span>
+      <input type="number" value={value} min={min} max={max} step={step}
+        onChange={e => onChange(Number(e.target.value))} className="adm-input" />
     </label>
   );
 }

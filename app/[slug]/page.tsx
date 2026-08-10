@@ -24,7 +24,11 @@ export async function generateMetadata({params}:{params:Promise<{slug:string}>})
   return{
     title:a.title,description:a.meta,keywords:a.keyword,
     alternates: { canonical: `${BASE}/${slug}` },
-    openGraph:{title:a.title,description:a.meta,type:"article",publishedTime:a.created_at,url:`${BASE}/${slug}`,...(img&&{images:[{url:img}]})},
+    openGraph:{
+      title:a.title,description:a.meta,type:"article",publishedTime:a.created_at,
+      modifiedTime:a.updatedAt||a.created_at,authors:[`${BASE}/hakkimizda`],section:a.category,
+      url:`${BASE}/${slug}`,...(img&&{images:[{url:img,alt:a.title}]})
+    },
     twitter:{card:"summary_large_image",title:a.title,description:a.meta,...(img&&{images:[img]})},
   };
 }
@@ -33,20 +37,24 @@ export default async function ArticlePage({params}:{params:Promise<{slug:string}
   const {slug}=await params; const a=await getArticleBySlug(slug); if(!a)notFound();
   const cfg=CATS[a.category]??{l:a.category.toUpperCase(),c:"#555"};
   const img=a.imageUrl;
-  const date=new Date(a.created_at).toLocaleDateString("tr-TR",{day:"numeric",month:"long",year:"numeric"});
+  const publishedDate = new Date(a.created_at);
+  const updatedDate = new Date(a.updatedAt || a.created_at);
+  const date=publishedDate.toLocaleDateString("tr-TR",{day:"numeric",month:"long",year:"numeric"});
+  const visiblyUpdated = updatedDate.getTime() - publishedDate.getTime() > 60_000;
   const url = `${BASE}/${a.slug}`;
   const readTime = readingTime(a.content);
 
   // Structured data
   const ld={
-    "@context":"https://schema.org","@type":"NewsArticle",headline:a.title,
+    "@context":"https://schema.org","@type":"NewsArticle","@id":`${url}#article`,headline:a.title,
     description:a.meta,datePublished:a.created_at,dateModified:a.updatedAt||a.created_at,keywords:a.keyword,
-    mainEntityOfPage:{"@type":"WebPage","@id":url},
-    author:{"@type":"Organization",name:"GelecekFinans",url:BASE},
-    publisher:{"@type":"Organization",name:"GelecekFinans",url:BASE,logo:{"@type":"ImageObject",url:`${BASE}/icon.svg`}},
-    ...(img&&{image:img}),
+    articleSection:cfg.l,inLanguage:"tr-TR",
+    mainEntityOfPage:{"@type":"WebPage","@id":url,...(img&&{primaryImageOfPage:{"@type":"ImageObject","@id":`${url}#primaryimage`,url:img,caption:a.title}})},
+    author:{"@type":"Organization","@id":`${BASE}/#organization`,name:"GelecekFinans Haber Merkezi",url:`${BASE}/hakkimizda`},
+    publisher:{"@type":"NewsMediaOrganization","@id":`${BASE}/#organization`,name:"GelecekFinans",url:BASE,logo:{"@type":"ImageObject",url:`${BASE}/icon.svg`,width:512,height:512}},
+    isAccessibleForFree:!a.premium,
+    ...(img&&{image:{"@type":"ImageObject","@id":`${url}#primaryimage`,url:img,caption:a.title}}),
     ...(a.premium&&{
-      isAccessibleForFree:false,
       hasPart:{"@type":"WebPageElement",isAccessibleForFree:false,cssSelector:".article-prose"},
     }),
   };
@@ -120,7 +128,12 @@ export default async function ArticlePage({params}:{params:Promise<{slug:string}
       {/* Category + date */}
       <div className="article-meta-row">
         <span className="tag" style={{background:cfg.c}}>{cfg.l}</span>
-        <span className="article-date">{date}</span>
+        <time className="article-date" dateTime={a.created_at}>Yayınlandı: {date}</time>
+        {visiblyUpdated && (
+          <time className="article-date" dateTime={a.updatedAt}>
+            Güncellendi: {updatedDate.toLocaleDateString("tr-TR",{day:"numeric",month:"long",year:"numeric"})}
+          </time>
+        )}
         <span className="article-date">{readTime}</span>
       </div>
 
@@ -208,8 +221,11 @@ export default async function ArticlePage({params}:{params:Promise<{slug:string}
       <div className="author-box">
         <div className="author-avatar">GF</div>
         <div>
-          <div className="author-name">GelecekFinans</div>
-          <div className="author-role">Finans & Ekonomi Haberleri Editörü</div>
+          <Link href="/hakkimizda" className="author-name">GelecekFinans Haber Merkezi</Link>
+          <div className="author-role">
+            İki bağımsız kaynak ve özgünlük kontrolüyle hazırlanan finans haberleri.{" "}
+            <Link href="/yayincilik-ilkeleri">Yayın yöntemimiz</Link>
+          </div>
         </div>
       </div>
 
@@ -234,6 +250,19 @@ export default async function ArticlePage({params}:{params:Promise<{slug:string}
           </div>
         </section>
       )}
+
+      <nav className="article-discovery" aria-label="Konuyla ilgili finans sayfaları">
+        <strong>Konuyu takip et</strong>
+        <div className="market-chips">
+          <Link href={`/kategori/${a.category}`} className="market-chip">{cfg.l} haberleri</Link>
+          {a.category === "borsa" && <Link href="/faiz" className="market-chip">Faiz oranları</Link>}
+          {a.category === "doviz" && <Link href="/doviz" className="market-chip">Canlı döviz kurları</Link>}
+          {a.category === "altin" && <Link href="/altin" className="market-chip">Altın fiyatları</Link>}
+          {a.category === "kripto" && <Link href="/kripto" className="market-chip">Kripto fiyatları</Link>}
+          <Link href="/araclar" className="market-chip">Finans hesaplama araçları</Link>
+          <Link href="/arsiv" className="market-chip">Haber arşivi</Link>
+        </div>
+      </nav>
 
       <div className="article-back">
         <Link href="/" className="back-link">

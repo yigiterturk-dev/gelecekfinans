@@ -50,6 +50,7 @@ export default function SiteFooter() {
             <h4>Kurumsal</h4>
             <Link href="/arsiv" className="footer-link">Haber Arşivi</Link>
             <Link href="/hakkimizda" className="footer-link">Hakkımızda</Link>
+            <Link href="/yayincilik-ilkeleri" className="footer-link">Yayıncılık İlkeleri</Link>
             <Link href="/iletisim" className="footer-link">İletişim</Link>
             <Link href="/gizlilik-politikasi" className="footer-link">Gizlilik Politikası</Link>
             <Link href="/kullanim-kosullari" className="footer-link">Kullanım Koşulları</Link>
@@ -61,8 +62,8 @@ export default function SiteFooter() {
           © 2026 GelecekFinans — Yayınlanan içerikler bilgi amaçlıdır, yatırım tavsiyesi değildir.
         </p>
         <div className="footer-social">
-          <a href="https://x.com" target="_blank" rel="noopener noreferrer" aria-label="X">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+          <a href="/feed.xml" aria-label="RSS beslemesi">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M4 11a9 9 0 0 1 9 9h2.5A11.5 11.5 0 0 0 4 8.5V11Zm0 5a3 3 0 1 0 0 6 3 3 0 0 0 0-6Zm0-9a14 14 0 0 1 14 14h2.5A16.5 16.5 0 0 0 4 4.5V7Z"/></svg>
           </a>
         </div>
       </div>

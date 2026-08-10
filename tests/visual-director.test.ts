@@ -1,30 +1,40 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildImagePrompt, type VisualBrief } from "../lib/bot/visual-director";
+import { createBrandedCard } from "../lib/bot/images";
+import { createVisualBrief } from "../lib/bot/visual-director";
 
-const brief: VisualBrief = {
-  mode: "DOCUMENTARY_SCENE",
-  storyType: "energy-investment",
-  subject: "solar energy investment",
-  event: "a solar power installation entering operation",
-  setting: "an anonymous industrial rooftop",
-  mustShow: ["solar panels", "industrial roof"],
-  mustAvoid: ["currency exchange office", "company logo"],
-  peoplePolicy: "NO_PEOPLE",
-  composition: "wide crop-safe composition",
-  conceptKey: "industrial-solar-rooftop",
-  rationale: "The headline concerns an energy facility, not currency.",
-};
-
-test("görsel promptu somut brief öğelerini ve yasakları taşır", () => {
-  const prompt = buildImagePrompt(brief, "Şirket güneş enerjisi yatırımını devreye aldı");
-  assert.match(prompt, /solar panels/);
-  assert.match(prompt, /currency exchange office/);
-  assert.match(prompt, /Absolutely no readable writing/);
-  assert.match(prompt, /16:9 and 4:3/);
+test("doğrudan fiyat hareketi gerçek veri grafiğine gider", () => {
+  const brief = createVisualBrief({
+    title: "Dolar/TL kuru yüzde 2 yükseldi",
+    keyword: "dolar kuru",
+    category: "doviz",
+  });
+  assert.equal(brief.mode, "DATA_CHART");
+  assert.match(brief.rationale, /gerçek veri/i);
+});
+test("sağlayıcı yokken haber sentetik fotoğraf yerine markalı karta gider", () => {
+  const previousEndpoint = process.env.LICENSED_MEDIA_SEARCH_ENDPOINT;
+  const previousKey = process.env.LICENSED_MEDIA_API_KEY;
+  delete process.env.LICENSED_MEDIA_SEARCH_ENDPOINT;
+  delete process.env.LICENSED_MEDIA_API_KEY;
+  const brief = createVisualBrief({
+    title: "TCMB politika faizini sabit tuttu",
+    keyword: "politika faizi",
+    category: "ekonomi",
+  });
+  assert.equal(brief.mode, "BRANDED_CARD");
+  assert.match(brief.mustAvoid.join(" "), /sentetik kişi/i);
+  if (previousEndpoint) process.env.LICENSED_MEDIA_SEARCH_ENDPOINT = previousEndpoint;
+  if (previousKey) process.env.LICENSED_MEDIA_API_KEY = previousKey;
 });
 
-test("yeniden üretim geri bildirimi prompta eklenir", () => {
-  const prompt = buildImagePrompt(brief, "Başlık", "Remove the fake sign");
-  assert.match(prompt, /Remove the fake sign/);
+test("markalı kart gerçek PNG üretir", async () => {
+  const png = await createBrandedCard({
+    title: "TCMB politika faizini sabit tuttu",
+    keyword: "politika faizi",
+    category: "ekonomi",
+    evidenceSourceCount: 2,
+  });
+  assert.deepEqual([...png.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+  assert.ok(png.length > 10_000);
 });

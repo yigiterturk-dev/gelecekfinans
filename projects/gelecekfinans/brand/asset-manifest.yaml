@@ -1,0 +1,38 @@
+assets:
+  - id: existing-logo
+    type: logo
+    status: PROVIDED
+    owner: GelecekFinans
+    license: owner-provided
+    source: app/icon.svg
+    required_variants: [site-mark, favicon]
+    ratio_or_dimensions: existing
+    mobile_behavior: existing responsive header behavior
+    blocks_gate: null
+  - id: existing-font-system
+    type: font
+    status: PROVIDED
+    owner: GelecekFinans
+    license: existing project configuration
+    source: app/layout.tsx
+    required_variants: [display, body, data]
+    ratio_or_dimensions: not-applicable
+    mobile_behavior: existing responsive typography
+    blocks_gate: null
+  - id: editorial-images
+    type: image
+    status: TO_BE_CREATED
+    owner: GelecekFinans
+    license: contracted-provider-record-or-owner-generated-brand-card
+    source: licensed media adapter, verified market data, or deterministic article pipeline
+    required_variants: [article-hero, social-share]
+    ratio_or_dimensions: existing article contract
+    mobile_behavior: responsive crop with subject visibility
+    blocks_gate: null
+    evidence_required:
+      - provider
+      - asset_id
+      - license_id
+      - license_name
+      - source_url
+      - attribution

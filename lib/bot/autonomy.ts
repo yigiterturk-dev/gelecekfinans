@@ -2,7 +2,7 @@ import type { Topic } from "./topics";
 
 export type RiskLevel = "GREEN" | "YELLOW" | "RED";
 export type Decision = "AUTO_PUBLISH" | "REVIEW" | "BLOCK";
-export type ImageStrategy = "MARKET_CHART" | "AI_EDITORIAL" | "BRANDED_EDITORIAL";
+export type ImageStrategy = "MARKET_CHART" | "LICENSED_MEDIA" | "BRANDED_EDITORIAL";
 
 const FIRST_PARTY = [
   "tcmb.gov.tr", "tuik.gov.tr", "resmigazete.gov.tr", "spk.gov.tr",
@@ -19,7 +19,9 @@ const RED_TERMS = [
 ];
 const SPECULATIVE_TERMS = [
   "alınır mı", "satılır mı", "yükselecek", "düşecek", "fiyat hedefi",
-  "kazandıracak", "kaç olacak", "al sinyali", "sat sinyali",
+  "kazandıracak", "kaç olacak", "al sinyali", "sat sinyali", "yükselir mi",
+  "düşer mi", "fiyat öngörüsü", "fiyat tahmini", "uçuyor", "o tarihe işaret",
+  "kritik seviye",
 ];
 
 function hostname(url?: string): string {
@@ -74,7 +76,7 @@ export function classifyRisk(topic: Topic): { level: RiskLevel; reasons: string[
 export function chooseImageStrategy(category: string, risk: RiskLevel): ImageStrategy {
   if (["kripto", "doviz", "altin"].includes(category)) return "MARKET_CHART";
   if (risk === "RED") return "BRANDED_EDITORIAL";
-  return "AI_EDITORIAL";
+  return process.env.LICENSED_MEDIA_SEARCH_ENDPOINT ? "LICENSED_MEDIA" : "BRANDED_EDITORIAL";
 }
 
 export function decidePublication(input: {
@@ -83,13 +85,17 @@ export function decidePublication(input: {
   seoScore: number;
   hasImage: boolean;
   autoPublishEnabled: boolean;
+  verifiedEvidence: boolean;
 }): { decision: Decision; reasons: string[] } {
   const reasons: string[] = [];
   if (!input.autoPublishEnabled) return { decision: "REVIEW", reasons: ["Otomatik yayın kapalı"] };
   if (input.risk === "RED") return { decision: "REVIEW", reasons: ["Hassas konu insan kontrolü gerektiriyor"] };
+  if (!input.verifiedEvidence) {
+    return { decision: "REVIEW", reasons: ["İkinci bağımsız kaynak doğrulaması tamamlanmadı"] };
+  }
   if (input.sourceScore < 75) reasons.push(`Kaynak skoru düşük: ${input.sourceScore}/100`);
   if (input.seoScore < 70) reasons.push(`SEO skoru düşük: ${input.seoScore}/100`);
   if (!input.hasImage) reasons.push("Kalıcı kapak görseli yok");
   if (reasons.length) return { decision: "REVIEW", reasons };
-  return { decision: "AUTO_PUBLISH", reasons: ["Kaynak, SEO, risk ve görsel eşikleri geçti"] };
+  return { decision: "AUTO_PUBLISH", reasons: ["Kaynak doğrulaması, SEO, risk ve görsel eşikleri geçti"] };
 }

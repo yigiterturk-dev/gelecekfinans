@@ -1,343 +1,278 @@
+import Anthropic from "@anthropic-ai/sdk";
+import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import OpenAI from "openai";
-import { CATEGORY_PROMPTS, ARTICLE_WORDS, ARTICLE_MIN_WORDS } from "./config";
+import { zodTextFormat } from "openai/helpers/zod";
+import type { ArticleExtras } from "@/lib/types";
 import type { Topic } from "./topics";
-import type { ArticleExtras, ArticleFaq } from "@/lib/types";
-import { XMLParser } from "fast-xml-parser";
+import { evidenceMaterialCharacterCount } from "./research";
+import {
+  ArticleDraftSchema,
+  VerificationSchema,
+  type ArticleDraft,
+  type VerificationReport,
+} from "./article-schema";
+import { renderDraftHtml, validateDraft, type QualityReport } from "./quality";
+import { checkPlagiarism, type PlagiarismReport } from "./plagiarism";
+import { resolveArticleAIBudgetConfig } from "./ai-budget";
+import {
+  AIProviderConfigurationError,
+  AnthropicBillingError,
+  isAnthropicBillingError,
+  isOpenAIQuotaError,
+  OpenAIQuotaError,
+} from "./errors";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+export type ArticleAIProvider = "anthropic" | "openai";
 
-let _cachedPrices: { data: string; ts: number } | null = null;
+export interface ArticleAIConfig {
+  provider: ArticleAIProvider;
+  writerModel: string;
+  verifierModel: string;
+}
 
-async function getLivePrices(): Promise<string> {
-  if (_cachedPrices && Date.now() - _cachedPrices.ts < 10 * 60 * 1000) return _cachedPrices.data;
+export function resolveArticleAIConfig(
+  env: Record<string, string | undefined> = process.env,
+): ArticleAIConfig {
+  const requested = env.ARTICLE_AI_PROVIDER?.trim().toLocaleLowerCase("en-US");
+  if (requested && requested !== "anthropic" && requested !== "openai") {
+    throw new AIProviderConfigurationError(`Desteklenmeyen ARTICLE_AI_PROVIDER: ${requested}`);
+  }
+  const provider: ArticleAIProvider = requested === "anthropic"
+    ? "anthropic"
+    : requested === "openai" || Boolean(env.OPENAI_API_KEY)
+      ? "openai"
+      : "anthropic";
+
+  if (provider === "anthropic" && !env.ANTHROPIC_API_KEY) {
+    throw new AIProviderConfigurationError("Claude seçili ancak ANTHROPIC_API_KEY tanımlı değil.");
+  }
+  if (provider === "openai" && !env.OPENAI_API_KEY) {
+    throw new AIProviderConfigurationError("OpenAI seçili ancak OPENAI_API_KEY tanımlı değil.");
+  }
+
+  return provider === "anthropic"
+    ? {
+        provider,
+        writerModel: env.ANTHROPIC_ARTICLE_MODEL || "claude-sonnet-5",
+        verifierModel: env.ANTHROPIC_VERIFIER_MODEL || "claude-haiku-4-5",
+      }
+    : {
+        provider,
+        // Yedek adlar OpenAI'da gerçekten var olan modeller olmalı. Uydurma bir
+        // ada düşersek env silindiği anda bot sessizce model_not_found ile ölür.
+        writerModel: env.OPENAI_ARTICLE_MODEL || "gpt-5",
+        verifierModel: env.OPENAI_VERIFIER_MODEL || "gpt-5-mini",
+      };
+}
+
+let openaiClient: OpenAI | null = null;
+let anthropicClient: Anthropic | null = null;
+
+function openai(): OpenAI {
+  openaiClient ||= new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  return openaiClient;
+}
+
+function anthropic(): Anthropic {
+  anthropicClient ||= new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  return anthropicClient;
+}
+
+function evidencePrompt(topic: Topic): string {
+  const packet = topic.evidencePacket;
+  if (!packet || packet.status !== "VERIFIED") {
+    throw new Error("RESEARCH_BLOCKED: İki bağımsız kaynak doğrulaması tamamlanmadı");
+  }
+  const budget = resolveArticleAIBudgetConfig();
+  const blocks: string[] = [];
+  let usedCharacters = 0;
+  for (const item of packet.evidence) {
+    const material = (item.content || item.summary).slice(0, budget.evidenceItemCharacterLimit);
+    const block = [
+      `[${item.id}]`,
+      `Yayıncı: ${item.source}`,
+      `Başlık: ${item.title}`,
+      `Kanıt metni: ${material}`,
+      `URL: ${item.sourceUrl}`,
+      `Tarih: ${item.publishedAt || "belirtilmedi"}`,
+    ].join("\n");
+    if (blocks.length >= 2 && usedCharacters + block.length > budget.evidencePromptCharacterLimit) break;
+    blocks.push(block);
+    usedCharacters += block.length;
+  }
+  return blocks.join("\n\n");
+}
+function articleInstructions(targetWords: number): string {
+  return [
+    "GelecekFinans için Türkçe, ölçülü ve olgusal bir ekonomi haberi hazırla.",
+    "Yalnızca verilen kanıt paketindeki olguları kullan; dış bilgi, güncel fiyat veya bellekteki bilgi ekleme.",
+    "Her somut iddiayı claims alanında yaz ve destekleyen evidenceIds değerlerini belirt.",
+    "Kanıtlar çatışıyorsa kesin hüküm verme; metinde çatışmayı açıkça belirt.",
+    "Doğrudan alıntı kullanma. Uzman görüşü, neden-sonuç, oran, tarih, unvan veya Türkiye etkisi uydurma.",
+    "Yatırım tavsiyesi, teknik analiz, destek/direnç, fiyat hedefi ve gelecek tahmini yazma.",
+    `Gövdeyi malzemenin izin verdiği ölçüde ${Math.max(280, Math.min(targetWords, 800))} kelime civarında tut; doldurmak için tekrar yapma.`,
+    "Başlık 35-85, meta 120-180 karakter olsun. Keyword 1-3 kelime ve hem meta hem giriş paragrafında doğal biçimde geçsin.",
+    "Tam 3 özet maddesi ve 3 kısa SSS üret. Bullets yalnızca gerçekten listelenebilir olgular varsa dolu olsun.",
+    'Disclaimer tam olarak "Bu içerik yalnızca bilgilendirme amaçlıdır, yatırım tavsiyesi değildir." olsun.',
+    "Başarı ölçütü: kanıt dışı tek bir somut iddia veya rakam bulunmaması.",
+  ].join("\n");
+}
+
+async function generateDraft(
+  topic: Topic,
+  targetWords: number,
+): Promise<ArticleDraft> {
+  const config = resolveArticleAIConfig();
+  const budget = resolveArticleAIBudgetConfig();
   try {
-    const [tcmbRes, btcRes] = await Promise.all([
-      fetch("https://www.tcmb.gov.tr/kurlar/today.xml").then(r => r.text()),
-      fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd,try").then(r => r.json()),
-    ]);
-    const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_" });
-    const xml = parser.parse(tcmbRes);
-    const kurlar = xml?.Tarih_Date?.Currency || [];
-    const find = (code: string) => {
-      const k = kurlar.find((c: Record<string, string>) => c["@_CurrencyCode"] === code);
-      return k ? parseFloat(k.ForexSelling) : null;
-    };
-    const usd = find("USD");
-    const eur = find("EUR");
-    const btcUsd = btcRes?.bitcoin?.usd;
-    const btcTry = btcRes?.bitcoin?.try;
-    const ethUsd = btcRes?.ethereum?.usd;
-    let goldOzUsd = 2400;
-    try {
-      const goldRes = await fetch("https://query1.finance.yahoo.com/v8/finance/chart/GC=F?interval=1d&range=1d");
-      const goldData = await goldRes.json();
-      const goldPrice = goldData?.chart?.result?.[0]?.meta?.regularMarketPrice;
-      if (goldPrice) goldOzUsd = goldPrice;
-    } catch {}
-    const goldGramTry = usd ? Math.round((goldOzUsd / 31.1035) * usd) : null;
-
-    const lines = [
-      `Tarih: ${new Date().toLocaleDateString("tr-TR")}`,
-      usd ? `Dolar/TL: ${usd.toFixed(2)}` : null,
-      eur ? `Euro/TL: ${eur.toFixed(2)}` : null,
-      btcUsd ? `Bitcoin: $${btcUsd.toLocaleString("en-US")} (₺${Math.round(btcTry).toLocaleString("tr-TR")})` : null,
-      ethUsd ? `Ethereum: $${ethUsd.toLocaleString("en-US")}` : null,
-      goldGramTry ? `Gram Altın (yaklaşık): ₺${goldGramTry.toLocaleString("tr-TR")}` : null,
-    ].filter(Boolean);
-    const txt = lines.join("\n");
-    _cachedPrices = { data: txt, ts: Date.now() };
-    return txt;
-  } catch {
-    return "Güncel fiyat verisi alınamadı.";
-  }
-}
-
-function countWords(text: string): number {
-  return text.replace(/<[^>]+>/g, " ").split(/\s+/).filter(Boolean).length;
-}
-
-// Yazar personaları — her makale farklı bir gazeteci sesiyle yazılsın (tekdüze şablon hissini kırar).
-// Başlığa göre deterministik seçilir (aynı haber hep aynı yazar, ama haberler arası çeşitlilik).
-const AUTHOR_PERSONAS = [
-  { name: "Mehmet Arslan", voice: "Kıdemli makroekonomi muhabiri. Resmi, ölçülü, analitik dil; bağlam zengin, tarihsel perspektifli cümleler; kurumsal ton." },
-  { name: "Elif Demir", voice: "Genç, enerjik piyasa muhabiri. Akıcı, dinamik, doğrudan dil; kısa-orta cümleler; 'bu ne anlama geliyor' bağını hızlı kurar." },
-  { name: "Can Yılmaz", voice: "Veri odaklı ekonomi yazarı. Sade, net, süssüz; rakamı ve somut gelişmeyi öne çıkarır; kısa paragraflar, madde madde netlik." },
-  { name: "Zeynep Kaya", voice: "Açıklayıcı/eğitici muhabir. Karmaşık konuyu sade örneklerle anlatır; samimi ama profesyonel; okuyucuyu elinden tutar." },
-  { name: "Burak Şahin", voice: "Saha/aktüel haber muhabiri. Olay-odaklı, güçlü 5N1K, hızlı giriş; yorumdan çok olguya yaslanır." },
-];
-function pickPersona(seed: string) {
-  let h = 0;
-  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
-  return AUTHOR_PERSONAS[h % AUTHOR_PERSONAS.length];
-}
-
-async function buildPrompt(topic: Topic, targetWords: number): Promise<string> {
-  const prices = await getLivePrices();
-  const struct = CATEGORY_PROMPTS[topic.category]?.structure || "";
-
-  return `HABERİ YAZ — Konu: ${topic.title}
-Kaynak özet: ${topic.summary}
-Kategori: ${topic.category}
-Hedef uzunluk: EN AZ ${targetWords} kelime
-
-⚠️ ÖNEMLİ: Bu bir HABER yazısıdır, ANALİZ DEĞİL. Piyasa analizi, teknik görünüm, destek/direnç YAZMA.
-Haberin odağı: KİM NE DEDİ, NE KARAR ALDI, NE AÇIKLADI — somut olay ve gelişmeleri yaz.
-
-GÜNCEL PİYASA VERİLERİ (SADECE haber doğrudan kur/fiyat/piyasayla ilgiliyse kullan):
-${prices}
-⚠️ KRİTİK: Eğer haber piyasa/ekonomiyle DOĞRUDAN ilgili DEĞİLSE (kaza, atama, diplomasi, siyasi olay, genel gündem), yukarıdaki piyasa verilerini KULLANMA. Dolar/euro/TCMB/enflasyon gibi alakasız ekonomik yorumları haberin içine ZORLA SOKMA — bu saçma durur. Habere sadık kal, ne olduysa onu anlat.
-${struct ? `
-ÖNERİLEN BÖLÜM AKIŞI (yalnızca konuya UYUYORSA rehber al — UYMUYORSA ZORLAMA):
-${struct}
-Haber bu akışa uymuyorsa (örn. kaza/olay/atama/diplomasi haberi), bu başlıkları KULLANMA; habere uygun doğal ## başlıkları kur: ne oldu → detaylar → yetkili açıklamaları → etkisi → arka plan/geçmiş.
-` : ""}
-HABER FORMATI:
-1. SEO başlığı (55-62 karakter) — "X şunu açıkladı", "Y kararı alındı" gibi haber başlığı
-2. Meta description (150-160 karakter, focus keyword içersin)
-3. Focus keyword (1-3 kelime)
-4. Haber içeriği:
-   - İlk paragraf: Haberin özeti (ne oldu, kim açıkladı, ne zaman)
-   - Detaylar: Kararın/gelişmenin arka planı ve önemi
-   - Türkiye etkisi: Bu gelişme Türkiye'yi nasıl etkiler
-   - Uzman/yetkili görüşleri veya resmi açıklamalar
-   - Geçmişle karşılaştırma: Daha önce benzer durumda ne olmuştu
-
-SEO KURALLARI:
-- En az 4 tane ## (H2) başlığı kullan
-- Focus keyword'ü ilk paragrafta ve meta description'da kullan
-- Focus keyword'ü DOĞAL kullan; ASLA tekrar tekrar zorla yazma. Yoğunluk %2.5'i AŞMASIN
-  (ortalama her 40-50 kelimede en fazla 1 kez). Aynı kelimeyi tekrarlamak yerine eş anlamlı,
-  zamir ("o", "bu gelişme", "söz konusu karar") ve farklı ifadelerle çeşitlendir.
-- Makale içine madde listesi ekle
-
-DIŞ LİNK (ZORUNLU — en az 1 tane):
-- Gerçek URL kullan, placeholder YAZMA. Örnekler:
-  * [TCMB](https://www.tcmb.gov.tr)
-  * [TÜİK](https://www.tuik.gov.tr)
-  * [Bloomberg](https://www.bloomberg.com)
-  * [Reuters](https://www.reuters.com)
-- Format: [Görünen Metin](https://gercek-url.com)
-
-İÇ LİNK: Uygun bir yere "[DAHILI_LINK]" yerleştir.
-
-YASAKLAR:
-- Piyasa analizi, teknik analiz, destek/direnç, fiyat hedefi YAZMA
-- Yatırım tavsiyesi verme, al-sat sinyali verme
-- Kaynak metni kopyalama, özgün yaz
-- Sonuna disclaimer ekle
-
-OKUYUCU YARDIMCILARI (makaleyle birlikte üret — KISA ve NET):
-- OZET: Haberin en önemli 3 noktası, dikey çubuk (|) ile ayrılmış TEK satır. Her madde 1 cümle.
-- ETKI: "Senin için ne demek?" — bu haber dolar/euro/altın/kripto/mevduat tutan SIRADAN bir okuyucuyu somut olarak nasıl etkiler? 1-2 cümle, sade dil. Haber piyasayla DOĞRUDAN ilgili değilse aynen şunu yaz: "Bu haberin döviz, altın veya kripto varlıklarınıza doğrudan etkisi bulunmuyor."
-- SSS: Tam 3 soru-cevap. Format: S: soru || C: cevap, çiftler ;; ile ayrılır. Cevaplar 1-2 cümle, yatırım tavsiyesi içermez.
-
-Format (HER etiket TEK satırdır; ICERIK her zaman EN SONDA gelir):
-BASLIK: ...
-META: ...
-KEYWORD: ...
-OZET: birinci nokta | ikinci nokta | üçüncü nokta
-ETKI: ...
-SSS: S: birinci soru || C: birinci cevap ;; S: ikinci soru || C: ikinci cevap ;; S: üçüncü soru || C: üçüncü cevap
-ICERIK:
-[makale buraya]`;
-}
-
-function mdToHtml(text: string): string {
-  const lines = text.split("\n");
-  const out: string[] = [];
-
-  for (const raw of lines) {
-    const line = raw.trim();
-    if (!line) continue;
-
-    if (line.startsWith("## ")) {
-      out.push(`<h2>${inline(line.slice(3).trim())}</h2>`);
-    } else if (line.startsWith("### ")) {
-      out.push(`<h3>${inline(line.slice(4).trim())}</h3>`);
-    } else if (line.startsWith("- ")) {
-      out.push(`<li>${inline(line.slice(2).trim())}</li>`);
-    } else {
-      out.push(`<p>${inline(line)}</p>`);
+    const userPrompt = `KONU: ${topic.title}\nKATEGORİ: ${topic.category}\n\nKANIT PAKETİ:\n${evidencePrompt(topic)}`;
+    if (config.provider === "anthropic") {
+      const response = await anthropic().messages.parse({
+        model: config.writerModel,
+        max_tokens: 6000,
+        system: articleInstructions(targetWords),
+        messages: [{ role: "user", content: userPrompt }],
+        output_config: {
+          effort: "low",
+          format: zodOutputFormat(ArticleDraftSchema),
+        },
+      });
+      if (!response.parsed_output) throw new Error("Claude yapılandırılmış makale çıktısı alınamadı");
+      return response.parsed_output;
     }
-  }
 
-  const final: string[] = [];
-  let inList = false;
-  for (const item of out) {
-    if (item.startsWith("<li>") && !inList) {
-      final.push("<ul>");
-      inList = true;
-    } else if (!item.startsWith("<li>") && inList) {
-      final.push("</ul>");
-      inList = false;
+    const response = await openai().responses.parse({
+      model: config.writerModel,
+      max_output_tokens: budget.writerMaxOutputTokens,
+      reasoning: { effort: "none" },
+      input: [
+        { role: "system", content: articleInstructions(targetWords) },
+        { role: "user", content: userPrompt },
+      ],
+      text: { format: zodTextFormat(ArticleDraftSchema, "gelecekfinans_article") },
+    });
+    if (!response.output_parsed) throw new Error("OpenAI yapılandırılmış makale çıktısı alınamadı");
+    return response.output_parsed;
+  } catch (error) {
+    if (config.provider === "anthropic" && isAnthropicBillingError(error)) throw new AnthropicBillingError();
+    if (isOpenAIQuotaError(error)) throw new OpenAIQuotaError();
+    throw error;
+  }
+}
+
+async function verifyDraft(topic: Topic, draft: ArticleDraft): Promise<VerificationReport> {
+  const config = resolveArticleAIConfig();
+  const budget = resolveArticleAIBudgetConfig();
+  try {
+    const system = [
+      "Bağımsız bir finans haber doğrulayıcısısın.",
+      "Taslağı yalnızca verilen kanıtlarla karşılaştır.",
+      "Kanıtta açıkça bulunmayan veya kanıttan güvenle çıkarılamayan her iddiayı unsupportedClaims alanına ekle.",
+      "Kaynaklar birbiriyle çelişiyorsa conflictingClaims alanına ekle.",
+      "passed yalnızca tüm iddialar destekleniyor, önemli çelişki yok ve kanıt kimlikleri doğruysa true olabilir.",
+      "Eksik bilgiyi tahmin etme; durma kuralın tüm claims maddelerini bir kez incelemektir.",
+    ].join("\n");
+    const userPrompt = `KANITLAR:\n${evidencePrompt(topic)}\n\nTASLAK:\n${JSON.stringify(draft)}`;
+
+    if (config.provider === "anthropic") {
+      const response = await anthropic().messages.parse({
+        model: config.verifierModel,
+        max_tokens: 1600,
+        system,
+        messages: [{ role: "user", content: userPrompt }],
+        output_config: { format: zodOutputFormat(VerificationSchema) },
+      });
+      if (!response.parsed_output) throw new Error("Claude yapılandırılmış doğrulama çıktısı alınamadı");
+      return response.parsed_output;
     }
-    final.push(item);
+
+    const response = await openai().responses.parse({
+      model: config.verifierModel,
+      max_output_tokens: budget.verifierMaxOutputTokens,
+      reasoning: { effort: "none" },
+      input: [
+        { role: "system", content: system },
+        { role: "user", content: userPrompt },
+      ],
+      text: { format: zodTextFormat(VerificationSchema, "gelecekfinans_verification") },
+    });
+    if (!response.output_parsed) throw new Error("OpenAI yapılandırılmış doğrulama çıktısı alınamadı");
+    return response.output_parsed;
+  } catch (error) {
+    if (config.provider === "anthropic" && isAnthropicBillingError(error)) throw new AnthropicBillingError();
+    if (isOpenAIQuotaError(error)) throw new OpenAIQuotaError();
+    throw error;
   }
-  if (inList) final.push("</ul>");
-
-  return final.join("\n");
-}
-
-function inline(text: string): string {
-  return text
-    .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" rel="nofollow noopener noreferrer">$1</a>')
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/\*(.+?)\*/g, "<em>$1</em>");
-}
-
-/**
- * LLM çıktısındaki OZET/ETKI/SSS satırlarını yapılandırılmış `ArticleExtras`'a
- * dönüştürür. Model formata uymazsa alanlar boş kalır; hiçbiri yoksa null döner
- * (sayfa kutuyu/FAQ schema'yı graceful gizler). Plain metin — HTML basılmaz,
- * render/JSON-LD tarafında ayrıca kaçışlanır.
- */
-function parseExtras(summaryRaw: string, impactRaw: string, faqRaw: string): ArticleExtras | null {
-  const summary = summaryRaw
-    ? summaryRaw.split("|").map((s) => s.trim()).filter(Boolean).slice(0, 5)
-    : [];
-
-  const impact = impactRaw.trim();
-
-  const faq: ArticleFaq[] = faqRaw
-    ? faqRaw
-        .split(";;")
-        .map((chunk) => {
-          const [qPart, aPart] = chunk.split("||");
-          const q = (qPart || "").replace(/^\s*S\s*:\s*/i, "").trim();
-          const a = (aPart || "").replace(/^\s*C\s*:\s*/i, "").trim();
-          return q && a ? { q, a } : null;
-        })
-        .filter((x): x is ArticleFaq => x !== null)
-        .slice(0, 6)
-    : [];
-
-  if (summary.length === 0 && !impact && faq.length === 0) return null;
-  return {
-    ...(summary.length ? { summary } : {}),
-    ...(impact ? { impact } : {}),
-    ...(faq.length ? { faq } : {}),
-  };
-}
-
-function parseResponse(raw: string, topic: Topic) {
-  const lines = raw.split("\n");
-  let title = topic.title;
-  let meta = "";
-  let keyword = "";
-  let summaryRaw = "";
-  let impactRaw = "";
-  let faqRaw = "";
-  const contentLines: string[] = [];
-  let inContent = false;
-
-  for (const line of lines) {
-    if (!inContent && line.startsWith("BASLIK:")) {
-      title = line.replace("BASLIK:", "").trim();
-    } else if (!inContent && line.startsWith("META:")) {
-      meta = line.replace("META:", "").trim();
-    } else if (!inContent && line.startsWith("KEYWORD:")) {
-      keyword = line.replace("KEYWORD:", "").trim();
-    } else if (!inContent && line.startsWith("OZET:")) {
-      summaryRaw = line.replace("OZET:", "").trim();
-    } else if (!inContent && line.startsWith("ETKI:")) {
-      impactRaw = line.replace("ETKI:", "").trim();
-    } else if (!inContent && line.startsWith("SSS:")) {
-      faqRaw = line.replace("SSS:", "").trim();
-    } else if (line.startsWith("ICERIK:")) {
-      inContent = true;
-    } else if (inContent) {
-      contentLines.push(line);
-    }
-  }
-
-  const content = mdToHtml(contentLines.join("\n").trim());
-  const aiExtras = parseExtras(summaryRaw, impactRaw, faqRaw);
-
-  return { title, meta, keyword, content, aiExtras, category: topic.category, source: topic.source };
 }
 
 export async function writeArticle(
   topic: Topic,
-  targetWords = ARTICLE_WORDS,
-  maxRetries = 3
+  targetWords = 650,
 ): Promise<{
-  title: string; meta: string; keyword: string; content: string;
-  aiExtras: ArticleExtras | null;
-  category: string; source: string; wordCount: number;
+  title: string;
+  meta: string;
+  keyword: string;
+  content: string;
+  aiExtras: ArticleExtras;
+  category: string;
+  source: string;
+  wordCount: number;
+  quality: QualityReport;
+  verification: VerificationReport;
+  plagiarism: PlagiarismReport;
+  plagiarismRepairApplied: boolean;
+  ai: ArticleAIConfig;
 }> {
-  const catExtra = CATEGORY_PROMPTS[topic.category]?.system_extra || "";
-  const persona = pickPersona(topic.title);
-
-  const system = `Sen gelecekfinans.com için yazan ${persona.name} adlı deneyimli bir Türk ekonomi gazetecisisin.
-
-SENİN ÜSLUBUN: ${persona.voice}
-Bu üsluba SADIK kal — her yazarın sesi farklıdır; cümle yapın, tonun, paragraf uzunluğun ve kelime seçimin bu kimliğe uysun. Kalıplaşmış, tekdüze, "şablon doldurmuş" gibi yazma; doğal ve kendine özgü yaz.
-
-YAZIM TARZI:
-- Gazetecilik diliyle yaz — haber formatında, objektif, bilgilendirici
-- İlk paragrafta haberin özünü ver (5N1K: Ne oldu, kim açıkladı, ne zaman, neden önemli)
-- Haberi derinleştir: arka plan, bağlam, uzman/yetkili görüşleri, geçmişle karşılaştırma
-- H2 başlıkları kullan (## ile), en az 3 H2 bölümü olsun
-- ÖZGÜN İÇERİK: Kaynak metinlerden cümle kopyalama, haberi kendi cümlelerinle yaz
-- ANAHTAR KELİME DOĞALLIĞI: Focus keyword'ü zorla tekrar etme; yoğunluğu %2.5'in altında tut.
-  Aynı terimi tekrar yazmak yerine eş anlamlı, zamir ve farklı ifadelerle çeşitlendir (keyword stuffing yapma).
-
-HABER ODAĞI:
-- Kim ne dedi, ne karar aldı, ne açıkladı — SOMUT OLAYLAR yaz
-- "TCMB faizi sabit tuttu", "Ekonomi Bakanı X ile görüştü", "Enflasyon %X açıklandı" gibi GERÇEK haberler
-- Soyut piyasa analizi YAPMA. "Dolar/TL'nin teknik görünümü" gibi analiz yazıları YAZMA.
-- Her haberde konunun Türkiye ekonomisine etkisini açıkla
-
-⛔ YASAKLAR (KESİNLİKLE UYULMASI GEREKEN):
-- ASLA yatırım tavsiyesi verme, fiyat hedefi verme, al-sat sinyali verme
-- ASLA destek/direnç seviyesi, teknik analiz, fiyat tahmini yazma
-- ASLA "yükselecek", "düşecek" gibi kesin tahmin yapma
-- "Teknik seviyeler", "teknik görünüm", "teknik analiz" başlığı AÇMA
-- Piyasa verilerini sadece MEVCUT DURUM olarak aktar, gelecek tahmini yapma
-- Her yazının sonuna disclaimer ekle: "Bu içerik yalnızca bilgilendirme amaçlıdır, yatırım tavsiyesi değildir."
-${catExtra}`;
-
-  let article: ReturnType<typeof parseResponse> & { wordCount: number } = null!;
-
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    const wordsAsk = targetWords + attempt * 250;
-
-    let response;
-    try {
-      response = await openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: await buildPrompt(topic, wordsAsk) },
-        ],
-        max_tokens: Math.min(6000, wordsAsk * 3),
-        temperature: 0.7,
-      });
-    } catch (e: unknown) {
-      const err = e as { status?: number; message?: string };
-      if (err.status === 429 || err.status === 503) {
-        await new Promise(r => setTimeout(r, 5000));
-        response = await openai.chat.completions.create({
-          model: "gpt-4o-mini",
-          messages: [
-            { role: "system", content: system },
-            { role: "user", content: await buildPrompt(topic, wordsAsk) },
-          ],
-          max_tokens: Math.min(6000, wordsAsk * 3),
-          temperature: 0.7,
-        });
-      } else {
-        throw new Error(`OpenAI: ${err.status || "?"} — ${err.message || String(e)}`);
-      }
-    }
-
-    const raw = response.choices[0].message.content?.trim() || "";
-    const parsed = parseResponse(raw, topic);
-    const wc = countWords(parsed.content);
-    article = { ...parsed, wordCount: wc };
-
-    if (wc >= ARTICLE_MIN_WORDS) return article;
+  const packet = topic.evidencePacket;
+  if (!packet || packet.status !== "VERIFIED") {
+    throw new Error("RESEARCH_BLOCKED: İki bağımsız kaynak doğrulaması tamamlanmadı");
   }
 
-  return article;
+  const materialCharacters = evidenceMaterialCharacterCount(packet);
+  if (materialCharacters < 800) {
+    throw new Error(`RESEARCH_BLOCKED: Kanıt metni sağlam bir haber için fazla kısa: ${materialCharacters} karakter`);
+  }
+
+  const draft = await generateDraft(topic, targetWords);
+  const quality = validateDraft(draft, packet);
+  if (!quality.passed) {
+    throw new Error(`QUALITY_BLOCKED: ${quality.issues.join("; ")}`);
+  }
+
+  const content = renderDraftHtml(draft, packet);
+  const plagiarism = checkPlagiarism({
+    candidate: [
+      content,
+      ...draft.summary,
+      draft.impact,
+      ...draft.faq.flatMap((item) => [item.q, item.a]),
+    ].join(" "),
+    evidencePacket: packet,
+  });
+
+  if (!plagiarism.passed) {
+    throw new Error(`PLAGIARISM_BLOCKED: ${plagiarism.issues.join("; ")}`);
+  }
+
+  const verification = await verifyDraft(topic, draft);
+  if (!verification.passed || verification.unsupportedClaims.length || verification.conflictingClaims.length) {
+    const reasons = [...verification.unsupportedClaims, ...verification.conflictingClaims].join("; ");
+    throw new Error(`VERIFICATION_BLOCKED: ${reasons || "Model doğrulaması geçmedi"}`);
+  }
+
+  return {
+    title: draft.title,
+    meta: draft.meta,
+    keyword: draft.keyword,
+    content,
+    aiExtras: { summary: draft.summary, impact: draft.impact, faq: draft.faq },
+    category: topic.category,
+    source: packet.evidence.map((item) => item.source).join(", "),
+    wordCount: quality.wordCount,
+    quality,
+    verification,
+    plagiarism,
+    plagiarismRepairApplied: false,
+    ai: resolveArticleAIConfig(),
+  };
 }

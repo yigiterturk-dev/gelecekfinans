@@ -1,0 +1,154 @@
+protocol_version: NUSP-1.0
+project:
+  name: GelecekFinans
+  slug: gelecekfinans
+  workspace: projects/gelecekfinans
+  mode: revise
+project_zero:
+  gate: 8
+  status: PASS
+  project_dna_version: 2026-08-06.v2
+  reference_pool_version: existing-direction-locked
+delivery:
+  gate: G3
+  status: PASS_WITH_RECORDED_EXCEPTION
+specialists:
+  researcher: not_started
+  reference_scan: not_started
+  art_direction: not_started
+  motion: not_started
+  implementation: local_complete
+  visual_qa: pass_production_desktop_and_390px_article_admin_dom
+approvals:
+  direction: existing-direction-locked
+  static: existing-production-approved
+  release: deployed_and_verified_2026-08-06
+legacy_cleanup:
+  batch_id: legacy-gf-2026-08-06-v1
+  original_policy: reversible_archive_only
+  final_policy: permanent_delete_after_explicit_user_override
+  inventory_total: 76
+  archived_drafts: 57
+  archived_published: 19
+  archived_total: 76
+  permanently_deleted_total: 76
+  remaining_legacy_articles: 0
+  remaining_total_articles: 5
+  orphaned_article_media_deleted: 100
+  deleted_media_bytes: 204741317
+  remaining_article_media: 1
+  retained_media_path: articles/branded-borsa-1785987192273-1gk93t.png
+  retained_media_http_check: 200
+  database_rows_recoverable: false
+release:
+  production_url: https://gelecekfinans.com
+  deployment_id: dpl_Dzv9YUgx9VESLEpY2U6T2dMEtnUe
+  deployment_url: https://gelecekfinans-site-ceoepjchd-yamakyeter.vercel.app
+  status: READY
+  live_qa:
+    article_desktop_visual: pass
+    article_mobile_390_visual: pass
+    article_cover_natural_size: 720x405
+    browser_console_errors: 0
+    robots_general_and_news_sitemaps: pass
+    sitemap_published_article_and_image: pass
+    news_sitemap_recent_article_and_image: pass
+    article_news_schema: pass
+    publishing_principles_page: pass
+    sitemap_legacy_urls_removed: pass
+seo_geo_revision:
+  status: production_active
+  google_search_console_verification: present
+  max_image_preview_large: active
+  news_sitemap: https://gelecekfinans.com/news-sitemap.xml
+  general_sitemap: https://gelecekfinans.com/sitemap.xml
+  article_schema: NewsArticle_with_primary_image_author_publisher_dates
+  organization_schema: NewsMediaOrganization
+  fake_search_action_removed: true
+  thin_empty_categories_noindex: true
+  orphan_prevention: article_to_category_market_tools_archive
+  trust_pages:
+    - https://gelecekfinans.com/hakkimizda
+    - https://gelecekfinans.com/yayincilik-ilkeleri
+  cadence:
+    scheduled_scan: daily_10_00_Europe_Istanbul
+    candidate_upper_bound: 1
+    target_body_words: 650
+    auto_publish: false
+  local_qa: 47_tests_lint_build_pass
+ai_provider_revision:
+  status: production_active_openai_cost_guarded
+  preferred_provider: openai
+  writer_model: gpt-5.6-luna
+  verifier_model: gpt-5.6-luna
+  fallback_provider: anthropic_inactive
+  quality_gates_preserved: true
+  local_qa: 53_tests_lint_build_pass
+  production_activation: complete
+  cost_guard:
+    writer_calls_per_run: 1
+    daily_writer_call_limit: 10
+    writer_max_output_tokens: 2400
+    verifier_max_output_tokens: 800
+    reasoning_effort: none
+    paid_rewrite_retries: 0
+    evidence_prompt_max_characters: 14000
+    evidence_item_max_characters: 2500
+    timezone: Europe/Istanbul
+    live_writer_calls_during_migration: 0
+  acceptance_run:
+    run_id: cmsgygguo0000jm04vm0crvpq
+    provider_authentication: pass
+    claude_generation: pass
+    articles_added: 1
+    auto_published: 0
+    review_queued: 1
+    result: human_approved_and_published
+    article_id: cmsgyh7130002jm042qidb6b4
+    article_status: PUBLISHED
+    published_at: 2026-08-06T07:13:29+03:00
+    public_url: https://gelecekfinans.com/piyasa-kapanisi-5-agustos-2026-borsa-dolar-altin-verileri
+    quality_score: 100
+    verified_word_count: 332
+    plagiarism_score: 100
+    verifier: pass
+    image_strategy: BRANDED_EDITORIAL
+    production_image_visual_qa: pass
+    public_page_visual_qa: pass
+    homepage_visibility: pass
+  billing_visibility:
+    status: production_active
+    standard_key_connection_visible: true
+    secrets_exposed_to_browser: false
+    prepaid_balance_source: official_claude_billing
+    credit_purchase_handoff: https://platform.claude.com/settings/billing
+    optional_monthly_cost_source: anthropic_admin_cost_api
+    unauthenticated_endpoint_check: 401_private_no_store
+  batch_generation_2026_08_06:
+    requested_new_articles: 10
+    created_clean_drafts: 3
+    titles:
+      - BIST 100 Yüzde 0,11 Artışla Günü Kapattı
+      - THY Yılın İlk Yarısında 18 Milyar 864 Milyon Lira Kâr Etti
+      - Koç Holding 2026 İlk Yarı Sonuçlarını Açıkladı
+    auto_published: 0
+    stop_reason: anthropic_billing_error
+    total_articles_after_run: 5
+    published_articles_after_run: 1
+    draft_articles_after_run: 4
+    batch_request_chunking: production_active
+    failed_topic_cooldown_hours: 6
+    final_deployment: dpl_8nda6ATX4perPZhTuhkcfZeREgaw
+    browser_console_errors: 0
+admin_access_recovery:
+  status: complete
+  account: admin@gelecekfinans.com
+  password_rotated_at: 2026-08-06T07:09:51+03:00
+  secret_delivery: local_clipboard_only
+  plaintext_logged: false
+  clipboard_password_bcrypt_verification: pass
+open_decisions:
+  - Select a licensed editorial media provider and connect its adapter credentials.
+  - Configure AdSense publisher ID and a Google-certified CMP before serving ads to regulated regions.
+active_handoff: projects/gelecekfinans/brief/delta-brief.md
+updated_at: 2026-08-06T11:13:15+03:00

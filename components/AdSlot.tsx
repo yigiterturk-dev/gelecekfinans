@@ -1,6 +1,9 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Script from "next/script";
+import {
+  readPrivacyConsent, readServerPrivacyConsent, subscribePrivacyConsent,
+} from "@/lib/consent";
 
 interface Props {
   position: "headerBanner" | "inArticle" | "sidebar" | "afterArticle";
@@ -15,6 +18,11 @@ declare global {
 export default function AdSlot({ position }: Props) {
   const [enabled, setEnabled] = useState(false);
   const [adsenseId, setAdsenseId] = useState("");
+  const consent = useSyncExternalStore(
+    subscribePrivacyConsent,
+    readPrivacyConsent,
+    readServerPrivacyConsent,
+  );
   const pushed = useRef(false);
 
   useEffect(() => {
@@ -29,16 +37,16 @@ export default function AdSlot({ position }: Props) {
 
   // Reklam slotunu yalnızca etkin + adsenseId hazır olduğunda, bir kez kayıt et.
   useEffect(() => {
-    if (!enabled || !adsenseId || pushed.current) return;
+    if (!enabled || !adsenseId || consent !== "accepted" || pushed.current) return;
     try {
       (window.adsbygoogle = window.adsbygoogle || []).push({});
       pushed.current = true;
     } catch {
       /* AdSense betiği henüz yüklenmediyse onLoad sonrası yeniden denenir */
     }
-  }, [enabled, adsenseId]);
+  }, [enabled, adsenseId, consent]);
 
-  if (!enabled || !adsenseId) return null;
+  if (!enabled || !adsenseId || consent !== "accepted") return null;
 
   return (
     // CLS-güvenli kapsayıcı (min-height globals.css'te) — yapı korunuyor.

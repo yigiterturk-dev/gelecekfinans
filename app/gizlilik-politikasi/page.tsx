@@ -18,25 +18,30 @@ export default function GizlilikPolitikasi() {
     <div style={{ maxWidth: 720, margin: "0 auto", padding: "60px 24px 100px" }}>
       <h1 style={{ fontFamily: "var(--display)", fontSize: 36, fontWeight: 900, marginBottom: 24 }}>Gizlilik Politikası</h1>
       <div className="article-prose">
-        <p><strong>Son güncelleme:</strong> 17 Mayıs 2026</p>
+        <p><strong>Son güncelleme:</strong> 6 Ağustos 2026</p>
 
         <h2>Toplanan Veriler</h2>
         <p>
-          Sitemizi ziyaret ettiğinizde tarayıcı türü, IP adresi, ziyaret edilen sayfalar ve ziyaret
-          süresi gibi anonim kullanım verileri otomatik olarak toplanabilir. Bu veriler Google Analytics
-          ve Vercel Analytics aracılığıyla işlenir.
+          Site içi sayaç, ziyaret edilen sayfanın yolunu kişisel profil oluşturmadan kaydeder. Teknik
+          sunucu günlüklerinde güvenlik ve hata ayıklama amacıyla IP adresi, tarayıcı bilgisi ve istek
+          zamanı sınırlı süreyle yer alabilir. Onay vermeniz halinde Google Analytics ziyaret edilen
+          sayfa ve etkileşim gibi kullanım verilerini işler. Vercel Analytics toplulaştırılmış trafik
+          ölçümü sağlar.
         </p>
 
         <h2>Çerezler</h2>
         <p>
-          Sitemiz, kullanıcı deneyimini iyileştirmek ve trafik analizi yapmak amacıyla çerez
-          kullanmaktadır. Tarayıcı ayarlarınızdan çerezleri devre dışı bırakabilirsiniz.
+          Zorunlu işlevler dışındaki Google Analytics ve reklam hizmetleri yalnızca “Kabul et”
+          tercihinizden sonra yüklenir. “Yalnızca zorunlu” seçeneği bu hizmetleri yüklemez. Tercihiniz
+          tarayıcınızın yerel depolama alanında saklanır; site verilerini temizleyerek tercihinizi
+          sıfırlayabilirsiniz.
         </p>
 
         <h2>Üçüncü Taraf Hizmetler</h2>
         <p>
-          Reklam hizmetleri (Google AdSense) ve analitik araçları üçüncü taraf çerezleri
-          kullanabilir. Bu hizmetlerin kendi gizlilik politikaları geçerlidir.
+          Onay verdiğinizde Google Analytics ve etkinleştirilmişse Google AdSense gibi üçüncü taraf
+          hizmetler kendi teknolojilerini kullanabilir. Bu sağlayıcıların kendi gizlilik ve saklama
+          kuralları geçerlidir. Reklam tercihlerinizi Google reklam ayarlarından ayrıca yönetebilirsiniz.
         </p>
 
         <h2>Veri Güvenliği</h2>
@@ -49,6 +54,13 @@ export default function GizlilikPolitikasi() {
         <p>
           6698 sayılı KVKK kapsamında kişisel verilerinize erişim, düzeltme ve silme haklarına
           sahipsiniz. Taleplerinizi iletisim@gelecekfinans.com adresine iletebilirsiniz.
+        </p>
+
+        <h2>Veri Saklama ve İletişim</h2>
+        <p>
+          Veriler, belirtilen amaç için gerekli süreyle ve uygulanabilir yasal yükümlülükler kapsamında
+          saklanır. Erişim, düzeltme, silme veya itiraz taleplerinizde hangi işlem ya da veriyi kastettiğinizi
+          belirterek iletisim@gelecekfinans.com adresine ulaşabilirsiniz.
         </p>
       </div>
     </div>

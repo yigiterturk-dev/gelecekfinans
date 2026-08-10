@@ -4,6 +4,7 @@ import { asJson } from "@/lib/prisma-json";
 import { analyzeSeo } from "@/lib/seo";
 import { decidePublication } from "@/lib/bot/autonomy";
 import { getArticleImageResult } from "@/lib/bot/images";
+import { getSettings } from "@/lib/settings";
 
 export const maxDuration = 300;
 
@@ -38,14 +39,17 @@ export async function GET(req: NextRequest) {
     })
     .filter((value): value is string => Boolean(value));
 
+  const previous = (article.automationMeta || {}) as Record<string, unknown>;
   const image = await getArticleImageResult({
     title: article.title,
     keyword: article.keyword,
     category: article.category,
     recentConcepts,
     maxAttempts: 2,
+    evidenceSourceCount: typeof previous.evidencePacket === "object" && previous.evidencePacket
+      ? Number((previous.evidencePacket as { independentSourceCount?: number }).independentSourceCount || 0)
+      : 0,
   });
-  const previous = (article.automationMeta || {}) as Record<string, unknown>;
   const automationMeta = {
     ...previous,
     visual: {
@@ -53,6 +57,7 @@ export async function GET(req: NextRequest) {
       brief: image.brief,
       audit: image.audit,
       attempts: image.attempts,
+      licensedAsset: image.licensedAsset,
       repairedAt: new Date().toISOString(),
     },
   };
@@ -68,12 +73,14 @@ export async function GET(req: NextRequest) {
     title: article.title, meta: article.meta, keyword: article.keyword,
     content: article.content, slug: article.slug, imageUrl: image.url,
   });
+  const settings = await getSettings();
   const publication = decidePublication({
     risk: article.riskLevel,
     sourceScore: article.sourceScore || 0,
     seoScore: seo.score,
     hasImage: true,
-    autoPublishEnabled: true,
+    autoPublishEnabled: settings.autonomy?.enabled ?? false,
+    verifiedEvidence: previous.verifiedEvidence === true,
   });
   await prisma.article.update({
     where: { id: article.id },

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Hakkımızda",
@@ -30,13 +31,28 @@ export default function Hakkimizda() {
         </p>
         <h2>Editoryal Politikamız</h2>
         <p>
-          Tüm içeriklerimiz bilgilendirme amaçlıdır ve yatırım tavsiyesi niteliği taşımaz.
-          Kaynaklarımızı açıkça belirtir, doğrulanmamış bilgileri yayınlamayız.
-          Sponsorlu içerikler açıkça etiketlenir.
+          Haberlerimiz birincil veya güvenilir yayın kaynaklarıyla hazırlanır. Otomatik akıştan gelen bir konu,
+          iki bağımsız kaynak doğrulaması, iddia denetimi ve özgünlük kontrolü tamamlanmadan yayınlanmaz.
+          Kaynaklar yazının sonunda görünür biçimde paylaşılır.
+        </p>
+        <p>
+          Yapay zekâ; araştırma paketini düzenleme, taslak hazırlama ve kalite kontrol adımlarında yardımcı araç
+          olarak kullanılabilir. Sonuç; kaynak sınırı, intihal, finansal iddia ve yayın uygunluğu kontrollerine
+          tabidir. Ayrıntılı süreç için <Link href="/yayincilik-ilkeleri">yayıncılık ilkelerimizi</Link> inceleyebilirsiniz.
+        </p>
+        <h2>Bağımsızlık ve Şeffaflık</h2>
+        <p>
+          Tüm içeriklerimiz bilgilendirme amaçlıdır ve yatırım tavsiyesi niteliği taşımaz. Reklam veya sponsorlu
+          içerik, haber kararlarımızı belirlemez; ticari çalışmalar açıkça etiketlenir.
+        </p>
+        <h2>Düzeltmeler</h2>
+        <p>
+          Maddi bir hata tespit edildiğinde içerik düzeltilir ve güncellenme tarihi sayfada gösterilir.
+          Düzeltme taleplerini kaynak bağlantısıyla birlikte e-posta üzerinden iletebilirsiniz.
         </p>
         <h2>İletişim</h2>
         <p>
-          Sorularınız, önerileriniz veya düzeltme talepleriniz için{" "}
+          Sorularınız, kaynak bildirimleriniz veya düzeltme talepleriniz için{" "}
           <a href="mailto:iletisim@gelecekfinans.com" style={{ color: "var(--accent)" }}>iletisim@gelecekfinans.com</a> adresinden bize ulaşabilirsiniz.
         </p>
       </div>

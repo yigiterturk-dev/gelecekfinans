@@ -3068,3 +3068,35 @@ html.dark {
   line-height: 1.6;
   color: var(--muted);
 }
+/* Açık tercihli analitik/reklam katmanı; mobilde eylemler tam genişliğe iner. */
+.consent-banner{position:fixed;z-index:10000;left:20px;right:20px;bottom:20px;max-width:920px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:24px;padding:18px 20px;border:1px solid var(--border);border-radius:14px;background:var(--surface);color:var(--ink);box-shadow:0 18px 60px rgba(15,23,42,.18)}
+.consent-banner strong{display:block;margin-bottom:5px;font-size:15px}.consent-banner p{max-width:640px;font-size:13px;line-height:1.55;color:var(--ink2)}.consent-banner a{text-decoration:underline;text-underline-offset:2px}.consent-actions{display:flex;gap:8px;flex:0 0 auto}.consent-actions button{min-height:40px;padding:0 14px;border-radius:8px;border:1px solid var(--border);font:600 12px var(--font-sans);cursor:pointer}.consent-secondary{background:transparent;color:var(--ink)}.consent-primary{background:var(--ink);color:var(--surface)}
+@media(max-width:640px){.consent-banner{left:12px;right:12px;bottom:12px;display:block;padding:16px}.consent-actions{margin-top:14px}.consent-actions button{flex:1}}
+.article-discovery {
+  margin-top: 28px;
+  padding: 22px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.article-discovery > strong {
+  display: block;
+  margin-bottom: 14px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.author-name,
+.author-role a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.author-name:hover,
+.author-role a:hover {
+  text-decoration: underline;
+}

@@ -1,0 +1,45 @@
+# Approved decisions
+
+- 2026-08-06 — GelecekFinans is the first project; HirdavatPro follows, then EmlakAklı.
+- 2026-08-06 — Preserve the existing GelecekFinans visual identity during the operational relaunch.
+- 2026-08-06 — Replace article-volume thinking with a trustworthy finance utility and quality-gated newsroom.
+- 2026-08-06 — AdSense is a target revenue stream, subject to content quality, consent and policy readiness.
+- 2026-08-06 — Local implementation and verification may proceed; production release remains pending explicit approval.
+- 2026-08-06 — Scheduled production defaults to one approximately 550-word draft; automatic publication remains off.
+- 2026-08-06 — A single RSS item never satisfies automatic publication; independent evidence verification is mandatory.
+- 2026-08-06 — Google Analytics and AdSense scripts load only after an explicit visitor opt-in.
+- 2026-08-06 — A valid publisher ID in Site Settings becomes the canonical dynamic `/ads.txt` record.
+- 2026-08-06 — Every generated article requires two independent publisher identities and claim-level evidence references before verification.
+- 2026-08-06 — Source phrasing and the previous 90 days of in-house content are checked deterministically for copied passages before persistence.
+- 2026-08-06 — Editorial photography may come only from a contracted provider that returns provider, asset, license, source and attribution metadata.
+- 2026-08-06 — When licensed photography is unavailable, use defensible real-data charts or a deterministic GelecekFinans card; do not synthesize documentary scenes.
+- 2026-08-06 — Retire the legacy ready-made HTML ingest endpoint so automated content cannot bypass evidence, verification and plagiarism gates.
+- 2026-08-06 — Legacy bot content may be cleaned up through reversible archiving; do not hard-delete article or media records.
+- 2026-08-06 — Archive all 57 non-public legacy bot drafts under batch `legacy-gf-2026-08-06-v1`; keep the 19 published records live until their archive can be synchronized with the verified production release.
+- 2026-08-06 — User explicitly approved the verified production release and synchronized archiving of the 19 published legacy bot articles; Project Zero Gate 8 is open.
+- 2026-08-06 — Production deployment `dpl_9BpmGG3bd66pwMavE6J5kQA3KeBa` is live at `gelecekfinans.com`; all 76 legacy bot articles are archived and remain recoverable under batch `legacy-gf-2026-08-06-v1`.
+- 2026-08-06 — Add Anthropic as the preferred article provider without weakening the evidence, quality, plagiarism or human-review gates; use Claude Sonnet 5 for drafting and Claude Haiku 4.5 for verification by default.
+- 2026-08-06 — Never transmit the Anthropic API key through chat; store it only in local ignored environment files and Vercel's encrypted production environment.
+- 2026-08-06 — Anthropic is active in production. Keep the 280-word minimum and reject weak evidence instead of padding a thin article merely to create volume.
+- 2026-08-06 — Enrich evidence from publisher-page structured data and title-specific corroboration searches; do not treat thin RSS summaries as sufficient writing material.
+- 2026-08-06 — Treat market opening and closing as distinct event phases and ignore shared calendar terms when determining whether publishers cover the same story.
+- 2026-08-06 — Count all reader-visible, verified editorial sections toward the 280-word gate; include the same sections in plagiarism review.
+- 2026-08-06 — Keep the first accepted Claude article as `DRAFT`/`REVIEW` until explicit human approval. Production acceptance created article `cmsgyh7130002jm042qidb6b4`; it was not auto-published.
+- 2026-08-06 — Use the server-bundled deterministic renderer for branded fallback cards; production visual QA must confirm legible Turkish text before the image is attached.
+- 2026-08-06 — Add Claude connection and billing visibility to the autonomous newsroom; send balance checks and credit purchases to Anthropic's official Billing page instead of storing a manual or unverifiable balance in GelecekFinans.
+- 2026-08-06 — Permit an optional Anthropic organization Admin API key only for read-only monthly cost reporting; never expose standard or admin credentials to the browser.
+- 2026-08-06 — User explicitly approved rotating the inaccessible `admin@gelecekfinans.com` password; deliver the replacement only through the local Mac clipboard and verify it against the stored bcrypt hash without logging plaintext.
+- 2026-08-06 — User explicitly superseded the reversible archive-only policy and requested permanent deletion of every legacy article while preserving the new Claude article. Delete exactly the 76 verified archived bot records; retain article `cmsgyh7130002jm042qidb6b4`.
+- 2026-08-06 — User explicitly approved publication of the retained Claude article. Publish it after cleanup and verify its public page, branded cover, sources and homepage visibility.
+- 2026-08-06 — User explicitly approved permanent removal of legacy article media. Delete the 100 verified orphaned `articles/` Blob objects, retain only the live Claude article cover, verify the retained URL and remove the temporary credential file.
+- 2026-08-06 — User approved the GelecekFinans SEO/GEO traffic revision. Keep the existing visual direction while implementing standards-based crawling, News sitemap, structured article/entity data, trust pages and internal topic links.
+- 2026-08-06 — Do not add an `llms.txt` or other AI-only file as a Google ranking shortcut; Google AI search surfaces use the same crawlability, indexability, content, image and structured-data fundamentals as Search.
+- 2026-08-06 — Use one strong daily candidate as the initial cadence, targeting roughly 650 evidence-supported body words. Treat one as the upper bound rather than a quota and keep automatic publication disabled.
+- 2026-08-06 — Empty category archives remain noindex until they contain a published article; only populated category pages enter the standard sitemap.
+- 2026-08-06 — Production SEO/GEO deployment `dpl_DxT9kdxQbdPE6XNiHZ4DyCZtRTyc` is live at `gelecekfinans.com` and passed desktop/mobile visual QA, technical endpoint checks and zero-error browser console review.
+- 2026-08-06 — User requested ten additional articles with automatic publication disabled. Execute large admin batches as isolated one-article jobs, preserve all evidence and originality gates, and report only persisted drafts as completed articles.
+- 2026-08-06 — Cool quality-rejected headlines for six hours and draw from a wider candidate pool so repeated small jobs do not waste Claude credit on the same failed topic.
+- 2026-08-06 — The approved batch created three clean drafts (BIST 100, THY and Koç Holding) and stopped on Anthropic billing failure. Do not fabricate or weaken the remaining seven; resume after credit is added.
+- 2026-08-06 — User explicitly replaced Anthropic with OpenAI for the active GelecekFinans article pipeline. Use `gpt-5.6-luna` for both writing and verification, keep Responses structured outputs, and do not spend API credit during migration testing.
+- 2026-08-06 — Enforce one writer call per job, ten writer calls per Istanbul day, 2,400 writer output tokens and 800 verifier output tokens. Never pay for an automatic quality or plagiarism rewrite; block the draft instead.
+- 2026-08-06 — Production deployment `dpl_Dzv9YUgx9VESLEpY2U6T2dMEtnUe` activates OpenAI/Luna and the hard cost guard. Admin QA confirmed `0/10` writer calls after deployment.

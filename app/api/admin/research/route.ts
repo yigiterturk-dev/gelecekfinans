@@ -7,10 +7,12 @@ import { asJson } from "@/lib/prisma-json";
 import { slugify } from "@/lib/slug";
 import { analyzeSeo } from "@/lib/seo";
 import { writeArticle } from "@/lib/bot/writer";
-import { getArticleImage } from "@/lib/bot/images";
+import { getArticleImageResult } from "@/lib/bot/images";
 import { autoLink } from "@/lib/bot/linker";
 import { ensureExternalLink } from "@/lib/bot/external-link";
-import type { Topic } from "@/lib/bot/topics";
+import { classifyTopicText, findCorroboratedTopic } from "@/lib/bot/topics";
+import { classifyRisk, scoreSource } from "@/lib/bot/autonomy";
+import { checkPlagiarism } from "@/lib/bot/plagiarism";
 
 // Tek makale üretimi 120sn altında kalır; güvenli sınır.
 export const maxDuration = 120;
@@ -83,8 +85,8 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST { title, summary?, category? } → seçilen başlıktan TEK makale üretir ve kaydeder.
-// generate endpoint'i serbest topic almadığı için writeArticle'ı doğrudan çağırıyoruz.
+// POST → seçilen başlığı güncel feed havuzunda ikinci bir yayıncıyla doğrular;
+// doğrulanamayan seçim model çağrısı yapılmadan 422 ile durur.
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -93,15 +95,35 @@ export async function POST(req: NextRequest) {
   const title: string = (body.title || "").trim();
   if (!title) return NextResponse.json({ error: "Başlık gerekli." }, { status: 400 });
 
-  const topic: Topic = {
-    title,
-    summary: (body.summary || "").trim(),
-    category: typeof body.category === "string" && body.category ? body.category : "ekonomi",
-    source: (body.source || "Google Haberler").trim(),
-  };
+  const summary = (body.summary || "").trim();
+  const classification = classifyTopicText(title, summary);
+  if (!classification.category) {
+    return NextResponse.json({ error: "Başlık finans/ekonomi konusu olarak doğrulanamadı." }, { status: 422 });
+  }
+
+  const topic = await findCorroboratedTopic(title, classification.category);
+  if (!topic?.evidencePacket || topic.evidencePacket.status !== "VERIFIED") {
+    return NextResponse.json({
+      error: "İkinci bağımsız yayıncı bulunamadı. Bu konu için otomatik taslak oluşturulmadı.",
+    }, { status: 422 });
+  }
 
   try {
-    const article = await writeArticle(topic, 1000);
+    const article = await writeArticle(topic, 550);
+    const recent = await prisma.article.findMany({
+      where: { createdAt: { gte: new Date(Date.now() - 90 * 86400000) } },
+      orderBy: { createdAt: "desc" },
+      take: 200,
+      select: { id: true, title: true, content: true },
+    });
+    const plagiarism = checkPlagiarism({
+      candidate: article.content,
+      evidencePacket: topic.evidencePacket,
+      recentDocuments: recent,
+    });
+    if (!plagiarism.passed) {
+      return NextResponse.json({ error: `Kopya kontrolü geçmedi: ${plagiarism.issues.join("; ")}` }, { status: 422 });
+    }
     const slug = slugify(article.title);
 
     const existing = await prisma.article.findUnique({ where: { slug } });
@@ -114,13 +136,21 @@ export async function POST(req: NextRequest) {
     article.content = ensureExternalLink(article.content, article.category, article.keyword);
 
     // Görseli önceden hesapla: hem SEO görsel kontrolünü besler hem DB'ye yazılır.
-    const imageUrl = await getArticleImage({ title: article.title, keyword: article.keyword, category: article.category }) || null;
+    const image = await getArticleImageResult({
+      title: article.title,
+      keyword: article.keyword,
+      category: article.category,
+      evidenceSourceCount: topic.evidencePacket.independentSourceCount,
+    });
+    const imageUrl = image.url;
 
     const seo = analyzeSeo({
       title: article.title, meta: article.meta,
       keyword: article.keyword, content: article.content, slug, imageUrl,
     });
 
+    const sourceScore = scoreSource(topic);
+    const risk = classifyRisk(topic);
     const created = await prisma.article.create({
       data: {
         title: article.title,
@@ -137,6 +167,26 @@ export async function POST(req: NextRequest) {
         // kullanıcı düzenleyip onayladıktan sonra yayınlasın.
         status: "DRAFT",
         seoScore: seo.score,
+        riskLevel: risk.level,
+        sourceScore: sourceScore.score,
+        imageStrategy: image.strategy,
+        publicationDecision: "REVIEW",
+        automationMeta: asJson({
+          pipelineVersion: "gf-evidence-v4",
+          trigger: "admin-research",
+          verifiedEvidence: true,
+          evidencePacket: topic.evidencePacket,
+          quality: article.quality,
+          verification: article.verification,
+          plagiarism,
+          visual: {
+            strategy: image.strategy,
+            brief: image.brief,
+            audit: image.audit,
+            attempts: image.attempts,
+            licensedAsset: image.licensedAsset,
+          },
+        }),
         publishedAt: null,
       },
     });

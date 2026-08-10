@@ -10,6 +10,7 @@ import GoogleAnalytics from "@/components/GoogleAnalytics";
 import PageTracker from "@/components/PageTracker";
 import { Analytics } from "@vercel/analytics/react";
 import { getSettings } from "@/lib/settings";
+import CookieConsent from "@/components/CookieConsent";
 
 const BASE = "https://gelecekfinans.com";
 
@@ -49,7 +50,20 @@ export async function generateMetadata(): Promise<Metadata> {
     // İkonlar dosya tabanlı convention ile sunulur: app/icon.svg (favicon) ve
     // app/apple-icon.tsx (apple touch). Next bunları otomatik olarak <head>'e
     // ekler; bu yüzden burada açık `icons` tanımı yok (icon.svg öncelikli).
-    robots: { index: true, follow: true },
+    robots: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+      googleBot: {
+        index: true,
+        follow: true,
+        "max-image-preview": "large",
+        "max-snippet": -1,
+        "max-video-preview": -1,
+      },
+    },
     // Search Console doğrulaması: admin'de değer varsa onu, yoksa hiç ekleme.
     ...(gscCode ? { verification: { google: gscCode } } : {}),
     metadataBase: new URL(BASE),
@@ -94,12 +108,30 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="pb-ticker">
         <script type="application/ld+json" dangerouslySetInnerHTML={{__html:JSON.stringify({
-          "@context":"https://schema.org","@type":"WebSite",
-          name:"GelecekFinans",url:BASE,
-          potentialAction:{"@type":"SearchAction",target:{
-            "@type":"EntryPoint",urlTemplate:`${BASE}/?q={search_term_string}`
-          },"query-input":"required name=search_term_string"}
-        })}}/>
+          "@context":"https://schema.org",
+          "@graph":[
+            {
+              "@type":"NewsMediaOrganization",
+              "@id":`${BASE}/#organization`,
+              name:"GelecekFinans",
+              url:BASE,
+              logo:{"@type":"ImageObject",url:`${BASE}/icon.svg`,width:512,height:512},
+              foundingDate:"2026",
+              publishingPrinciples:`${BASE}/yayincilik-ilkeleri`,
+              ethicsPolicy:`${BASE}/yayincilik-ilkeleri`,
+              correctionsPolicy:`${BASE}/yayincilik-ilkeleri#duzeltme-politikasi`,
+              contactPoint:{"@type":"ContactPoint",contactType:"editorial",email:"iletisim@gelecekfinans.com",availableLanguage:"Turkish"}
+            },
+            {
+              "@type":"WebSite",
+              "@id":`${BASE}/#website`,
+              name:"GelecekFinans",
+              url:BASE,
+              inLanguage:"tr-TR",
+              publisher:{"@id":`${BASE}/#organization`}
+            }
+          ]
+        }).replace(/</g,"\\u003c")}}/>
         <GoogleAnalytics />
         <a href="#main" className="skip-link">İçeriğe geç</a>
         <ChromeGate>
@@ -113,6 +145,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </ChromeGate>
         <PageTracker />
         <Analytics />
+        <CookieConsent />
       </body>
     </html>
   );

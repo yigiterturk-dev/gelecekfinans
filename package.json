@@ -13,10 +13,16 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
+    "content:legacy:audit": "tsx scripts/archive-legacy-bot-articles.ts",
+    "content:legacy:archive": "tsx scripts/archive-legacy-bot-articles.ts --apply",
+    "content:legacy:archive-drafts": "tsx scripts/archive-legacy-bot-articles.ts --apply --drafts-only",
+    "content:legacy:archive-published": "tsx scripts/archive-legacy-bot-articles.ts --apply --published-only",
+    "content:legacy:restore": "tsx scripts/archive-legacy-bot-articles.ts --restore",
     "migrate:json": "npx tsx scripts/migrate-json-to-db.ts",
     "create:admin": "npx tsx scripts/create-admin.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.115.0",
     "@prisma/client": "^6.19.3",
     "@tailwindcss/typography": "^0.5.19",
     "@tiptap/extension-image": "^3.23.4",
@@ -36,7 +42,9 @@
     "react-dom": "19.2.4",
     "resend": "^6.12.3",
     "rss-parser": "^3.13.0",
-    "sanitize-html": "^2.17.5"
+    "sanitize-html": "^2.17.5",
+    "sharp": "^0.35.3",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

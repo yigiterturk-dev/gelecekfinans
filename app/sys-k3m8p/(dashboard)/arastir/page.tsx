@@ -55,7 +55,7 @@ export default function Research() {
       const res = await fetch("/api/admin/research", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: r.title, summary: r.snippet, source: r.source }),
+        body: JSON.stringify({ title: r.title, summary: r.snippet, source: r.source, sourceUrl: r.link }),
       });
       const d = await res.json();
       if (res.ok && d.articleId) {
@@ -82,7 +82,7 @@ export default function Research() {
 
       <p style={{ fontSize: 13, color: "var(--muted)", marginBottom: 16 }}>
         Konu veya anahtar kelime yaz; güncel haberleri Google Haberler üzerinden getirir.
-        İstersen bir sonuçtan doğrudan taslak makale üret.
+        Taslak üretimi için aynı olayın en az iki bağımsız yayıncıda doğrulanması gerekir.
       </p>
 
       <form onSubmit={search} style={{ display: "flex", gap: 8, marginBottom: 16 }}>

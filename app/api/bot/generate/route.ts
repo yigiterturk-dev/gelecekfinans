@@ -11,9 +11,9 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const result = await runPublishingPipeline({
     trigger: "admin",
-    count: Number(body.count) || 3,
+    count: Number(body.count) || 1,
     category: typeof body.category === "string" ? body.category : "",
-    targetWords: Number(body.words) || 1000,
+    targetWords: Number(body.words) || 650,
     autoPublish: body.autoPublish === true,
   });
   return NextResponse.json(result);

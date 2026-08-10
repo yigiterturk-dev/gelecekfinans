@@ -14,6 +14,7 @@ export interface Settings {
   };
   breakingNewsEnabled?: boolean;
   autonomy?: {
+    cronEnabled?: boolean;
     enabled?: boolean;
     dailyArticleCount?: number;
     targetWords?: number;
@@ -28,7 +29,11 @@ const DEFAULT_SETTINGS: Settings = {
   searchConsoleVerification: "4aVBJpoKMchlL_iSElublDYdFr8BMugU2qMg3zU32D8",
   adSlots: { headerBanner: false, inArticle: false, sidebar: false, afterArticle: false },
   breakingNewsEnabled: true,
-  autonomy: { enabled: true, dailyArticleCount: 3, targetWords: 1000 },
+  // enabled=false iken decidePublication her makaleyi REVIEW'a atar ve kimse
+  // kuyruğu boşaltmazsa site hiç güncellenmez. Kalite kapıları (RED konu,
+  // ikinci bağımsız kaynak, kaynak/SEO skoru, kapak görseli) zaten ayrı
+  // çalıştığı için otomatik yayın varsayılan olarak açıktır.
+  autonomy: { cronEnabled: true, enabled: true, dailyArticleCount: 2, targetWords: 650 },
 };
 
 export async function getSettings(): Promise<Settings> {
@@ -39,7 +44,13 @@ export async function getSettings(): Promise<Settings> {
   try {
     const row = await prisma.siteSettings.findUnique({ where: { id: "singleton" } });
     if (!row) return DEFAULT_SETTINGS;
-    return { ...DEFAULT_SETTINGS, ...(row.value as object) };
+    const stored = row.value as Settings;
+    return {
+      ...DEFAULT_SETTINGS,
+      ...stored,
+      autonomy: { ...DEFAULT_SETTINGS.autonomy, ...stored.autonomy },
+      adSlots: { ...DEFAULT_SETTINGS.adSlots, ...stored.adSlots },
+    };
   } catch (err) {
     console.error("[getSettings] sorgu başarısız, default ayarlar kullanılıyor:", err);
     return DEFAULT_SETTINGS;
@@ -48,10 +59,21 @@ export async function getSettings(): Promise<Settings> {
 
 export async function updateSettings(data: Partial<Settings>): Promise<Settings> {
   const current = await getSettings();
+  const requestedCount = data.autonomy?.dailyArticleCount;
+  const requestedWords = data.autonomy?.targetWords;
   const merged = {
     ...current,
     ...data,
-    autonomy: { ...current.autonomy, ...data.autonomy },
+    autonomy: {
+      ...current.autonomy,
+      ...data.autonomy,
+      ...(requestedCount != null
+        ? { dailyArticleCount: Math.max(1, Math.min(2, Math.round(requestedCount))) }
+        : {}),
+      ...(requestedWords != null
+        ? { targetWords: Math.max(450, Math.min(900, Math.round(requestedWords))) }
+        : {}),
+    },
     adSlots: { ...current.adSlots, ...data.adSlots },
   };
   await prisma.siteSettings.upsert({

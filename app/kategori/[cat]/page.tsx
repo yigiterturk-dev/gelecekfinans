@@ -15,6 +15,7 @@ export async function generateMetadata({params, searchParams}:{params:Promise<{c
   const {cat}=await params; const c=CATS[cat]; if(!c)return{};
   const {sayfa}=await searchParams;
   const page = Math.max(1, parseInt(sayfa || "1"));
+  const articleCount = (await getArticlesByCategory(cat)).length;
   const canonical = page > 1 ? `${BASE}/kategori/${cat}?sayfa=${page}` : `${BASE}/kategori/${cat}`;
   const title = page > 1 ? `${c.l} Haberleri — Sayfa ${page}` : `${c.l} Haberleri ve Son Dakika Gelişmeleri`;
   const description = `Güncel ${c.l.toLowerCase()} haberleri, analizleri ve son dakika gelişmeleri. GelecekFinans'tan tarafsız ${c.l.toLowerCase()} piyasası takibi.`;
@@ -22,6 +23,7 @@ export async function generateMetadata({params, searchParams}:{params:Promise<{c
     title,
     description,
     alternates: { canonical },
+    robots: { index: articleCount > 0, follow: true },
     openGraph: {
       type: "website",
       url: canonical,
