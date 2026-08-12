@@ -97,7 +97,7 @@ export async function GET(req: NextRequest) {
   try {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const [subscribers, articles] = await Promise.all([
-      prisma.subscriber.findMany({ where: { active: true }, select: { email: true } }),
+      prisma.subscriber.findMany({ where: { active: true, confirmed: true }, select: { email: true } }),
       prisma.article.findMany({
         where: { status: "PUBLISHED", publishedAt: { gte: since } },
         orderBy: { publishedAt: "desc" },
@@ -107,8 +107,7 @@ export async function GET(req: NextRequest) {
     ]);
 
     if (subscribers.length > 0 && articles.length > 0) {
-      await sendDailyDigest(subscribers.map(s => s.email), articles);
-      mailSent = subscribers.length;
+      mailSent = await sendDailyDigest(subscribers.map(s => s.email), articles);
     }
   } catch (e) {
     errors.push(`Newsletter: ${(e as Error).message}`);

@@ -1,19 +1,11 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
-import { verifyUnsubToken, hasNewsletterSecret } from "@/lib/newsletter";
+import { verifyUnsubToken } from "@/lib/newsletter";
 
 export async function GET(req: NextRequest) {
   // Tercih edilen yol: imzalı token (IDOR'a kapalı — yalnızca kendi adresini iptal edebilirsin).
   const token = req.nextUrl.searchParams.get("token");
-  let email = verifyUnsubToken(token);
-
-  // Geriye dönük fail-safe: yalnızca secret hiç yapılandırılmamışsa eski
-  // imzasız email parametresini kabul et. Secret varken bu yol kapalı,
-  // böylece eski/imzasız linkler enumeration için kullanılamaz.
-  if (!email && !hasNewsletterSecret()) {
-    const raw = req.nextUrl.searchParams.get("email");
-    if (raw) email = decodeURIComponent(raw);
-  }
+  const email = verifyUnsubToken(token);
 
   if (!email) {
     return new Response(

@@ -29,11 +29,14 @@ export function sanitizePreferences(input: unknown): Segment[] {
   return [...out];
 }
 
-const SECRET =
-  process.env.NEWSLETTER_SECRET ||
-  process.env.NEXTAUTH_SECRET ||
-  process.env.CRON_SECRET ||
-  "";
+function newsletterSecret(): string {
+  return (
+    process.env.NEWSLETTER_SECRET ||
+    process.env.NEXTAUTH_SECRET ||
+    process.env.CRON_SECRET ||
+    ""
+  );
+}
 
 /**
  * E-posta için imzalı double-opt-in token üretir.
@@ -50,14 +53,15 @@ function fromB64url(s: string): Buffer {
 }
 
 export function hasNewsletterSecret(): boolean {
-  return SECRET.length > 0;
+  return newsletterSecret().length > 0;
 }
 
 export function signOptInToken(email: string, ttlMs = 1000 * 60 * 60 * 48): string | null {
-  if (!SECRET) return null;
+  const secret = newsletterSecret();
+  if (!secret) return null;
   const exp = Date.now() + ttlMs;
   const payload = b64url(Buffer.from(`${email}|${exp}`, "utf8"));
-  const sig = b64url(createHmac("sha256", SECRET).update(payload).digest());
+  const sig = b64url(createHmac("sha256", secret).update(payload).digest());
   return `${payload}.${sig}`;
 }
 
@@ -66,11 +70,12 @@ export function signOptInToken(email: string, ttlMs = 1000 * 60 * 60 * 48): stri
  * Sabit-zaman karşılaştırma kullanır.
  */
 export function verifyOptInToken(token: string | null | undefined): string | null {
-  if (!SECRET || !token) return null;
+  const secret = newsletterSecret();
+  if (!secret || !token) return null;
   const parts = token.split(".");
   if (parts.length !== 2) return null;
   const [payload, sig] = parts;
-  const expected = b64url(createHmac("sha256", SECRET).update(payload).digest());
+  const expected = b64url(createHmac("sha256", secret).update(payload).digest());
   const a = Buffer.from(sig);
   const b = Buffer.from(expected);
   if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
@@ -98,19 +103,21 @@ export function verifyOptInToken(token: string | null | undefined): string | nul
  * Anahtar yoksa null döner (çağıran taraf eski/no-op davranışına düşer).
  */
 export function signUnsubToken(email: string): string | null {
-  if (!SECRET) return null;
+  const secret = newsletterSecret();
+  if (!secret) return null;
   const payload = b64url(Buffer.from(`unsub|${email}`, "utf8"));
-  const sig = b64url(createHmac("sha256", SECRET).update(payload).digest());
+  const sig = b64url(createHmac("sha256", secret).update(payload).digest());
   return `${payload}.${sig}`;
 }
 
 /** Unsubscribe token'ı doğrular; geçerliyse email döner, aksi halde null. */
 export function verifyUnsubToken(token: string | null | undefined): string | null {
-  if (!SECRET || !token) return null;
+  const secret = newsletterSecret();
+  if (!secret || !token) return null;
   const parts = token.split(".");
   if (parts.length !== 2) return null;
   const [payload, sig] = parts;
-  const expected = b64url(createHmac("sha256", SECRET).update(payload).digest());
+  const expected = b64url(createHmac("sha256", secret).update(payload).digest());
   const a = Buffer.from(sig);
   const b = Buffer.from(expected);
   if (a.length !== b.length || !timingSafeEqual(a, b)) return null;

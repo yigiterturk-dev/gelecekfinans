@@ -4,7 +4,16 @@ import type { Topic } from "./topics";
 import type { ArticleExtras, ArticleFaq } from "@/lib/types";
 import { XMLParser } from "fast-xml-parser";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+let openaiClient: OpenAI | null = null;
+
+function getOpenAI(): OpenAI {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new Error("OPENAI_API_KEY yapılandırılmamış.");
+  }
+  if (!openaiClient) openaiClient = new OpenAI({ apiKey });
+  return openaiClient;
+}
 
 let _cachedPrices: { data: string; ts: number } | null = null;
 
@@ -265,6 +274,7 @@ export async function writeArticle(
   aiExtras: ArticleExtras | null;
   category: string; source: string; wordCount: number;
 }> {
+  const openai = getOpenAI();
   const catExtra = CATEGORY_PROMPTS[topic.category]?.system_extra || "";
   const persona = pickPersona(topic.title);
 

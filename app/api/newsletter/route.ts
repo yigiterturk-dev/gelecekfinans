@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { sanitizePreferences, signOptInToken, hasNewsletterSecret } from "@/lib/newsletter";
-import { sendOptInConfirmation } from "@/lib/mail";
+import { mailEnabled, sendOptInConfirmation } from "@/lib/mail";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -40,11 +40,24 @@ export async function POST(req: NextRequest) {
   const safeSource =
     typeof source === "string" ? source.slice(0, 40).replace(/[^\w-]/g, "") : "site-form";
 
+  if (!hasNewsletterSecret() || !mailEnabled()) {
+    return NextResponse.json(
+      { error: "Bülten teslimatı yapılandırılmamış" },
+      { status: 503 }
+    );
+  }
+
   try {
     // Çift-onay: yeni veya doğrulanmamış aboneler confirmed=false kalır.
     await prisma.subscriber.upsert({
       where: { email: normalizedEmail },
-      update: { active: true, preferences: prefs, source: safeSource || "site-form" },
+      update: {
+        active: true,
+        confirmed: false,
+        confirmedAt: null,
+        preferences: prefs,
+        source: safeSource || "site-form",
+      },
       create: {
         email: normalizedEmail,
         preferences: prefs,
@@ -55,17 +68,19 @@ export async function POST(req: NextRequest) {
 
     // Double opt-in: imzalı token ile onay maili gönder (env-gated).
     const token = signOptInToken(normalizedEmail);
-    let confirmationSent = false;
-    if (token) {
-      confirmationSent = await sendOptInConfirmation(normalizedEmail, token);
+    if (!token) {
+      return NextResponse.json({ error: "Onay bağlantısı üretilemedi" }, { status: 503 });
+    }
+    const confirmationSent = await sendOptInConfirmation(normalizedEmail, token);
+    if (!confirmationSent) {
+      return NextResponse.json({ error: "Onay e-postası gönderilemedi" }, { status: 502 });
     }
 
     return NextResponse.json({
       ok: true,
-      // Anahtar yoksa onay maili atılamaz; geliştirme/kurulum için bilgi ver.
-      requiresConfirmation: hasNewsletterSecret(),
+      requiresConfirmation: true,
       confirmationSent,
-    });
+    }, { status: 202 });
   } catch {
     return NextResponse.json({ error: "Bir hata oluştu" }, { status: 500 });
   }
