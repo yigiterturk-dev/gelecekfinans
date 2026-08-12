@@ -144,7 +144,13 @@ async function generateDraft(
     const response = await openai().responses.parse({
       model: config.writerModel,
       max_output_tokens: budget.writerMaxOutputTokens,
-      reasoning: { effort: "none" },
+      // effort: "none" DEĞİL — gpt-5 bunu reddediyor ve koşu 400 ile ölüyor:
+      //   "Unsupported value: 'none' is not supported with the 'gpt-5' model.
+      //    Supported values are: 'minimal', 'low', 'medium', and 'high'."
+      // (2026-08-13'te canlı hata kaydından alındı; 7 günde 9 koşu bu yüzden
+      //  düştü.) "minimal" en yakın karşılık: en az akıl yürütme, en hızlı,
+      //  en ucuz — davranış "none" ile aynı niyette.
+      reasoning: { effort: "minimal" },
       input: [
         { role: "system", content: articleInstructions(targetWords) },
         { role: "user", content: userPrompt },
@@ -189,7 +195,13 @@ async function verifyDraft(topic: Topic, draft: ArticleDraft): Promise<Verificat
     const response = await openai().responses.parse({
       model: config.verifierModel,
       max_output_tokens: budget.verifierMaxOutputTokens,
-      reasoning: { effort: "none" },
+      // effort: "none" DEĞİL — gpt-5 bunu reddediyor ve koşu 400 ile ölüyor:
+      //   "Unsupported value: 'none' is not supported with the 'gpt-5' model.
+      //    Supported values are: 'minimal', 'low', 'medium', and 'high'."
+      // (2026-08-13'te canlı hata kaydından alındı; 7 günde 9 koşu bu yüzden
+      //  düştü.) "minimal" en yakın karşılık: en az akıl yürütme, en hızlı,
+      //  en ucuz — davranış "none" ile aynı niyette.
+      reasoning: { effort: "minimal" },
       input: [
         { role: "system", content: system },
         { role: "user", content: userPrompt },

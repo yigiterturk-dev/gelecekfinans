@@ -337,16 +337,50 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
 
   // Ölümcül yapılandırma hatası tek koşuyu değil bütün akışı durdurur; ayrıca
   // hiç makale eklenmeden hatayla biten koşu da sessizce birikmemeli.
+  //
+  // ── GÜNDE EN FAZLA BİR UYARI (2026-08-13) ────────────────────────────────
+  // Bot günde ÜÇ kez koşuyor (05:00, 10:00, 15:30 — vercel.json). Sorun devam
+  // ettiği sürece her koşu ayrı mail atıyordu: aynı arıza için günde 3 mail.
+  // Sürekli gelen alarm okunmaz hale gelir ve asıl tehlike budur — insan
+  // alarmı susturur, sonraki gerçek arızayı kaçırır.
+  //
+  // Yeni tablo/migration gerekmedi: `status: "failed"` koşulu, alarm gönderme
+  // koşuluyla BİREBİR aynı (ikisi de `fatalErrorCode || (added===0 && errors)`).
+  // Yani son 24 saatte başka bir "failed" koşu varsa, o gün zaten mail gitmiş
+  // demektir. İlk arızada mail ANINDA gider; tekrarları susar. Sorun düzelip
+  // 24 saatten sonra tekrarlarsa yeniden uyarır.
   if (fatalErrorCode || (added === 0 && errors.length > 0)) {
-    await sendBotAlert({
-      title: fatalErrorCode
-        ? `Sağlayıcı hatası (${fatalErrorCode})`
-        : "Koşu hiç makale üretemedi",
-      code: fatalErrorCode,
-      errors,
-      runId: run.id,
-      added,
-    });
+    let gunlukUyariVar = false;
+    try {
+      const oncekiHata = await prisma.botRun.count({
+        where: {
+          id: { not: run.id },
+          status: "failed",
+          finishedAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+        },
+      });
+      gunlukUyariVar = oncekiHata > 0;
+    } catch {
+      // Sayım başarısız olursa uyarıyı BASTIRMA — susmaktansa fazladan mail iyi.
+      gunlukUyariVar = false;
+    }
+
+    if (gunlukUyariVar) {
+      console.warn(
+        `[bot-alert] Son 24 saatte zaten uyarı gönderilmiş — bu koşu için mail atlanıyor. ` +
+          `(koşu: ${run.id}, kod: ${fatalErrorCode ?? "yok"})`
+      );
+    } else {
+      await sendBotAlert({
+        title: fatalErrorCode
+          ? `Sağlayıcı hatası (${fatalErrorCode})`
+          : "Koşu hiç makale üretemedi",
+        code: fatalErrorCode,
+        errors,
+        runId: run.id,
+        added,
+      });
+    }
   }
 
   return {
