@@ -1,7 +1,24 @@
-// Doğrulanmış çalışan Türkçe finans feed'leri + kategori bazlı Google News RSS.
+// Doğrulanmış çalışan Türkçe finans feed'leri.
 // (Eski ölü feed'ler çıkarıldı: paraanaliz/cointurk/ekonomim/trthaber-eski-url → 404/DNS.)
-// Google News RSS sorguları UA gerektirmez, her kategori için bol taze konu döndürür;
-// böylece "altın" gibi az haberli kategorilerde bile "konu bulunamadı" olmaz.
+//
+// ── GOOGLE NEWS RSS ÇIKARILDI (2026-08-13) ─────────────────────────────────
+// Google News beslemeleri "altın gibi az haberli kategorilerde konu bulunamadı
+// olmasın" diye eklenmişti. Ama bot 3-12 Ağustos arasında 20 koşuyu
+// RESEARCH_BLOCKED ile kaybetti ve sebebi buydu:
+//
+// Google News item'ları gerçek habere DEĞİL, şifreli yönlendirme adresine
+// bağlanıyor (news.google.com/rss/articles/CBMi…). O adres çekilince makale
+// gövdesi yok; yönlendirme JavaScript ile yapılıyor ve base64'ün içinde de
+// gerçek URL bulunmuyor (ikisi de canlı test edildi). Sonuç: bot RSS özetine
+// düşüyor, kanıt metni 800 karakter eşiğini geçemiyor, makale yazılamıyor.
+// Ölçüm: başarısız koşularda kanıt metni min 139 / medyan 284 / max 757 karakter.
+//
+// Aşağıdaki 8 doğrudan besleme ölçüldü: 192 taze başlık veriyor ve HER kategori
+// doluyor (kripto 15 · borsa 14 · döviz 35 · altın 8 · ekonomi 10). Yani Google
+// News'in eklenme gerekçesi artık geçerli değil.
+//
+// Geri eklemek gerekirse ÖNCE linki çözme sorunu çözülmeli, yoksa aynı arıza
+// tekrarlar. Çıkarılan sorgular kayıt olsun diye aşağıda duruyor.
 export const RSS_FEEDS = [
   // Genel çalışan kaynaklar
   "https://www.bloomberght.com/rss",
@@ -12,7 +29,11 @@ export const RSS_FEEDS = [
   "https://www.haberturk.com/rss/ekonomi.xml",
   "https://www.ntv.com.tr/ekonomi.rss",
   "https://www.sozcu.com.tr/feeds-rss-category-ekonomi",
-  // Kategori bazlı Google News RSS (TR) — garanti taze konu
+];
+
+// Devre dışı — yukarıdaki açıklamaya bakın. Linkleri çözülemediği için makale
+// gövdesi çekilemiyor ve her koşuyu RESEARCH_BLOCKED ile düşürüyorlardı.
+export const DEVRE_DISI_GOOGLE_NEWS_FEEDS = [
   "https://news.google.com/rss/search?q=alt%C4%B1n+gram+alt%C4%B1n+ons+OR+%C3%A7eyrek+alt%C4%B1n&hl=tr&gl=TR&ceid=TR:tr",
   "https://news.google.com/rss/search?q=bitcoin+OR+ethereum+OR+kripto+para&hl=tr&gl=TR&ceid=TR:tr",
   "https://news.google.com/rss/search?q=borsa+istanbul+OR+bist+100+OR+hisse&hl=tr&gl=TR&ceid=TR:tr",
