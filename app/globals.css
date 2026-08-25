@@ -2369,9 +2369,9 @@ input:focus-visible,
 /* 1. Navigasyon Arama Butonunun Input Çubuğu Olarak Tasarlanması */
 .search-btn {
   width: 220px !important;
-  background: rgba(255, 255, 255, 0.08) !important;
-  border: 1px solid rgba(255, 255, 255, 0.15) !important;
-  color: rgba(255, 255, 255, 0.6) !important;
+  background: var(--surface) !important;
+  border: 1px solid var(--border2) !important;
+  color: var(--ink2) !important;
   border-radius: 999px !important;
   font-size: 13px !important;
   padding: 8px 16px !important;
@@ -2380,14 +2380,14 @@ input:focus-visible,
   transition: all 0.2s ease !important;
 }
 .search-btn:hover {
-  background: rgba(255, 255, 255, 0.12) !important;
+  background: var(--paper) !important;
   border-color: var(--accent) !important;
-  color: #fff !important;
+  color: var(--accent) !important;
 }
 .search-btn kbd {
-  background: rgba(255, 255, 255, 0.15) !important;
-  border: 1px solid rgba(255, 255, 255, 0.2) !important;
-  color: #fff !important;
+  background: var(--paper) !important;
+  border: 1px solid var(--border) !important;
+  color: var(--muted) !important;
 }
 
 /* 2. Sağ Ray (Sidebar) Kartlarının Modern ve Belirgin Kutulara Dönüştürülmesi */
@@ -3099,4 +3099,40 @@ html.dark {
 .author-name:hover,
 .author-role a:hover {
   text-decoration: underline;
+}
+
+/* ── MOBILE MASTHEAD HARDENING ──
+   Masaüstündeki geniş arama alanı küçük ekranda wordmark ve tema kontrolünü
+   viewport dışına itmemeli. Mobilde aynı eylemi kompakt ikon butonu olarak
+   sunuyor, kategori satırını kendi yatay kaydırma alanında tutuyoruz. */
+@media (max-width: 640px) {
+  .nav,
+  .nav-brand-row {
+    max-width: 100vw;
+    min-width: 0;
+  }
+  .nav-brand-row > div:last-child {
+    flex-shrink: 0;
+    gap: 4px !important;
+  }
+  .search-btn {
+    width: 36px !important;
+    height: 36px;
+    padding: 0 !important;
+    gap: 0 !important;
+    justify-content: center !important;
+    font-size: 0 !important;
+  }
+  .search-btn svg {
+    width: 17px;
+    height: 17px;
+  }
+  .search-btn kbd {
+    display: none;
+  }
+  .nav-cat-row {
+    width: 100%;
+    max-width: 100vw;
+    overscroll-behavior-x: contain;
+  }
 }

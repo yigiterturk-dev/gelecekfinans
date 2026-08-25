@@ -1,5 +1,5 @@
 import { Resend } from "resend";
-import { signUnsubToken } from "@/lib/newsletter";
+import { hasNewsletterSecret, signUnsubToken } from "@/lib/newsletter";
 
 let _resend: Resend | null = null;
 function getResend(): Resend | null {
@@ -9,24 +9,23 @@ function getResend(): Resend | null {
   return _resend;
 }
 
-/** Resend anahtarı yoksa gönderim yapılmaz; loglanır (no-op). */
+/** Mail sağlayıcısı veya imza anahtarı yoksa gönderim fail-closed davranır. */
 export function mailEnabled(): boolean {
-  return !!process.env.RESEND_API_KEY;
+  return !!process.env.RESEND_API_KEY && hasNewsletterSecret();
 }
 
 const FROM = process.env.MAIL_FROM || "GelecekFinans <bulten@gelecekfinans.com>";
 const BASE = process.env.SITE_URL || "https://gelecekfinans.com";
 
 /**
- * Alıcıya özel abonelikten çıkma URL'i. Secret varsa imzalı token kullanır
- * (IDOR'a karşı: başkasının adresini iptal etmek imkânsız). Secret yoksa
- * fail-safe olarak eski imzasız email parametresine düşer.
+ * Alıcıya özel abonelikten çıkma URL'i. Yalnızca imzalı token kullanır;
+ * secret yoksa URL üretmez ve gönderim yapılmaz.
  */
-function unsubUrl(email: string): string {
+function unsubUrl(email: string): string | null {
   const token = signUnsubToken(email);
   return token
     ? `${BASE}/api/newsletter/unsubscribe?token=${encodeURIComponent(token)}`
-    : `${BASE}/api/newsletter/unsubscribe?email=${encodeURIComponent(email)}`;
+    : null;
 }
 
 interface ArticleSummary {
@@ -99,10 +98,8 @@ async function sendBatch(
   html: string
 ): Promise<number> {
   const client = getResend();
-  if (!client) {
-    console.log(
-      `[mail] RESEND_API_KEY yok — gönderim atlandı (no-op). ${recipients.length} alıcı, konu: "${subject}"`
-    );
+  if (!client || !hasNewsletterSecret()) {
+    console.log(`[mail] Mail yapılandırması eksik — ${recipients.length} alıcıya gönderim atlandı.`);
     return 0;
   }
   let sent = 0;
@@ -116,7 +113,7 @@ async function sendBatch(
             from: FROM,
             to: email,
             subject,
-            html: html.replace("{{unsub}}", unsubUrl(email)),
+            html: html.replace("{{unsub}}", unsubUrl(email)!),
           })
           .then(() => {
             sent++;
@@ -131,11 +128,11 @@ async function sendBatch(
 }
 
 /** Geriye dönük uyumlu basit günlük digest (tek konu satırı). */
-export async function sendDailyDigest(emails: string[], articles: ArticleSummary[]) {
-  if (emails.length === 0 || articles.length === 0) return;
+export async function sendDailyDigest(emails: string[], articles: ArticleSummary[]): Promise<number> {
+  if (emails.length === 0 || articles.length === 0) return 0;
   const today = new Date().toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
   const html = digestHtml(articles, today);
-  await sendBatch(emails, `GelecekFinans Günlük Bülten — ${today}`, html);
+  return sendBatch(emails, `GelecekFinans Günlük Bülten — ${today}`, html);
 }
 
 export interface SegmentDigestOptions {
@@ -205,14 +202,11 @@ export async function sendSegmentDigest(
   };
 }
 
-/** Double opt-in onay maili. Anahtar yoksa loglar ve false döner. */
+/** Double opt-in onay maili. Yapılandırma eksikse false döner. */
 export async function sendOptInConfirmation(email: string, token: string): Promise<boolean> {
   const confirmUrl = `${BASE}/api/newsletter/confirm?token=${encodeURIComponent(token)}`;
   const client = getResend();
-  if (!client) {
-    console.log(`[mail] RESEND_API_KEY yok — onay maili atlanmadı, link: ${confirmUrl}`);
-    return false;
-  }
+  if (!client || !hasNewsletterSecret()) return false;
   const html = `
 <!DOCTYPE html><html lang="tr"><head><meta charset="utf-8"></head>
 <body style="font-family:system-ui;background:#f5f5f5;padding:24px">

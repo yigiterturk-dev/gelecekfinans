@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
   }
 
   const emails = subscribers.map((s) => s.email);
-  await sendDailyDigest(emails, articles);
+  const sent = await sendDailyDigest(emails, articles);
 
-  return NextResponse.json({ sent: emails.length, articles: articles.length });
+  return NextResponse.json({ sent, recipients: emails.length, articles: articles.length });
 }
