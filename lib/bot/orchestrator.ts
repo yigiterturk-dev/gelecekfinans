@@ -12,6 +12,7 @@ import {
   classifyRisk, decidePublication, scoreSource,
 } from "@/lib/bot/autonomy";
 import { AIBudgetLimitError, AIProviderFatalError } from "@/lib/bot/errors";
+import { MIN_EVIDENCE_MATERIAL_CHARS, evidenceMaterialCharacterCount } from "@/lib/bot/research";
 import { checkPlagiarism } from "@/lib/bot/plagiarism";
 import { resolveArticleAIBudgetConfig, startOfIstanbulDay } from "@/lib/bot/ai-budget";
 import { sendBotAlert } from "@/lib/bot/alert";
@@ -176,6 +177,25 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
         }, undefined, "warning");
         continue;
       }
+      /**
+       * Kanıt uzunluğu kontrolü yazarın içindeydi (writer.ts RESEARCH_BLOCKED) ama
+       * bütçe rezervasyonu ondan ÖNCE yapılıyordu: gövdesi çekilemeyen, yalnızca
+       * RSS özetinden ibaret konular modele hiç gitmeden koşunun ve günün yazar
+       * çağrısı hakkını yakıyordu (günlük sayaç writer_call_reserved kaydını
+       * saydığı için etki gün boyu kalıcıydı). Kontrol rezervasyondan önce.
+       */
+      const materialCharacters = evidenceMaterialCharacterCount(packet);
+      if (materialCharacters < MIN_EVIDENCE_MATERIAL_CHARS) {
+        blocked++;
+        await logEvent(run.id, "research", "Kanıt metni kısa olduğu için konu bütçe ayrılmadan durduruldu", {
+          title: topic.title,
+          materialCharacters,
+          requiredCharacters: MIN_EVIDENCE_MATERIAL_CHARS,
+          independentSourceCount: packet.independentSourceCount,
+        }, undefined, "warning");
+        continue;
+      }
+
       if (isDuplicate(topic.title, topic.summary, recent).duplicate) {
         duplicatesSkipped++;
         await logEvent(run.id, "duplicate", "Benzer başlık atlandı", { title: topic.title });
@@ -371,10 +391,16 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
           `(koşu: ${run.id}, kod: ${fatalErrorCode ?? "yok"})`
       );
     } else {
+      // AI_BUDGET_LIMIT_REACHED bizim kendi harcama frenimiz; sağlayıcıdan gelen
+      // bir arıza değil. "Sağlayıcı hatası" başlığı OpenAI kredisi bitmiş gibi
+      // okunup yanlış yere bakılmasına yol açıyordu.
+      const budgetBrake = fatalErrorCode === "AI_BUDGET_LIMIT_REACHED";
       await sendBotAlert({
-        title: fatalErrorCode
-          ? `Sağlayıcı hatası (${fatalErrorCode})`
-          : "Koşu hiç makale üretemedi",
+        title: budgetBrake
+          ? "Harcama freni devreye girdi (sağlayıcı arızası değil)"
+          : fatalErrorCode
+            ? `Sağlayıcı hatası (${fatalErrorCode})`
+            : "Koşu hiç makale üretemedi",
         code: fatalErrorCode,
         errors,
         runId: run.id,

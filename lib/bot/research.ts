@@ -107,6 +107,14 @@ export async function enrichEvidencePacket(packet: EvidencePacket): Promise<Evid
   };
 }
 
+/**
+ * Bir haberi kanıta dayanarak yazdırmak için gereken en az ham metin.
+ * Bunun altındaki paketlerde elimizde yalnızca RSS özeti vardır ve model
+ * boşlukları uydurmak zorunda kalır. Eşik hem yazarda hem de bütçe ayrılmadan
+ * önce planlayıcıda kullanılır; iki yerde ayrı sayı tutulmaz.
+ */
+export const MIN_EVIDENCE_MATERIAL_CHARS = 800;
+
 export function evidenceMaterialCharacterCount(packet: EvidencePacket): number {
   const unique = new Set(packet.evidence.map((item) => item.content || item.summary).filter(Boolean));
   return [...unique].join(" ").length;

@@ -23,12 +23,15 @@ test("açık OpenAI seçimi mevcut yedek sağlayıcıyı korur", () => {
   assert.equal(config.verifierModel, "verifier-test");
 });
 
-test("OpenAI varsayılan yazım ve doğrulama rollerinde Luna kullanır", () => {
+// 71116d1 (10 Ağu) varsayılanı bilerek "gpt-5.6-luna"dan gerçek model adlarına
+// çevirdi: luna OpenAI'da yok, env silindiğinde bot model_not_found ile ölüyordu.
+// Test o gün güncellenmediği için 9 gün kırmızı kaldı; doğru davranış kodda.
+test("OpenAI varsayılanları OpenAI'da gerçekten var olan modeller olmalı", () => {
   const config = resolveArticleAIConfig({ OPENAI_API_KEY: "test-key" });
   assert.deepEqual(config, {
     provider: "openai",
-    writerModel: "gpt-5.6-luna",
-    verifierModel: "gpt-5.6-luna",
+    writerModel: "gpt-5",
+    verifierModel: "gpt-5-mini",
   });
 });
 

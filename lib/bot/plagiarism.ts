@@ -13,6 +13,12 @@ export interface PlagiarismMatch {
   similarity: number;
   sharedShingles: number;
   longestExactRun: number;
+  /**
+   * Eşleşen en uzun dizinin kendisi (normalize edilmiş biçimde). Yalnızca uzunluğu
+   * bildirmek onarım turunda yetersiz kalıyordu: model hangi cümleyi kopyaladığını
+   * bilmeden yeniden yazınca aynı ifadeyi tekrar üretiyor.
+   */
+  longestExactRunText: string;
 }
 
 export interface PlagiarismReport {
@@ -64,21 +70,25 @@ function shingles(tokens: string[], size = SHINGLE_SIZE): Set<string> {
   return result;
 }
 
-function longestCommonRun(left: string[], right: string[]): number {
-  if (!left.length || !right.length) return 0;
+function longestCommonRun(left: string[], right: string[]): { length: number; text: string } {
+  if (!left.length || !right.length) return { length: 0, text: "" };
   let previous = new Uint16Array(right.length + 1);
   let longest = 0;
+  let longestEndInLeft = 0;
   for (let leftIndex = 1; leftIndex <= left.length; leftIndex++) {
     const current = new Uint16Array(right.length + 1);
     for (let rightIndex = 1; rightIndex <= right.length; rightIndex++) {
       if (left[leftIndex - 1] === right[rightIndex - 1]) {
         current[rightIndex] = previous[rightIndex - 1] + 1;
-        if (current[rightIndex] > longest) longest = current[rightIndex];
+        if (current[rightIndex] > longest) {
+          longest = current[rightIndex];
+          longestEndInLeft = leftIndex;
+        }
       }
     }
     previous = current;
   }
-  return longest;
+  return { length: longest, text: left.slice(longestEndInLeft - longest, longestEndInLeft).join(" ") };
 }
 
 function compare(candidate: string[], reference: string[], type: PlagiarismMatch["type"]): Omit<PlagiarismMatch, "type" | "id" | "label"> {
@@ -88,10 +98,12 @@ function compare(candidate: string[], reference: string[], type: PlagiarismMatch
   const denominator = type === "SOURCE"
     ? Math.max(1, Math.min(candidateShingles.size, referenceShingles.size))
     : Math.max(1, new Set([...candidateShingles, ...referenceShingles]).size);
+  const run = longestCommonRun(candidate, reference);
   return {
     similarity: sharedShingles / denominator,
     sharedShingles,
-    longestExactRun: longestCommonRun(candidate, reference),
+    longestExactRun: run.length,
+    longestExactRunText: run.text,
   };
 }
 
