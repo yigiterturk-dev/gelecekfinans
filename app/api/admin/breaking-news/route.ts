@@ -3,10 +3,21 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { computeExpiry, effectiveExpiry, isBreakingLive, DEFAULT_BREAKING_TTL_HOURS } from "@/lib/breaking";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 
-export async function GET() {
+function rateLimitResponse(result: ReturnType<typeof rateLimit>) {
+  return NextResponse.json(
+    { error: "Too many requests", retryAfter: result.retryAfterSec },
+    { status: 429, headers: { "Retry-After": String(result.retryAfterSec) } }
+  );
+}
+
+export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const limit = rateLimit(`admin:breaking-news:get:${clientIp(req)}`, { limit: 60, windowMs: 60_000 });
+  if (!limit.ok) return rateLimitResponse(limit);
 
   const rows = await prisma.breakingNews.findMany({ orderBy: { createdAt: "desc" }, take: 10 });
   const now = new Date();
@@ -31,6 +42,9 @@ export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const limit = rateLimit(`admin:breaking-news:post:${clientIp(req)}`, { limit: 10, windowMs: 60_000 });
+  if (!limit.ok) return rateLimitResponse(limit);
+
   const body = await req.json().catch(() => ({}));
   const text = typeof body.text === "string" ? body.text.trim() : "";
   const url = typeof body.url === "string" && body.url.trim() ? body.url.trim() : null;
@@ -53,6 +67,9 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const limit = rateLimit(`admin:breaking-news:delete:${clientIp(req)}`, { limit: 10, windowMs: 60_000 });
+  if (!limit.ok) return rateLimitResponse(limit);
 
   const { id } = await req.json().catch(() => ({}));
   if (id) {

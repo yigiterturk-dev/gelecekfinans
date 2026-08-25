@@ -121,7 +121,9 @@ async function sendBatch(
           .then(() => {
             sent++;
           })
-          .catch(() => {})
+          .catch((err) => {
+            console.error(`[mail] send failed for ${email}:`, err);
+          })
       )
     );
   }

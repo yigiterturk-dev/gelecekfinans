@@ -6,7 +6,6 @@ import MoversRail from "@/components/MoversRail";
 import AdSlot from "@/components/AdSlot";
 import Link from "next/link";
 import type { Metadata } from "next";
-export const dynamic = "force-dynamic";
 export const revalidate = 300;
 
 export const metadata: Metadata = {

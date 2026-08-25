@@ -4,8 +4,16 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { sendSegmentDigest, mailEnabled } from "@/lib/mail";
 import { isSegment } from "@/lib/newsletter";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 
 export const maxDuration = 60;
+
+function rateLimitResponse(result: ReturnType<typeof rateLimit>) {
+  return NextResponse.json(
+    { error: "Too many requests", retryAfter: result.retryAfterSec },
+    { status: 429, headers: { "Retry-After": String(result.retryAfterSec) } }
+  );
+}
 
 /**
  * Admin: segment hedefli + opsiyonel A/B konu satırı testli bülten gönderir.
@@ -16,6 +24,9 @@ export const maxDuration = 60;
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const limit = rateLimit(`admin:newsletter:send:${clientIp(req)}`, { limit: 5, windowMs: 60_000 });
+  if (!limit.ok) return rateLimitResponse(limit);
 
   let body: unknown;
   try {

@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { put } from "@vercel/blob";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
+
+function rateLimitResponse(result: ReturnType<typeof rateLimit>) {
+  return NextResponse.json(
+    { error: "Too many requests", retryAfter: result.retryAfterSec },
+    { status: 429, headers: { "Retry-After": String(result.retryAfterSec) } }
+  );
+}
 
 // Makale düzenleme ekranından gelen görsel dosyasını Vercel Blob'a yükler.
 // Sadece resim, max ~8MB. Dönen public URL form.imageUrl'e yazılır.
@@ -11,6 +19,9 @@ const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif", "im
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const limit = rateLimit(`admin:upload-image:post:${clientIp(req)}`, { limit: 10, windowMs: 60_000 });
+  if (!limit.ok) return rateLimitResponse(limit);
 
   if (!process.env.BLOB_READ_WRITE_TOKEN) {
     return NextResponse.json({ error: "Blob deposu yapılandırılmamış (BLOB_READ_WRITE_TOKEN yok)." }, { status: 500 });

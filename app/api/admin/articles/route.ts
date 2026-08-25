@@ -5,10 +5,21 @@ import { prisma } from "@/lib/db";
 import { slugify } from "@/lib/slug";
 import { analyzeSeo } from "@/lib/seo";
 import { isDuplicate } from "@/lib/duplicate";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
+
+function rateLimitResponse(result: ReturnType<typeof rateLimit>) {
+  return NextResponse.json(
+    { error: "Too many requests", retryAfter: result.retryAfterSec },
+    { status: 429, headers: { "Retry-After": String(result.retryAfterSec) } }
+  );
+}
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const rl = rateLimit(`admin:articles:get:${clientIp(req)}`, { limit: 60, windowMs: 60_000 });
+  if (!rl.ok) return rateLimitResponse(rl);
 
   const url = req.nextUrl;
   const status = url.searchParams.get("status") || undefined;
@@ -42,6 +53,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const rl = rateLimit(`admin:articles:post:${clientIp(req)}`, { limit: 10, windowMs: 60_000 });
+  if (!rl.ok) return rateLimitResponse(rl);
 
   const body = await req.json();
   const { title, meta, keyword, category, content, imageUrl, source } = body;

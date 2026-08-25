@@ -13,6 +13,14 @@ import { ensureExternalLink } from "@/lib/bot/external-link";
 import { classifyTopicText, findCorroboratedTopic } from "@/lib/bot/topics";
 import { classifyRisk, scoreSource } from "@/lib/bot/autonomy";
 import { checkPlagiarism } from "@/lib/bot/plagiarism";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
+
+function rateLimitResponse(result: ReturnType<typeof rateLimit>) {
+  return NextResponse.json(
+    { error: "Too many requests", retryAfter: result.retryAfterSec },
+    { status: 429, headers: { "Retry-After": String(result.retryAfterSec) } }
+  );
+}
 
 // Tek makale üretimi 120sn altında kalır; güvenli sınır.
 export const maxDuration = 120;
@@ -44,6 +52,9 @@ function splitSource(title: string, feedSource: string): { title: string; source
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const limit = rateLimit(`admin:research:get:${clientIp(req)}`, { limit: 30, windowMs: 60_000 });
+  if (!limit.ok) return rateLimitResponse(limit);
 
   const q = (req.nextUrl.searchParams.get("q") || "").trim();
   if (!q) return NextResponse.json({ error: "Arama terimi gerekli." }, { status: 400 });
@@ -90,6 +101,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const limit = rateLimit(`admin:research:post:${clientIp(req)}`, { limit: 5, windowMs: 60_000 });
+  if (!limit.ok) return rateLimitResponse(limit);
 
   const body = await req.json().catch(() => ({}));
   const title: string = (body.title || "").trim();

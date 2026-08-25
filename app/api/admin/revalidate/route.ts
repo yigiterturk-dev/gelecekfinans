@@ -2,10 +2,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
+
+function rateLimitResponse(result: ReturnType<typeof rateLimit>) {
+  return NextResponse.json(
+    { error: "Too many requests", retryAfter: result.retryAfterSec },
+    { status: 429, headers: { "Retry-After": String(result.retryAfterSec) } }
+  );
+}
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const limit = rateLimit(`admin:revalidate:post:${clientIp(req)}`, { limit: 10, windowMs: 60_000 });
+  if (!limit.ok) return rateLimitResponse(limit);
 
   const { paths } = await req.json() as { paths?: string[] };
 
