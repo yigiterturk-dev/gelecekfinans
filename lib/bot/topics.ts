@@ -1,5 +1,6 @@
 import Parser from "rss-parser";
 import { RSS_FEEDS } from "./config";
+import { isGoogleNewsUrl, resetGoogleNewsBudget, resolveGoogleNewsUrl } from "./google-news";
 import {
   buildEvidencePacket,
   enrichEvidencePacket,
@@ -241,7 +242,14 @@ export function classifyTopicText(title: string, summary = ""): TopicClassificat
   return { category: best.category, score: best.score, reasons };
 }
 
+export async function resolveTopicSourceUrl(sourceUrl?: string): Promise<string | null> {
+  if (!isGoogleNewsUrl(sourceUrl) || !sourceUrl) return null;
+  const resolved = await resolveGoogleNewsUrl(sourceUrl);
+  return resolved && resolved !== sourceUrl ? resolved : null;
+}
+
 export async function getTopics(limit = 20, category?: string): Promise<Topic[]> {
+  resetGoogleNewsBudget();
   const all: RawTopic[] = [];
 
   const results = await Promise.allSettled(
@@ -328,7 +336,15 @@ export async function getTopics(limit = 20, category?: string): Promise<Topic[]>
     if (unique.length >= 5) break; // yeterli konu bulundu, pencereyi genişletme
   }
 
-  const shortlisted = unique.slice(0, limit);
+  const shortlisted = await Promise.all(
+    unique.slice(0, limit).map(async (topic) => {
+      // Yayıncının asıl adresi çözülürse kaynak skoru, yayıncı kimliği ve kanıt
+      // metni çıkarımı gerçek domain üzerinden çalışır; çözülemezse konu eski
+      // davranışla (Google linkiyle) devam eder.
+      const resolved = await resolveTopicSourceUrl(topic.sourceUrl);
+      return resolved ? { ...topic, sourceUrl: resolved, sourcePriority: getSourcePriority(resolved) } : topic;
+    })
+  );
   return Promise.all(shortlisted.map(async (topic) => ({
     ...topic,
     evidencePacket: await prepareEvidence(topic, all),
