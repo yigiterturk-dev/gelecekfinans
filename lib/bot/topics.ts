@@ -1,11 +1,9 @@
 import Parser from "rss-parser";
 import { RSS_FEEDS } from "./config";
-import { isGoogleNewsUrl, resetGoogleNewsBudget, resolveGoogleNewsUrl } from "./google-news";
 import {
   buildEvidencePacket,
   enrichEvidencePacket,
   storySimilarity,
-  storyTokens,
   type EvidencePacket,
   type ResearchCandidate,
 } from "./research";
@@ -56,59 +54,16 @@ interface RawTopic extends Topic, ResearchCandidate {
   sourcePriority: number;
 }
 
-function itemSourceLabel(title: string, fallback: string): string {
-  const parts = title.split(/\s+-\s+/);
-  return parts.length > 1 ? parts.at(-1)?.trim() || fallback : fallback;
-}
-
 /**
- * Geniş kategori feed'i kaçırdığında başlığa özel Google News RSS araması yapar.
- * Bu yalnızca ikinci yayıncıyı bulur; haber gövdesi mümkün olduğunda yayıncının
- * doğrudan sayfasından ayrı olarak zenginleştirilir.
+ * İkinci bağımsız kaynak yalnızca doğrudan yayıncı beslemelerinin ortak
+ * havuzundan aranır. Eskiden havuz yetmediğinde Google Haberler'de hedefli
+ * arama yapılıyordu; o linkler gerçek habere çıkmadığı için kanıt metni
+ * çıkarılamıyor ve konu zaten eleniyordu. Havuzu genişletmek (bkz. RSS_FEEDS)
+ * bu aramanın yerini alır.
  */
-async function findTargetedCorroboration(primary: RawTopic): Promise<RawTopic[]> {
-  const factNumbers = (primary.summary.match(/\b\d+(?:[. ]\d+)*(?:,\d+)?%?/g) || [])
-    .filter((value) => value.length >= 4 || /[.,%]/.test(value))
-    .slice(0, 3);
-  const query = `${primary.title} ${factNumbers.join(" ")}`.trim().slice(0, 240) ||
-    storyTokens(primary.title).slice(0, 10).join(" ");
-  if (!query) return [];
-  const url = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=tr&gl=TR&ceid=TR:tr`;
-  try {
-    const feed = await fetchFeed(url);
-    return (feed.items || []).slice(0, 20).flatMap((entry) => {
-      const title = (entry.title || "").trim();
-      if (!title || storySimilarity(primary.title, title) < 0.44) return [];
-      const pubDate = entry.pubDate ? new Date(entry.pubDate).getTime() : 0;
-      if (primary.pubDate && pubDate && Math.abs(primary.pubDate - pubDate) > 14 * 86400000) return [];
-      return [{
-        title,
-        summary: (entry.contentSnippet || entry.content || title)
-          .replace(/<[^>]+>/g, " ")
-          .replace(/\s+/g, " ")
-          .trim()
-          .slice(0, 500),
-        category: primary.category,
-        source: itemSourceLabel(title, feed.title || "Google Haberler"),
-        sourceUrl: entry.link || url,
-        pubDate,
-        sourcePriority: 1,
-      }];
-    });
-  } catch {
-    return [];
-  }
-}
-
 async function prepareEvidence(primary: RawTopic, candidates: RawTopic[]): Promise<EvidencePacket> {
-  let pool: ResearchCandidate[] = candidates;
-  let packet = buildEvidencePacket(primary, pool);
-  if (packet.status !== "VERIFIED") {
-    const targeted = await findTargetedCorroboration(primary);
-    pool = [...candidates, ...targeted];
-    packet = buildEvidencePacket(primary, pool);
-  }
-  return enrichEvidencePacket(packet);
+  const pool: ResearchCandidate[] = candidates;
+  return enrichEvidencePacket(buildEvidencePacket(primary, pool));
 }
 
 function getSourcePriority(url?: string): number {
@@ -119,6 +74,8 @@ function getSourcePriority(url?: string): number {
       "tcmb.gov.tr", "tuik.gov.tr", "spk.gov.tr", "borsaistanbul.com", "aa.com.tr",
       "bloomberght.com", "dunya.com", "haberturk.com", "ntv.com.tr", "sozcu.com.tr",
       "btchaber.com", "koinmedya.com",
+      "trthaber.com", "ekonomim.com", "investing.com", "coin-turk.com", "uzmancoin.com",
+      "yenisafak.com", "sabah.com.tr", "tgrthaber.com", "indyturk.com",
     ].some((trusted) => domain === trusted || domain.endsWith(`.${trusted}`))) return 3;
     return domain ? 1 : 0;
   } catch {
@@ -242,20 +199,15 @@ export function classifyTopicText(title: string, summary = ""): TopicClassificat
   return { category: best.category, score: best.score, reasons };
 }
 
-export async function resolveTopicSourceUrl(sourceUrl?: string): Promise<string | null> {
-  if (!isGoogleNewsUrl(sourceUrl) || !sourceUrl) return null;
-  const resolved = await resolveGoogleNewsUrl(sourceUrl);
-  return resolved && resolved !== sourceUrl ? resolved : null;
-}
-
 export async function getTopics(limit = 20, category?: string): Promise<Topic[]> {
-  resetGoogleNewsBudget();
   const all: RawTopic[] = [];
 
   const results = await Promise.allSettled(
     RSS_FEEDS.map(async (url) => {
       const feed = await fetchFeed(url);
-      for (const entry of (feed.items || []).slice(0, 20)) {
+      // Havuz ne kadar genişse aynı olayı iki farklı yayıncıda yakalama şansı o
+      // kadar yüksek; ikinci bağımsız kaynak kapısı doğrudan buna bağlı.
+      for (const entry of (feed.items || []).slice(0, 40)) {
         const title = (entry.title || "").trim();
         if (!title) continue;
 
@@ -336,15 +288,7 @@ export async function getTopics(limit = 20, category?: string): Promise<Topic[]>
     if (unique.length >= 5) break; // yeterli konu bulundu, pencereyi genişletme
   }
 
-  const shortlisted = await Promise.all(
-    unique.slice(0, limit).map(async (topic) => {
-      // Yayıncının asıl adresi çözülürse kaynak skoru, yayıncı kimliği ve kanıt
-      // metni çıkarımı gerçek domain üzerinden çalışır; çözülemezse konu eski
-      // davranışla (Google linkiyle) devam eder.
-      const resolved = await resolveTopicSourceUrl(topic.sourceUrl);
-      return resolved ? { ...topic, sourceUrl: resolved, sourcePriority: getSourcePriority(resolved) } : topic;
-    })
-  );
+  const shortlisted = unique.slice(0, limit);
   return Promise.all(shortlisted.map(async (topic) => ({
     ...topic,
     evidencePacket: await prepareEvidence(topic, all),

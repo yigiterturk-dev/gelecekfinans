@@ -12,7 +12,17 @@ const FIRST_PARTY = [
 const REPUTABLE = [
   "reuters.com", "bloomberg.com", "bloomberght.com", "dunya.com",
   "haberturk.com", "ntv.com.tr", "sozcu.com.tr",
+  // 2026-08-31: doğrudan besleme listesine eklenen yerleşik yayıncılar.
+  "trthaber.com", "ekonomim.com", "investing.com",
+  "yenisafak.com", "sabah.com.tr", "tgrthaber.com", "indyturk.com",
 ];
+/**
+ * Yalnızca tek bir dikeyde yayın yapan ama o dikeyde birincil kaynak sayılan
+ * siteler. Genel gazetelerin altında, tanımsız yayıncının üstünde durur:
+ * kripto haberlerini yalnızca bu siteler verdiği için 75 eşiğinin altında
+ * bırakmak o kategoriyi tamamen yayın dışı bırakırdı.
+ */
+const SECTOR_SPECIALIST = ["btchaber.com", "coin-turk.com", "uzmancoin.com"];
 const RED_TERMS = [
   "savaş", "çatışma", "terör", "saldırı", "ölüm", "deprem", "seçim",
   "cumhurbaşkanı", "bakan istifa", "yaptırım", "darbe", "manipülasyon",
@@ -47,6 +57,9 @@ export function scoreSource(topic: Topic): { score: number; domain: string; reas
   } else if (domainMatches(domain, REPUTABLE)) {
     score = 82;
     reasons.push("Yerleşik haber kaynağı");
+  } else if (domainMatches(domain, SECTOR_SPECIALIST)) {
+    score = 78;
+    reasons.push("Dikeyinde uzmanlaşmış yayın");
   } else if (domain === "news.google.com") {
     score = 58;
     reasons.push("Google News yönlendirmesi; asıl kaynak doğrulaması sınırlı");

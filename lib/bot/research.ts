@@ -1,4 +1,3 @@
-import { resolveGoogleNewsUrl } from "./google-news";
 export interface EvidenceItem {
   id: string;
   title: string;
@@ -78,19 +77,10 @@ export function extractArticleTextFromHtml(html: string): {
 }
 
 async function fetchEvidenceContent(item: EvidenceItem): Promise<EvidenceItem> {
-  let sourceUrl = item.sourceUrl;
-  // Google Haberler linki gövde metni vermez; asıl yayıncı adresine çevirip
-  // kanıtı oradan çıkarırız. Çözülemezse eski davranış korunur ve öğe atlanır.
-  if (domainFromUrl(sourceUrl) === "news.google.com") {
-    const resolved = await resolveGoogleNewsUrl(sourceUrl);
-    if (!resolved || domainFromUrl(resolved) === "news.google.com") return item;
-    sourceUrl = resolved;
-    item = { ...item, sourceUrl: resolved };
-  }
-  const domain = domainFromUrl(sourceUrl);
+  const domain = domainFromUrl(item.sourceUrl);
   if (!domain) return item;
   try {
-    const response = await fetch(sourceUrl, {
+    const response = await fetch(item.sourceUrl, {
       headers: { "User-Agent": ARTICLE_FETCH_UA, Accept: "text/html,application/xhtml+xml" },
       redirect: "follow",
       signal: AbortSignal.timeout(10_000),
@@ -256,6 +246,15 @@ const DOMAIN_PUBLISHERS: Record<string, string> = {
   "koinmedya.com": "koin-medya",
   "ntv.com.tr": "ntv",
   "sozcu.com.tr": "sozcu",
+  "trthaber.com": "trt-haber",
+  "ekonomim.com": "ekonomim",
+  "investing.com": "investing",
+  "coin-turk.com": "coin-turk",
+  "uzmancoin.com": "uzmancoin",
+  "yenisafak.com": "yeni-safak",
+  "sabah.com.tr": "sabah",
+  "tgrthaber.com": "tgrt-haber",
+  "indyturk.com": "independent-turkce",
 };
 
 const LABEL_PUBLISHERS: Array<[RegExp, string]> = [

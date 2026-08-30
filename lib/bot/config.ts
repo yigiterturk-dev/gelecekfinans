@@ -1,44 +1,43 @@
-// Doğrulanmış çalışan Türkçe finans feed'leri.
-// (Eski ölü feed'ler çıkarıldı: paraanaliz/cointurk/ekonomim/trthaber-eski-url → 404/DNS.)
+// Doğrulanmış çalışan Türkçe finans feed'leri. Hepsi doğrudan yayıncıdan gelir:
+// item linki gerçek habere çıkar, dolayısıyla kanıt metni sayfadan çıkarılabilir
+// ve kaynak skoru gerçek domain üzerinden hesaplanır.
 //
-// ── GOOGLE NEWS RSS ÇIKARILDI (2026-08-13) ─────────────────────────────────
-// Google News beslemeleri "altın gibi az haberli kategorilerde konu bulunamadı
-// olmasın" diye eklenmişti. Ama bot 3-12 Ağustos arasında 20 koşuyu
-// RESEARCH_BLOCKED ile kaybetti ve sebebi buydu:
+// ── GOOGLE HABERLER TAMAMEN ÇIKARILDI (2026-08-31) ─────────────────────────
+// Google News item'ları gerçek habere değil şifreli yönlendirme adresine
+// bağlanır. Asıl adres yalnızca Google'ın belgelenmemiş `batchexecute` uç
+// noktasından alınabiliyor; bu her an sessizce bozulabilecek bir bağımlılık
+// olduğu için besleme de, ikinci kaynak araması da doğrudan yayıncılara
+// taşındı. Yerine aşağıdaki liste genişletildi.
 //
-// Google News item'ları gerçek habere DEĞİL, şifreli yönlendirme adresine
-// bağlanıyor (news.google.com/rss/articles/CBMi…). O adres çekilince makale
-// gövdesi yok; yönlendirme JavaScript ile yapılıyor ve base64'ün içinde de
-// gerçek URL bulunmuyor (ikisi de canlı test edildi). Sonuç: bot RSS özetine
-// düşüyor, kanıt metni 800 karakter eşiğini geçemiyor, makale yazılamıyor.
-// Ölçüm: başarısız koşularda kanıt metni min 139 / medyan 284 / max 757 karakter.
-//
-// Aşağıdaki 8 doğrudan besleme ölçüldü: 192 taze başlık veriyor ve HER kategori
-// doluyor (kripto 15 · borsa 14 · döviz 35 · altın 8 · ekonomi 10). Yani Google
-// News'in eklenme gerekçesi artık geçerli değil.
-//
-// Geri eklemek gerekirse ÖNCE linki çözme sorunu çözülmeli, yoksa aynı arıza
-// tekrarlar. Çıkarılan sorgular kayıt olsun diye aşağıda duruyor.
+// Liste 2026-08-31'de canlı ölçüldü; ölü veya bayat olanlar çıkarıldı:
+//   ntv.com.tr/ekonomi.rss        → 0 item (ölü)
+//   koinmedya.com/feed            → son haber 12 Mayıs 2026 (bayat)
+//   hurriyet.com.tr/rss/ekonomi   → son haber 7 Haziran 2026 (bayat)
+//   patronlardunyasi / bigpara / milliyet / mynet / cumhuriyet / kriptokoin
+//                                 → 0 item
 export const RSS_FEEDS = [
-  // Genel çalışan kaynaklar
-  "https://www.bloomberght.com/rss",
-  "https://www.dunya.com/rss/gundem.xml",
-  "https://koinmedya.com/feed/",
-  "https://www.btchaber.com/feed/",
+  // Genel ekonomi / finans
   "https://www.aa.com.tr/tr/rss/default?cat=ekonomi",
-  "https://www.haberturk.com/rss/ekonomi.xml",
-  "https://www.ntv.com.tr/ekonomi.rss",
+  "https://www.aa.com.tr/tr/rss/default?cat=analiz",
+  "https://www.dunya.com/rss/ekonomi.xml",
+  "https://www.dunya.com/rss/finans.xml",
+  "https://www.dunya.com/rss/gundem.xml",
+  "https://www.ekonomim.com/rss",
+  "https://www.trthaber.com/ekonomi_articles.rss",
   "https://www.sozcu.com.tr/feeds-rss-category-ekonomi",
-];
-
-// Devre dışı — yukarıdaki açıklamaya bakın. Linkleri çözülemediği için makale
-// gövdesi çekilemiyor ve her koşuyu RESEARCH_BLOCKED ile düşürüyorlardı.
-export const DEVRE_DISI_GOOGLE_NEWS_FEEDS = [
-  "https://news.google.com/rss/search?q=alt%C4%B1n+gram+alt%C4%B1n+ons+OR+%C3%A7eyrek+alt%C4%B1n&hl=tr&gl=TR&ceid=TR:tr",
-  "https://news.google.com/rss/search?q=bitcoin+OR+ethereum+OR+kripto+para&hl=tr&gl=TR&ceid=TR:tr",
-  "https://news.google.com/rss/search?q=borsa+istanbul+OR+bist+100+OR+hisse&hl=tr&gl=TR&ceid=TR:tr",
-  "https://news.google.com/rss/search?q=dolar+OR+euro+OR+d%C3%B6viz+kuru&hl=tr&gl=TR&ceid=TR:tr",
-  "https://news.google.com/rss/search?q=enflasyon+OR+faiz+OR+merkez+bankas%C4%B1+OR+ekonomi&hl=tr&gl=TR&ceid=TR:tr",
+  "https://www.haberturk.com/rss/ekonomi.xml",
+  "https://www.bloomberght.com/rss",
+  "https://tr.investing.com/rss/news_25.rss",
+  "https://www.yenisafak.com/rss?xml=ekonomi",
+  "https://www.sabah.com.tr/rss/ekonomi.xml",
+  "https://www.tgrthaber.com/rss/ekonomi",
+  "https://www.indyturk.com/rss.xml",
+  "https://www.dunya.com/rss/sirketler.xml",
+  "https://www.trthaber.com/sondakika.rss",
+  // Kripto
+  "https://www.btchaber.com/feed/",
+  "https://coin-turk.com/feed",
+  "https://uzmancoin.com/feed/",
 ];
 
 export const CATEGORIES: Record<string, string[]> = {
