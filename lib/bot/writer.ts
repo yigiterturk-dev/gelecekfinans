@@ -562,7 +562,15 @@ async function verifyGuideDraft(topic: Topic, draft: ArticleDraft): Promise<Veri
       // kelimelik metinde bulduğu her sorunu ayrı madde olarak yazıyor.
       // 800 token tavanında cevap ortadan kesiliyor ve `output_parsed` boş
       // dönüyordu — canlı kayıtta "Rehber doğrulaması alınamadı".
-      max_output_tokens: Math.max(budget.verifierMaxOutputTokens, 4000),
+      max_output_tokens: Math.max(budget.verifierMaxOutputTokens, 6000),
+      // Doğrulayıcı varsayılanı gpt-5-mini, yani AKIL YÜRÜTEN bir model:
+      // reasoning token'ları da max_output_tokens'a sayılıyor. Efor
+      // belirtilmediğinde model "medium" ile çalışıp 1800 kelimelik rehberi
+      // düşünürken tavanı JSON'a sıra gelmeden dolduruyordu — canlı kayıtta
+      // "durum: incomplete, eksik: max_output_tokens" (31 Ağu'da 4 rehber
+      // koşumunun 2'si böyle öldü). Yazar ve haber doğrulayıcısı zaten
+      // "minimal" kullanıyor; bu çağrı atlanmıştı.
+      reasoning: { effort: "minimal" },
       input: [{ role: "system", content: system }, { role: "user", content: user }],
       text: { format: zodTextFormat(VerificationSchema, "gelecekfinans_guide_verification") },
     });
