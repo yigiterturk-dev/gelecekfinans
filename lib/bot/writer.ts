@@ -210,10 +210,10 @@ function articleInstructions(targetWords: number): string {
     // Kalite kapısı 280 kelimenin altını reddediyor; "civarında" diyen yumuşak
     // ifade küçük modellerde 270'lere düşüp makaleyi çöpe attırıyordu.
     `Gövde EN AZ 320, en fazla 800 kelime olmalı; hedef ${Math.max(320, Math.min(targetWords, 800))} kelime. 320 kelimenin altı kabul edilmez; ama doldurmak için tekrar yapma, kanıttaki ayrıntıları aç.`,
-    // Kalite kapısı meta için 120-180 aralığını KATI uyguluyor; sınırı birebir
+    // Kalite kapısı meta için 110-180 aralığını KATI uyguluyor; sınırı birebir
     // söyleyince model 119 gibi bir karakterle takılıyor. Hedefi aralığın
     // ortasında vermek pay bırakıyor.
-    "Başlık 35-85 karakter olsun. Meta açıklama 140-170 karakter arasında olsun (120'nin altı veya 180'in üstü kesinlikle kabul edilmez); karakter sayısını yazmadan önce kontrol et.",
+    "Başlık 35-85 karakter olsun. Meta açıklama 140-170 karakter arasında olsun (110'un altı veya 180'in üstü kesinlikle kabul edilmez); karakter sayısını yazmadan önce kontrol et.",
     // Kalite kapısı (quality.ts) keyword'ü lede ve meta içinde HARFİ HARFİNE arar.
     // Yumuşak "doğal biçimde geçsin" ifadesini GPT-5 kendiliğinden uyguluyordu ama
     // daha küçük modeller eşanlamlı yazıp kapıya takılıyor; kural açık yazıldı.

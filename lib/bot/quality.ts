@@ -110,7 +110,12 @@ export function validateDraft(draft: ArticleDraft, packet: EvidencePacket): Qual
     issues.push("İki bağımsız kaynak kapısı geçilmedi");
   }
   if (draft.title.length < 35 || draft.title.length > 85) issues.push(`Başlık uzunluğu uygun değil: ${draft.title.length}`);
-  if (draft.meta.length < 120 || draft.meta.length > 180) issues.push(`Meta uzunluğu uygun değil: ${draft.meta.length}`);
+  // Alt sınır 2026-08-31'de 120 -> 110 indirildi. Kayıtlarda tamamlanmış
+  // makalelerin çöpe gitme sebebi 115/118/119 karakterlik metalardı: arama
+  // sonucunda meta zaten ~155 karakterde kesildiği için 118 ile 120 arasında
+  // okur açısından hiçbir fark yok, ama kapı makalenin tamamını atıyordu.
+  // Üst sınır aynı kalır; uzun meta gerçekten kırpılır.
+  if (draft.meta.length < 110 || draft.meta.length > 180) issues.push(`Meta uzunluğu uygun değil: ${draft.meta.length}`);
   if (wordCount < 280) issues.push(`Metin fazla kısa: ${wordCount} kelime`);
   if (wordCount > 800) issues.push(`Metin gereksiz uzun: ${wordCount} kelime`);
   if (!draft.lede.toLocaleLowerCase("tr-TR").includes(draft.keyword.toLocaleLowerCase("tr-TR"))) {

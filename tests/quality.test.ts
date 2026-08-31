@@ -101,3 +101,25 @@ test("HTML modelden değil güvenli renderer'dan ve kayıtlı kaynaklardan gelir
   assert.match(html, /https:\/\/example\.com\/bir/);
   assert.doesNotMatch(html, /<script>/i);
 });
+
+/**
+ * Canlı kayıtta tamamlanmış makaleler 115/118/119 karakterlik meta yüzünden
+ * tamamen atılıyordu. Alt sınır 110'a indirildi; gerçekten kısa meta hâlâ
+ * durdurulmalı.
+ */
+test("kıl payı kısa meta makaleyi çöpe atmaz", () => {
+  const draft = validDraft();
+  // "faiz kararı" ifadesi meta içinde birebir geçmek zorunda (ayrı kapı).
+  const meta118 = `Faiz kararı sonrası TCMB politika faizini sabit tuttu; kararın ayrıntıları ve mevcut çerçevesi bu yazıda ele alınıyor.`;
+  assert.equal(meta118.length, 118);
+  const report = validateDraft({ ...draft, meta: meta118 }, packet);
+  assert.ok(!report.issues.some((issue) => issue.startsWith("Meta uzunluğu")), report.issues.join(" | "));
+});
+
+test("gerçekten kısa meta hâlâ reddedilir", () => {
+  const draft = validDraft();
+  const meta95 = "Faiz kararı sonrası TCMB politika faizini sabit tuttu; kararın ayrıntıları bu yazıda ele alın";
+  assert.equal(meta95.length, 93);
+  const report = validateDraft({ ...draft, meta: meta95 }, packet);
+  assert.ok(report.issues.some((issue) => issue.startsWith("Meta uzunluğu")));
+});
