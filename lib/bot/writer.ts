@@ -7,8 +7,10 @@ import type { Topic } from "./topics";
 import { MIN_EVIDENCE_MATERIAL_CHARS, evidenceMaterialCharacterCount } from "./research";
 import {
   ArticleDraftSchema,
+  SameStorySchema,
   VerificationSchema,
   type ArticleDraft,
+  type SameStoryVerdict,
   type VerificationReport,
 } from "./article-schema";
 import { renderDraftHtml, validateDraft, type QualityReport } from "./quality";
@@ -393,6 +395,114 @@ async function verifyDraft(topic: Topic, draft: ArticleDraft): Promise<Verificat
     if (config.provider === "anthropic" && isAnthropicBillingError(error)) throw new AnthropicBillingError();
     if (isOpenAIQuotaError(error)) throw new OpenAIQuotaError();
     throw error;
+  }
+}
+
+/**
+ * İkinci bağımsız kaynak kapısı yalnızca başlık benzerliğine bakıyordu ve aynı
+ * olayı farklı manşetle veren gazeteleri eşleştiremiyordu: canlı kayıtta
+ * 196+47 konu bu yüzden düştü, bir koşumda 7 konunun 7'si. Metin sinyali
+ * ayırt edici değil (aynı olay 0.296 / farklı olay 0.269), bu yüzden kararı
+ * ucuz doğrulayıcı model veriyor.
+ *
+ * Kapı GEVŞEMİYOR: hakem yalnızca gri banda düşen çiftlere bakar, "aynı olay"
+ * demezse ikinci kaynak sayılmaz ve HER hata (kota, ağ, bozuk çıktı) hayır
+ * kabul edilir. Koşum başına çağrı tavanı ve süreç içi önbellek var.
+ */
+const JUDGE_MAX_CALLS_PER_RUN = Number(process.env.RESEARCH_JUDGE_MAX_CALLS_PER_RUN) || 8;
+const judgeCache = new Map<string, boolean>();
+let judgeBudget = JUDGE_MAX_CALLS_PER_RUN;
+
+export function resetSameStoryJudgeBudget(): void {
+  judgeBudget = JUDGE_MAX_CALLS_PER_RUN;
+}
+
+export function sameStoryJudgeCallsUsed(): number {
+  return JUDGE_MAX_CALLS_PER_RUN - judgeBudget;
+}
+
+interface StoryBrief {
+  title: string;
+  summary: string;
+  source: string;
+}
+
+const JUDGE_SYSTEM = [
+  "İki haber metninin AYNI olayı anlatıp anlatmadığına karar veren bir editörsün.",
+  "Aynı olay demek: aynı açıklama, aynı veri seti, aynı karar veya aynı fiyat hareketi.",
+  "Aynı konuda olmak yetmez. Farklı gün, farklı kurum, farklı veri veya farklı bir gelişme AYNI OLAY DEĞİLDİR.",
+  "Biri diğerinin arka planını veriyorsa ama olay farklıysa sameEvent false olmalı.",
+  "Emin değilsen sameEvent false yaz. reason alanına tek cümlelik gerekçe yaz.",
+].join("\n");
+
+function judgePrompt(primary: StoryBrief, candidate: StoryBrief): string {
+  return [
+    `HABER A (${primary.source})`,
+    `Başlık: ${primary.title}`,
+    `Özet: ${primary.summary.slice(0, 600)}`,
+    "",
+    `HABER B (${candidate.source})`,
+    `Başlık: ${candidate.title}`,
+    `Özet: ${candidate.summary.slice(0, 600)}`,
+  ].join("\n");
+}
+
+export async function judgeSameStory(primary: StoryBrief, candidate: StoryBrief): Promise<boolean> {
+  const cacheKey = `${primary.title}|${candidate.title}`;
+  const cached = judgeCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+  if (judgeBudget <= 0) return false;
+
+  let config: ArticleAIConfig;
+  try {
+    config = resolveArticleAIConfig();
+  } catch {
+    return false; // sağlayıcı yapılandırılmamışsa kapı kapalı kalır
+  }
+  judgeBudget -= 1;
+  const user = judgePrompt(primary, candidate);
+
+  try {
+    let verdict: SameStoryVerdict;
+    if (config.provider === "anthropic") {
+      const response = await anthropic().messages.parse({
+        model: config.verifierModel,
+        max_tokens: 300,
+        system: JUDGE_SYSTEM,
+        messages: [{ role: "user", content: user }],
+        output_config: { format: zodOutputFormat(SameStorySchema) },
+      });
+      if (!response.parsed_output) return false;
+      verdict = response.parsed_output;
+    } else if (config.provider === "deepseek") {
+      verdict = await deepseekJson<SameStoryVerdict>({
+        model: config.verifierModel,
+        system: JUDGE_SYSTEM,
+        user,
+        maxTokens: 300,
+        schema: SameStorySchema,
+        name: "gelecekfinans_same_story",
+      });
+    } else {
+      const response = await openai().responses.parse({
+        model: config.verifierModel,
+        max_output_tokens: 300,
+        reasoning: { effort: "minimal" },
+        input: [
+          { role: "system", content: JUDGE_SYSTEM },
+          { role: "user", content: user },
+        ],
+        text: { format: zodTextFormat(SameStorySchema, "gelecekfinans_same_story") },
+      });
+      if (!response.output_parsed) return false;
+      verdict = response.output_parsed;
+    }
+    const result = verdict.sameEvent === true;
+    judgeCache.set(cacheKey, result);
+    return result;
+  } catch {
+    // Kota, ağ hatası, bozuk çıktı: hepsi "doğrulanmadı" demektir.
+    return false;
   }
 }
 

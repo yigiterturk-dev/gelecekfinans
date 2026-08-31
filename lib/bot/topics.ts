@@ -1,8 +1,10 @@
 import Parser from "rss-parser";
 import { RSS_FEEDS } from "./config";
+import { judgeSameStory, resetSameStoryJudgeBudget } from "./writer";
 import {
   buildEvidencePacket,
   enrichEvidencePacket,
+  grayBandCandidates,
   storySimilarity,
   type EvidencePacket,
   type ResearchCandidate,
@@ -63,7 +65,22 @@ interface RawTopic extends Topic, ResearchCandidate {
  */
 async function prepareEvidence(primary: RawTopic, candidates: RawTopic[]): Promise<EvidencePacket> {
   const pool: ResearchCandidate[] = candidates;
-  return enrichEvidencePacket(buildEvidencePacket(primary, pool));
+  let packet = buildEvidencePacket(primary, pool);
+
+  // Başlık benzerliği tutmadığında konu doğrudan düşmez: aynı olayı farklı
+  // manşetle veriyor olabilecek adaylar hakeme sorulur. Tek onay yeterli,
+  // çünkü kapının istediği ikinci bağımsız yayıncıdır.
+  if (packet.status !== "VERIFIED") {
+    const confirmed = new Set<ResearchCandidate>();
+    for (const candidate of grayBandCandidates(primary, pool)) {
+      if (await judgeSameStory(primary, candidate)) {
+        confirmed.add(candidate);
+        break;
+      }
+    }
+    if (confirmed.size) packet = buildEvidencePacket(primary, pool, confirmed);
+  }
+  return enrichEvidencePacket(packet);
 }
 
 function getSourcePriority(url?: string): number {
@@ -200,6 +217,7 @@ export function classifyTopicText(title: string, summary = ""): TopicClassificat
 }
 
 export async function getTopics(limit = 20, category?: string): Promise<Topic[]> {
+  resetSameStoryJudgeBudget();
   const all: RawTopic[] = [];
 
   const results = await Promise.allSettled(

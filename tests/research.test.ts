@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildEvidencePacket,
+  grayBandCandidates,
   evidenceMaterialCharacterCount,
   extractArticleTextFromHtml,
   hasConflictingStoryPhase,
@@ -100,4 +101,51 @@ test("kanıt malzemesi RSS özeti yerine zengin haber metnini sayar", () => {
   }]);
   packet.evidence[0].content = "Ayrıntılı kanıt ".repeat(80);
   assert.ok(evidenceMaterialCharacterCount(packet) > 800);
+});
+
+const goldPrimary: ResearchCandidate = {
+  title: "Altında sert düşüş sürüyor: İşte güncel rakamlar",
+  summary: "Ons altın 4655 dolara geriledi; gram altın da kayıpla işlem görüyor.",
+  source: "Sözcü", sourceUrl: "https://www.sozcu.com.tr/altin-dususu",
+  pubDate: Date.now(), sourcePriority: 3, category: "altin",
+};
+const goldOtherPublisher: ResearchCandidate = {
+  title: "Fed freni altını vurdu, haftalık kazanç eridi",
+  summary: "Ons fiyatı 4655 dolar seviyesine indi ve haftayı kayıpla kapattı.",
+  source: "Dünya", sourceUrl: "https://www.dunya.com/altin",
+  pubDate: Date.now(), sourcePriority: 3, category: "altin",
+};
+
+test("başlığı hiç tutmayan aday yine de hakeme sorulur", () => {
+  // Aynı olayın iki manşeti ortak kelime taşımayabiliyor; ön eleme bu yüzden
+  // başlık değil başlık+özet üzerinden çalışır.
+  assert.equal(storySimilarity(goldPrimary.title, goldOtherPublisher.title), 0);
+  const gray = grayBandCandidates(goldPrimary, [goldPrimary, goldOtherPublisher]);
+  assert.deepEqual(gray, [goldOtherPublisher]);
+});
+
+test("konusu tamamen farklı aday hakeme bile sorulmaz", () => {
+  const unrelated: ResearchCandidate = {
+    title: "Buğday fiyatlarında dalgalanma",
+    summary: "Hasat sezonu tamamlandı, un sanayisi stok planlamasına başladı.",
+    source: "Dünya", sourceUrl: "https://www.dunya.com/bugday",
+    pubDate: Date.now(), sourcePriority: 3, category: "altin",
+  };
+  assert.deepEqual(grayBandCandidates(goldPrimary, [goldPrimary, unrelated]), []);
+});
+
+test("aynı yayıncının ikinci haberi hakeme sorulmaz", () => {
+  const sameHouse: ResearchCandidate = { ...goldOtherPublisher, source: "Sözcü", sourceUrl: "https://www.sozcu.com.tr/baska-haber" };
+  assert.deepEqual(grayBandCandidates(goldPrimary, [goldPrimary, sameHouse]), []);
+});
+
+test("hakem onayı olmadan gri bant adayı ikinci kaynak sayılmaz", () => {
+  const packet = buildEvidencePacket(goldPrimary, [goldPrimary, goldOtherPublisher]);
+  assert.equal(packet.status, "INSUFFICIENT");
+});
+
+test("hakem aynı olay dediğinde ikinci kaynak sayılır", () => {
+  const packet = buildEvidencePacket(goldPrimary, [goldPrimary, goldOtherPublisher], new Set([goldOtherPublisher]));
+  assert.equal(packet.status, "VERIFIED");
+  assert.equal(packet.independentSourceCount, 2);
 });

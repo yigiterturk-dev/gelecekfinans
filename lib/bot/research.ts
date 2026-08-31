@@ -296,13 +296,32 @@ function evidenceId(candidate: ResearchCandidate, index: number): string {
   return `ev-${index + 1}-${key.replace(/\s+/g, "-")}`;
 }
 
-export function buildEvidencePacket(
+export const STORY_MATCH_THRESHOLD = 0.44;
+/**
+ * Hakeme sorulacak adayın taşıması gereken en az metin örtüşmesi. Bu eşik
+ * KARAR eşiği değil, yalnızca ucuz bir ön elemedir: kararı model verir, o
+ * yüzden burada isabet değil kapsama önemlidir. Ölçüm: aynı olayın iki
+ * manşeti arasında BAŞLIK benzerliği 0 olabiliyor, özetler katılınca 0.29'a
+ * çıkıyor — bu yüzden ön eleme başlık+özet üzerinden yapılır.
+ */
+export const STORY_GRAY_BAND_MIN = 0.2;
+
+function storyText(candidate: ResearchCandidate): string {
+  return `${candidate.title} ${candidate.summary}`;
+}
+
+/**
+ * Kategori, olay evresi ve zaman penceresi elemelerinden geçen adaylar.
+ * Hem kanıt paketi hem de hakeme sorulacak gri bant aynı elemeyi kullanır ki
+ * iki yer birbirinden ayrı düşmesin.
+ */
+function eligibleCandidates(
   primary: ResearchCandidate,
   candidates: ResearchCandidate[],
-): EvidencePacket {
+): Array<{ candidate: ResearchCandidate; similarity: number }> {
   const eventWindowMs = 14 * 24 * 60 * 60 * 1000;
   const marketSessionWindowMs = 36 * 60 * 60 * 1000;
-  const matches = candidates
+  return candidates
     .filter((candidate) => candidate.category === primary.category)
     .filter((candidate) => candidate === primary || !hasConflictingStoryPhase(primary.title, candidate.title))
     .filter((candidate) => {
@@ -312,8 +331,56 @@ export function buildEvidencePacket(
         : eventWindowMs;
       return Math.abs(primary.pubDate - candidate.pubDate) <= window;
     })
-    .map((candidate) => ({ candidate, similarity: storySimilarity(primary.title, candidate.title) }))
-    .filter(({ candidate, similarity }) => candidate === primary || similarity >= 0.44)
+    .map((candidate) => ({ candidate, similarity: storySimilarity(primary.title, candidate.title) }));
+}
+
+/**
+ * Başlık benzerliği eşiği tutturamayan ama aynı olayı anlatıyor olabilecek
+ * adaylar. Aynı olayın manşetleri gazeteden gazeteye çok değiştiği için
+ * (ölçüm: aynı olay 0.296, farklı olay 0.269 — sadece metinle ayrılamıyor)
+ * bu adaylar hakeme sorulur. Kendi yayıncısı ve zaten eşleşenler hariç.
+ */
+export function grayBandCandidates(
+  primary: ResearchCandidate,
+  candidates: ResearchCandidate[],
+  limit = 3,
+): ResearchCandidate[] {
+  const primaryPublisher = publisherKey(primary);
+  const seen = new Set<string>([primaryPublisher]);
+  const output: ResearchCandidate[] = [];
+  const primaryText = storyText(primary);
+  const ranked = eligibleCandidates(primary, candidates)
+    .filter(({ candidate, similarity }) =>
+      candidate !== primary &&
+      Boolean(candidate.sourceUrl) &&
+      similarity < STORY_MATCH_THRESHOLD)
+    .map(({ candidate }) => ({ candidate, textSimilarity: storySimilarity(primaryText, storyText(candidate)) }))
+    .filter(({ textSimilarity }) => textSimilarity >= STORY_GRAY_BAND_MIN)
+    .sort((a, b) => b.textSimilarity - a.textSimilarity || b.candidate.sourcePriority - a.candidate.sourcePriority);
+  for (const { candidate } of ranked) {
+    const key = publisherKey(candidate);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    output.push(candidate);
+    if (output.length >= limit) break;
+  }
+  return output;
+}
+
+export function buildEvidencePacket(
+  primary: ResearchCandidate,
+  candidates: ResearchCandidate[],
+  /**
+   * Hakem tarafından "aynı olay" onayı almış adaylar. Yalnızca bu küme
+   * benzerlik eşiğini atlayabilir; boş bırakılırsa davranış eskisiyle aynıdır.
+   */
+  judgedSameStory?: ReadonlySet<ResearchCandidate>,
+): EvidencePacket {
+  const matches = eligibleCandidates(primary, candidates)
+    .filter(({ candidate, similarity }) =>
+      candidate === primary ||
+      similarity >= STORY_MATCH_THRESHOLD ||
+      judgedSameStory?.has(candidate) === true)
     .sort((a, b) =>
       b.candidate.sourcePriority - a.candidate.sourcePriority ||
       b.similarity - a.similarity ||

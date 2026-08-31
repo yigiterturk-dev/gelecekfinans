@@ -37,3 +37,13 @@ export const VerificationSchema = z.object({
 export type ArticleDraft = z.infer<typeof ArticleDraftSchema>;
 export type VerificationReport = z.infer<typeof VerificationSchema>;
 
+/**
+ * İki haberin aynı olayı anlatıp anlatmadığına dair hakem kararı. Kapı
+ * gevşetmesi değil: yalnızca başlık benzerliği gri banda düşen çiftler
+ * sorulur ve model "hayır" derse ikinci kaynak sayılmaz.
+ */
+export const SameStorySchema = z.object({
+  sameEvent: z.boolean(),
+  reason: z.string(),
+});
+export type SameStoryVerdict = z.infer<typeof SameStorySchema>;
