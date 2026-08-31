@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
   try {
     // Dosya adını güvenli hale getir (yol/garip karakter kalmasın).
     const safeName = (file.name || "image").replace(/[^a-zA-Z0-9._-]/g, "-").slice(-80);
-    const blob = await put(`articles/${Date.now()}-${safeName}`, file, {
+    const blob = await put(`gorseller/${Date.now()}-${safeName}`, file, {
       access: "public",
       addRandomSuffix: false,
     });

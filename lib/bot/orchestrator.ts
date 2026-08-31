@@ -7,12 +7,18 @@ import { autoLink } from "@/lib/bot/linker";
 import { ensureExternalLink } from "@/lib/bot/external-link";
 import { getArticleImageResult } from "@/lib/bot/images";
 import { getTopics } from "@/lib/bot/topics";
-import { resolveArticleAIConfig, writeArticle } from "@/lib/bot/writer";
+import { judgeSameStory, resetSameStoryJudgeBudget, resolveArticleAIConfig, writeArticle } from "@/lib/bot/writer";
 import {
   classifyRisk, decidePublication, scoreSource,
 } from "@/lib/bot/autonomy";
 import { AIBudgetLimitError, AIProviderFatalError } from "@/lib/bot/errors";
-import { MIN_EVIDENCE_MATERIAL_CHARS, evidenceMaterialCharacterCount } from "@/lib/bot/research";
+import {
+  MIN_EVIDENCE_MATERIAL_CHARS,
+  buildEvidencePacket,
+  enrichEvidencePacket,
+  evidenceMaterialCharacterCount,
+  type ResearchCandidate,
+} from "@/lib/bot/research";
 import { checkPlagiarism } from "@/lib/bot/plagiarism";
 import { resolveArticleAIBudgetConfig, startOfIstanbulDay } from "@/lib/bot/ai-budget";
 import { sendBotAlert } from "@/lib/bot/alert";
@@ -163,10 +169,51 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
   let fatalErrorCode: string | null = null;
   const errors: string[] = [];
 
+  resetSameStoryJudgeBudget();
+
   for (const topic of topics) {
     if (added >= count) break;
     try {
-      const packet = topic.evidencePacket;
+      /**
+       * Başlık benzerliği tutmadığı için doğrulanmamış konularda son bir şans:
+       * aynı olayı farklı manşetle veriyor olabilecek adaylar hakeme sorulur.
+       * Çağrı burada yapılır, konu havuzu hazırlanırken değil — yazılmayacak
+       * konular için kredi harcanmasın diye. İlk "aynı olay" onayı yeterlidir,
+       * çünkü kapının istediği ikinci bağımsız yayıncıdır.
+       */
+      let packet = topic.evidencePacket;
+      const candidates = topic.corroborationCandidates || [];
+      // Konu, kanıt fonksiyonlarına aday olarak da girer; besleme alanları
+      // eksikse (elle tetiklenen akışlar) varsayılanla tamamlanır.
+      const topicAsCandidate: ResearchCandidate = {
+        title: topic.title,
+        summary: topic.summary,
+        source: topic.source,
+        sourceUrl: topic.sourceUrl,
+        category: topic.category,
+        pubDate: topic.pubDate ?? Date.now(),
+        sourcePriority: topic.sourcePriority ?? 0,
+      };
+      if (packet && packet.status !== "VERIFIED" && candidates.length) {
+        const confirmed = new Set<ResearchCandidate>();
+        const verdicts: Array<{ source: string; sameEvent: boolean }> = [];
+        for (const candidate of candidates) {
+          const sameEvent = await judgeSameStory(topic, candidate);
+          verdicts.push({ source: candidate.source, sameEvent });
+          if (sameEvent) { confirmed.add(candidate); break; }
+        }
+        if (confirmed.size) {
+          packet = await enrichEvidencePacket(
+            buildEvidencePacket(topicAsCandidate, [topicAsCandidate, ...confirmed], confirmed),
+          );
+        }
+        await logEvent(run.id, "corroboration_judge", "İkinci kaynak adayları hakeme soruldu", {
+          title: topic.title,
+          askedCandidates: candidates.length,
+          verdicts,
+          resolved: confirmed.size > 0,
+        });
+      }
       if (!packet || packet.status !== "VERIFIED" || packet.independentSourceCount < 2) {
         blocked++;
         await logEvent(run.id, "research", "Konu ikinci bağımsız kaynak bulunamadığı için durduruldu", {
@@ -174,6 +221,7 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
           evidenceStatus: packet?.status || "MISSING",
           independentSourceCount: packet?.independentSourceCount || 0,
           reasons: packet?.reasons || [],
+          judgeCandidates: candidates.length,
         }, undefined, "warning");
         continue;
       }

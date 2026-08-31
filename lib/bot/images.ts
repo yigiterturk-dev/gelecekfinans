@@ -9,7 +9,7 @@ export interface ArticleImageInput {
   title: string;
   /**
    * Makalenin slug'ı. Verilirse görsel dosya adı bundan üretilir:
-   * `articles/altin-yedi-haftanin-zirvesinde.png`. Zaman damgalı rastgele ad
+   * `gorseller/altin-yedi-haftanin-zirvesinde.png`. Zaman damgalı rastgele ad
    * (`branded-altin-1785998325947-3hac6j.png`) arama motoruna hiçbir şey
    * anlatmıyordu; dosya adı görsel aramada sıralama sinyalidir.
    */
@@ -277,7 +277,7 @@ async function uploadBufferToBlob(bytes: Buffer, prefix: string, contentType: st
       .slice(0, 80) || "gorsel";
     // Aynı makale yeniden üretilirse aynı adrese yazılır; böylece hem dosya adı
     // okunur kalır hem de eski görsel çöp olarak birikmez.
-    const key = `articles/${safePrefix}.${extension}`;
+    const key = `gorseller/${safePrefix}.${extension}`;
     const blob = await put(key, bytes, { access: "public", contentType, addRandomSuffix: false });
     return blob.url;
   } catch {

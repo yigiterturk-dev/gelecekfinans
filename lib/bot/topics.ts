@@ -1,6 +1,5 @@
 import Parser from "rss-parser";
 import { RSS_FEEDS } from "./config";
-import { judgeSameStory, resetSameStoryJudgeBudget } from "./writer";
 import {
   buildEvidencePacket,
   enrichEvidencePacket,
@@ -19,7 +18,13 @@ export interface Topic {
   imageUrl?: string;
   relevanceScore?: number;
   relevanceReasons?: string[];
+  // Kanıt fonksiyonları konuyu ResearchCandidate olarak da kullandığı için
+  // yayın zamanı ve kaynak önceliği tipte görünür olmalı.
+  pubDate?: number;
+  sourcePriority?: number;
   evidencePacket?: EvidencePacket;
+  /** Hakeme sorulmayı bekleyen, henüz doğrulanmamış ikinci kaynak adayları. */
+  corroborationCandidates?: ResearchCandidate[];
 }
 
 const parser = new Parser({ timeout: 10000 });
@@ -65,22 +70,7 @@ interface RawTopic extends Topic, ResearchCandidate {
  */
 async function prepareEvidence(primary: RawTopic, candidates: RawTopic[]): Promise<EvidencePacket> {
   const pool: ResearchCandidate[] = candidates;
-  let packet = buildEvidencePacket(primary, pool);
-
-  // Başlık benzerliği tutmadığında konu doğrudan düşmez: aynı olayı farklı
-  // manşetle veriyor olabilecek adaylar hakeme sorulur. Tek onay yeterli,
-  // çünkü kapının istediği ikinci bağımsız yayıncıdır.
-  if (packet.status !== "VERIFIED") {
-    const confirmed = new Set<ResearchCandidate>();
-    for (const candidate of grayBandCandidates(primary, pool)) {
-      if (await judgeSameStory(primary, candidate)) {
-        confirmed.add(candidate);
-        break;
-      }
-    }
-    if (confirmed.size) packet = buildEvidencePacket(primary, pool, confirmed);
-  }
-  return enrichEvidencePacket(packet);
+  return enrichEvidencePacket(buildEvidencePacket(primary, pool));
 }
 
 function getSourcePriority(url?: string): number {
@@ -217,7 +207,6 @@ export function classifyTopicText(title: string, summary = ""): TopicClassificat
 }
 
 export async function getTopics(limit = 20, category?: string): Promise<Topic[]> {
-  resetSameStoryJudgeBudget();
   const all: RawTopic[] = [];
 
   const results = await Promise.allSettled(
@@ -307,10 +296,20 @@ export async function getTopics(limit = 20, category?: string): Promise<Topic[]>
   }
 
   const shortlisted = unique.slice(0, limit);
-  return Promise.all(shortlisted.map(async (topic) => ({
-    ...topic,
-    evidencePacket: await prepareEvidence(topic, all),
-  })));
+  return Promise.all(shortlisted.map(async (topic) => {
+    const evidencePacket = await prepareEvidence(topic, all);
+    return {
+      ...topic,
+      evidencePacket,
+      // Aynı olayı farklı manşetle veriyor olabilecek adaylar. Hesabı bedava
+      // (yalnızca metin karşılaştırması); ücretli hakem çağrısını orchestrator
+      // sırası o konuya geldiğinde yapar, böylece yazılmayacak konular için
+      // kredi harcanmaz.
+      corroborationCandidates: evidencePacket.status === "VERIFIED"
+        ? []
+        : grayBandCandidates(topic, all),
+    };
+  }));
 }
 
 export async function findCorroboratedTopic(
