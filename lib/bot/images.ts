@@ -7,6 +7,13 @@ import { searchLicensedMedia, type LicensedMediaAsset } from "./licensed-media";
 
 export interface ArticleImageInput {
   title: string;
+  /**
+   * Makalenin slug'ı. Verilirse görsel dosya adı bundan üretilir:
+   * `articles/altin-yedi-haftanin-zirvesinde.png`. Zaman damgalı rastgele ad
+   * (`branded-altin-1785998325947-3hac6j.png`) arama motoruna hiçbir şey
+   * anlatmıyordu; dosya adı görsel aramada sıralama sinyalidir.
+   */
+  slug?: string | null;
   keyword?: string | null;
   category: string;
   recentConcepts?: string[];
@@ -45,7 +52,7 @@ export async function getArticleImageResult(article: ArticleImageInput): Promise
   if (brief.mode === "DATA_CHART") {
     const chartUrl = await buildMarketChart(article.category, article);
     if (chartUrl) {
-      const stored = await uploadRemoteToBlob(chartUrl, `chart-${article.category}`, true);
+      const stored = await uploadRemoteToBlob(chartUrl, article.slug || `chart-${article.category}`, true);
       if (stored) return {
         url: stored,
         strategy: "MARKET_CHART",
@@ -64,7 +71,11 @@ export async function getArticleImageResult(article: ArticleImageInput): Promise
       headline: article.title,
     });
     if (asset) {
-      const stored = await uploadRemoteToBlob(asset.downloadUrl, `licensed-${asset.provider}-${asset.assetId}`, false);
+      const stored = await uploadRemoteToBlob(
+        asset.downloadUrl,
+        article.slug || `licensed-${asset.provider}-${asset.assetId}`,
+        false,
+      );
       if (stored) return {
         url: stored,
         strategy: "LICENSED_MEDIA",
@@ -81,7 +92,9 @@ export async function getArticleImageResult(article: ArticleImageInput): Promise
   }
 
   const card = await createBrandedCard(article);
-  const stored = card ? await uploadBufferToBlob(card, `branded-${article.category}`, "image/png") : null;
+  const stored = card
+    ? await uploadBufferToBlob(card, article.slug || `branded-${article.category}`, "image/png")
+    : null;
   if (stored) return {
     url: stored,
     strategy: "BRANDED_EDITORIAL",
@@ -256,8 +269,15 @@ async function uploadBufferToBlob(bytes: Buffer, prefix: string, contentType: st
   if (!process.env.BLOB_READ_WRITE_TOKEN) return null;
   try {
     const extension = contentType === "image/png" ? "png" : "jpg";
-    const safePrefix = prefix.replace(/[^a-z0-9-]+/gi, "-").slice(0, 80);
-    const key = `articles/${safePrefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`;
+    const safePrefix = prefix
+      .toLocaleLowerCase("tr-TR")
+      .replace(/[^a-z0-9-]+/gi, "-")
+      .replace(/-{2,}/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 80) || "gorsel";
+    // Aynı makale yeniden üretilirse aynı adrese yazılır; böylece hem dosya adı
+    // okunur kalır hem de eski görsel çöp olarak birikmez.
+    const key = `articles/${safePrefix}.${extension}`;
     const blob = await put(key, bytes, { access: "public", contentType, addRandomSuffix: false });
     return blob.url;
   } catch {

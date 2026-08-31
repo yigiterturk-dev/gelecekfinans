@@ -251,7 +251,7 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
         topic.sourceUrl,
       );
       const image = await getArticleImageResult({
-        title: article.title, keyword: article.keyword, category: article.category,
+        title: article.title, keyword: article.keyword, category: article.category, slug,
         recentConcepts, maxAttempts: 1,
         evidenceSourceCount: packet.independentSourceCount,
       });

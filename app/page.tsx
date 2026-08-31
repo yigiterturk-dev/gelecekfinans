@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { getAllArticles } from "@/lib/articles";
 import { HeroCard, StripCard, MedCard, RankedCard, CATS, Ago } from "@/components/ArticleCard";
 import Newsletter from "@/components/Newsletter";
@@ -128,6 +129,19 @@ export default async function HomePage() {
                     textDecoration: "none",
                   }}
                 >
+                  {/* Kapak görseli: bu kart daha önce yalnızca metin basıyordu ve
+                      hero ile alt şerit arasında görsel olarak kopuk kalıyordu. */}
+                  {a.imageUrl && (
+                    <div style={{ position: "relative", aspectRatio: "16/9", borderRadius: 8, overflow: "hidden", marginBottom: 4 }}>
+                      <Image
+                        src={a.imageUrl}
+                        alt={a.title}
+                        fill
+                        sizes="(max-width:768px) 100vw, 50vw"
+                        style={{ objectFit: "cover" }}
+                      />
+                    </div>
+                  )}
                   <span style={{ fontFamily: "var(--mono)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: (CATS[a.category]?.c) || "var(--accent)" }}>
                     {(CATS[a.category]?.l) || a.category.toUpperCase()}
                   </span>
