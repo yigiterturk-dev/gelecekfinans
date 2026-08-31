@@ -220,6 +220,9 @@ function articleInstructions(targetWords: number): string {
     // Yumuşak "doğal biçimde geçsin" ifadesini GPT-5 kendiliğinden uyguluyordu ama
     // daha küçük modeller eşanlamlı yazıp kapıya takılıyor; kural açık yazıldı.
     "keyword 1-3 kelimelik odak ifade olsun ve AYNEN o yazımıyla hem meta alanında hem de lede (giriş paragrafı) içinde geçsin. Eşanlamlısını veya çekimli halini değil, birebir aynı ifadeyi kullan.",
+    // Model bu kuralı "meta sonuna Keyword: ... yapıştır" diye uyguluyordu ve
+    // ek arama sonucunda okura görünüyordu; kural açıkça yasaklandı.
+    "Odak kelime meta açıklamada CÜMLENİN İÇİNDE doğal biçimde geçmeli. Metanın sonuna \"Keyword: ...\", \"Anahtar kelime: ...\" gibi etiket EKLEME; bu arama sonucunda okura görünür ve kabul edilmez.",
     "Tam 3 özet maddesi ve 3 kısa SSS üret. Bullets yalnızca gerçekten listelenebilir olgular varsa dolu olsun.",
     'Disclaimer tam olarak "Bu içerik yalnızca bilgilendirme amaçlıdır, yatırım tavsiyesi değildir." olsun.',
     "Başarı ölçütü: kanıt dışı tek bir somut iddia veya rakam bulunmaması.",
@@ -571,8 +574,17 @@ export async function writeArticle(
    */
   const resolveEvidenceId = (value: string): string => {
     if (packetIds.has(value)) return value;
-    const prefixed = [...packetIds].filter((id) => id.startsWith(`${value}-`));
-    return prefixed.length === 1 ? prefixed[0] : value;
+    /**
+     * Kanıt paketi modele `[kimlik]` biçiminde gösteriliyor; modeller köşeli
+     * parantezi kimliğin PARÇASI sanıp `[ev-2-publisher:dunya-...]` diye geri
+     * yazıyor ve kapı "bilinmeyen kanıt kimliği" deyip bitmiş makaleyi çöpe
+     * atıyordu (canlı kayıttan: tek makalede 7 ihlalin tamamı buydu).
+     * Parantez biçim işareti, veri değil: sessizce soyuluyor.
+     */
+    const unwrapped = value.trim().replace(/^\[+/, "").replace(/\]+$/, "").trim();
+    if (packetIds.has(unwrapped)) return unwrapped;
+    const prefixed = [...packetIds].filter((id) => id.startsWith(`${unwrapped}-`));
+    return prefixed.length === 1 ? prefixed[0] : unwrapped;
   };
   const normalizeEvidenceIds = (candidate: ArticleDraft): ArticleDraft => ({
     ...candidate,

@@ -96,7 +96,43 @@ export function countDraftWords(draft: ArticleDraft): number {
   return body.split(/\s+/).filter(Boolean).length;
 }
 
-export function validateDraft(draft: ArticleDraft, packet: EvidencePacket): QualityReport {
+/**
+ * Kalite kapısının şerit ayarı.
+ *
+ * Haber ve rehber aynı kapıdan geçmez ama rehber kapısı GEVŞEK değildir:
+ * yalnızca farklı ölçütlere bakar. Haberde "iki bağımsız yayıncı" ve 280-800
+ * kelime doğru ölçüttür; rehberde doğru ölçüt tek bir resmî kaynak ve daha
+ * uzun, daha derin metindir. Sayıların kanıtla desteklenmesi, uydurma yasağı,
+ * yatırım tavsiyesi uyarısı gibi kurallar iki şeritte de aynen geçerlidir.
+ */
+export interface QualityPreset {
+  minWords: number;
+  maxWords: number;
+  minIndependentSources: number;
+  label: string;
+}
+
+export const NEWS_QUALITY_PRESET: QualityPreset = {
+  minWords: 280,
+  maxWords: 800,
+  minIndependentSources: 2,
+  label: "haber",
+};
+
+export const GUIDE_QUALITY_PRESET: QualityPreset = {
+  minWords: 850,
+  maxWords: 2000,
+  // Rehberde ikinci gazete aranmaz; kuralı koyan kurumun kendi sayfası
+  // ikinci bir haber kaynağından daha güçlü kanıttır.
+  minIndependentSources: 1,
+  label: "rehber",
+};
+
+export function validateDraft(
+  draft: ArticleDraft,
+  packet: EvidencePacket,
+  preset: QualityPreset = NEWS_QUALITY_PRESET,
+): QualityReport {
   const issues: string[] = [];
   const wordCount = countDraftWords(draft);
   const evidenceIds = new Set(packet.evidence.map((item) => item.id));
@@ -106,8 +142,12 @@ export function validateDraft(draft: ArticleDraft, packet: EvidencePacket): Qual
   const supportedNumbers = numbersIn(evidenceText, true);
   const draftText = textParts(draft).join(" ");
 
-  if (packet.status !== "VERIFIED" || packet.independentSourceCount < 2) {
-    issues.push("İki bağımsız kaynak kapısı geçilmedi");
+  if (packet.status !== "VERIFIED" || packet.independentSourceCount < preset.minIndependentSources) {
+    issues.push(
+      preset.minIndependentSources >= 2
+        ? "İki bağımsız kaynak kapısı geçilmedi"
+        : "Resmî kaynak kanıt kapısı geçilmedi",
+    );
   }
   if (draft.title.length < 35 || draft.title.length > 85) issues.push(`Başlık uzunluğu uygun değil: ${draft.title.length}`);
   // Alt sınır 2026-08-31'de 120 -> 110 indirildi. Kayıtlarda tamamlanmış
@@ -116,13 +156,29 @@ export function validateDraft(draft: ArticleDraft, packet: EvidencePacket): Qual
   // okur açısından hiçbir fark yok, ama kapı makalenin tamamını atıyordu.
   // Üst sınır aynı kalır; uzun meta gerçekten kırpılır.
   if (draft.meta.length < 110 || draft.meta.length > 180) issues.push(`Meta uzunluğu uygun değil: ${draft.meta.length}`);
-  if (wordCount < 280) issues.push(`Metin fazla kısa: ${wordCount} kelime`);
-  if (wordCount > 800) issues.push(`Metin gereksiz uzun: ${wordCount} kelime`);
+  if (wordCount < preset.minWords) {
+    issues.push(`Metin fazla kısa: ${wordCount} kelime (${preset.label} alt sınırı ${preset.minWords})`);
+  }
+  if (wordCount > preset.maxWords) {
+    issues.push(`Metin gereksiz uzun: ${wordCount} kelime (${preset.label} üst sınırı ${preset.maxWords})`);
+  }
   if (!draft.lede.toLocaleLowerCase("tr-TR").includes(draft.keyword.toLocaleLowerCase("tr-TR"))) {
     issues.push("Odak anahtar kelime giriş paragrafında yok");
   }
   if (!draft.meta.toLocaleLowerCase("tr-TR").includes(draft.keyword.toLocaleLowerCase("tr-TR"))) {
     issues.push("Odak anahtar kelime metada yok");
+  }
+  /**
+   * "Keyword: EPDK düzenleme" gibi etiket ekleri.
+   *
+   * Kelimenin metada birebir geçmesi kuralını model kaba yoldan sağlıyordu:
+   * cümleyi kurmak yerine metanın sonuna "Keyword: ..." yapıştırıyordu
+   * (canlı örnek: EPDK tarife haberi). Bu ek arama sonucunda OKURA GÖRÜNÜR
+   * ve siteyi otomatik üretilmiş gösterir. Kapı bunu reddeder; onarım turunda
+   * modele kelimeyi cümlenin içine yedirmesi söylenir.
+   */
+  if (/\b(keyword|anahtar kelime|odak kelime)\s*[:=]/i.test(draft.meta)) {
+    issues.push("Metada etiket eki var (ör. \"Keyword: ...\"); kelime cümlenin içinde doğal geçmeli");
   }
 
   for (const claim of draft.claims) {

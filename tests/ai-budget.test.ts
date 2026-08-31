@@ -5,8 +5,8 @@ import { resolveArticleAIBudgetConfig, startOfIstanbulDay } from "../lib/bot/ai-
 test("AI bütçesi güvenli üretim varsayılanlarını kullanır", () => {
   assert.deepEqual(resolveArticleAIBudgetConfig({}), {
     dailyWriterCallLimit: 10,
-    maxWriterCallsPerRun: 1,
-    writerMaxOutputTokens: 2400,
+    maxWriterCallsPerRun: 2,
+    writerMaxOutputTokens: 5000,
     verifierMaxOutputTokens: 800,
     evidencePromptCharacterLimit: 14000,
     evidenceItemCharacterLimit: 2500,
@@ -22,7 +22,7 @@ test("AI bütçe değişkenleri güvenli aralıklara sıkıştırılır", () => 
   });
   assert.equal(budget.dailyWriterCallLimit, 50);
   assert.equal(budget.maxWriterCallsPerRun, 1);
-  assert.equal(budget.writerMaxOutputTokens, 4000);
+  assert.equal(budget.writerMaxOutputTokens, 9000);
   assert.equal(budget.verifierMaxOutputTokens, 300);
 });
 

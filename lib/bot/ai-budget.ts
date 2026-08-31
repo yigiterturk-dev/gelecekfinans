@@ -23,8 +23,17 @@ export function resolveArticleAIBudgetConfig(
 ): ArticleAIBudgetConfig {
   return {
     dailyWriterCallLimit: boundedInteger(env.ARTICLE_DAILY_WRITER_CALL_LIMIT, 10, 1, 50),
-    maxWriterCallsPerRun: boundedInteger(env.ARTICLE_MAX_WRITER_CALLS_PER_RUN, 1, 1, 10),
-    writerMaxOutputTokens: boundedInteger(env.OPENAI_WRITER_MAX_OUTPUT_TOKENS, 2400, 1200, 4000),
+    // Koşu başına 1 iken TEK bir kalite reddi bütün koşumu "bütçe doldu"
+    // hatasıyla bitiriyordu: elenen konu yerine yenisi denenemiyordu. 2 ile
+    // koşum ikinci bir konuya şans veriyor, günlük tavan yine harcamayı
+    // sınırlıyor (varsayılan 10).
+    maxWriterCallsPerRun: boundedInteger(env.ARTICLE_MAX_WRITER_CALLS_PER_RUN, 2, 1, 10),
+    // 2400 token, 800 kelimelik TÜRKÇE makale JSON'ına yetmiyordu: canlı
+    // kayıtta "Unterminated string in JSON at position 7764" ile taslak
+    // ortadan kesildi. Türkçe token başına daha az kelime taşır ve claims/faq
+    // alanları da bu tavana sayılır. 5000 haber şeridi için rahat pay bırakır;
+    // tavan rehber şeridi (1800 kelime) için 16000'e çıkarıldı.
+    writerMaxOutputTokens: boundedInteger(env.OPENAI_WRITER_MAX_OUTPUT_TOKENS, 5000, 1200, 16000),
     verifierMaxOutputTokens: boundedInteger(env.OPENAI_VERIFIER_MAX_OUTPUT_TOKENS, 800, 300, 1600),
     evidencePromptCharacterLimit: boundedInteger(env.ARTICLE_EVIDENCE_PROMPT_MAX_CHARS, 14000, 4000, 24000),
     evidenceItemCharacterLimit: boundedInteger(env.ARTICLE_EVIDENCE_ITEM_MAX_CHARS, 2500, 800, 5000),

@@ -250,8 +250,19 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
         continue;
       }
 
-      const source = scoreSource(topic);
-      const risk = classifyRisk(topic);
+      /**
+       * ── KRİTİK: hakemin onayladığı paket yazara ULAŞMALI ────────────────
+       * Hakem "aynı olay" dediğinde yukarıda zenginleştirilmiş yeni bir
+       * `packet` üretiliyordu ama `writeArticle` konuyu alıp KENDİ içinde
+       * `topic.evidencePacket` okuyor. O alan hâlâ doğrulanmamış eski paketti:
+       * hakemin onayladığı her konu, bütçe rezervasyonu yapıldıktan hemen
+       * sonra "İki bağımsız kaynak doğrulaması tamamlanmadı" ile ölüyordu.
+       * Kayıtlarda 116 yazar çağrısına karşılık 0 makale çıkmasının sebebi
+       * buydu — model değil, paketin yazara taşınmaması.
+       */
+      const verifiedTopic = { ...topic, evidencePacket: packet };
+      const source = scoreSource(verifiedTopic);
+      const risk = classifyRisk(verifiedTopic);
       if (writerCalls >= aiBudget.maxWriterCallsPerRun) {
         throw new AIBudgetLimitError(
           `İş başına ${aiBudget.maxWriterCallsPerRun} yazar çağrısı sınırına ulaşıldı; ek çağrı yapılmadı.`,
@@ -273,7 +284,7 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
       });
       writerCalls++;
       dailyWriterCalls++;
-      const article = await writeArticle(topic, targetWords);
+      const article = await writeArticle(verifiedTopic, targetWords);
       const plagiarism = checkPlagiarism({
         candidate: article.content,
         evidencePacket: packet,

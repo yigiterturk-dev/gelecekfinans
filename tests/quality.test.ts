@@ -123,3 +123,22 @@ test("gerçekten kısa meta hâlâ reddedilir", () => {
   const report = validateDraft({ ...draft, meta: meta95 }, packet);
   assert.ok(report.issues.some((issue) => issue.startsWith("Meta uzunluğu")));
 });
+
+test("metaya yapıştırılan Keyword etiketi reddedilir", () => {
+  const packet = {
+    storyKey: "k", status: "VERIFIED" as const, independentSourceCount: 2,
+    evidence: [], reasons: [],
+  };
+  const draft = {
+    title: "EPDK doğal gaz ve LPG tarifelerinde güncellemeye gitti kararı",
+    meta: "EPDK, doğal gaz dağıtım şirketlerinin yatırım tavanlarını ve LPG tesislerinin hizmet tarifelerini revize etti. Keyword: EPDK düzenleme",
+    keyword: "EPDK düzenleme",
+    lede: "EPDK düzenleme kapsamında tarifeler güncellendi.",
+    sections: [{ heading: "Kapsam", paragraphs: ["Tarifeler güncellendi."], bullets: [] }],
+    summary: ["a", "b", "c"], impact: "etki",
+    faq: [{ q: "s1", a: "c1" }, { q: "s2", a: "c2" }, { q: "s3", a: "c3" }],
+    claims: [], disclaimer: "Bu içerik yalnızca bilgilendirme amaçlıdır, yatırım tavsiyesi değildir.",
+  };
+  const report = validateDraft(draft, packet);
+  assert.ok(report.issues.some((issue) => issue.includes("etiket eki")));
+});

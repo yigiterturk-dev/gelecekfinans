@@ -19,6 +19,15 @@ enum ArticleSource {
   MANUAL
 }
 
+/**
+ * Makalenin hangi şeritten geldiği. NEWS: RSS haber akışı, tazelik odaklı.
+ * GUIDE: anahtar kelime havuzundan üretilen kalıcı rehber içerik.
+ */
+enum ContentTrack {
+  NEWS
+  GUIDE
+}
+
 enum AutonomyRisk {
   GREEN
   YELLOW
@@ -55,6 +64,11 @@ model Article {
   imageStrategy       String?
   automationMeta      Json?
   autoPublished       Boolean             @default(false)
+  track               ContentTrack        @default(NEWS)
+  keywordId           String?
+  cluster             String?
+  refreshedAt         DateTime?
+  refreshCount        Int                 @default(0)
   publishedAt         DateTime?
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
@@ -62,6 +76,8 @@ model Article {
   @@index([category, status])
   @@index([status, publishedAt(sort: Desc)])
   @@index([publicationDecision, createdAt(sort: Desc)])
+  @@index([track, status])
+  @@index([cluster, status])
 }
 
 model AdminUser {
@@ -153,4 +169,75 @@ model AutomationEvent {
 
   @@index([runId, createdAt])
   @@index([articleId, createdAt])
+}
+
+enum KeywordStatus {
+  QUEUED
+  IN_PROGRESS
+  PUBLISHED
+  FAILED
+  PAUSED
+}
+
+enum KeywordIntent {
+  INFORMATIONAL
+  COMMERCIAL
+  TRANSACTIONAL
+  NAVIGATIONAL
+}
+
+/**
+ * Şerit B'nin (rehber içerik) konu kaynağı. RSS'ten değil arama talebinden
+ * beslenir. `cluster` alanı hub/spoke iç linklemesini sürer: aynı kümedeki
+ * makaleler birbirine ve kümenin hub sayfasına bağlanır.
+ */
+model Keyword {
+  id          String        @id @default(cuid())
+  term        String        @unique
+  category    String
+  cluster     String
+  isHub       Boolean       @default(false)
+  intent      KeywordIntent @default(INFORMATIONAL)
+  priority    Int           @default(50)
+  status      KeywordStatus @default(QUEUED)
+  // Havuza nasıl girdi: "seed" (elle/başlangıç), "gsc" (Search Console'dan
+  // keşfedildi), "expansion" (mevcut kelimeden türetildi).
+  origin      String        @default("seed")
+  notes       String?
+  articleId   String?
+  lastTriedAt DateTime?
+  attempts    Int           @default(0)
+  lastError   String?
+  // En son senkronda ölçülen Search Console değerleri; kimlik bilgisi yoksa null kalır.
+  impressions Int?
+  clicks      Int?
+  position    Float?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([status, priority(sort: Desc)])
+  @@index([cluster])
+  @@index([category, status])
+}
+
+/**
+ * Sayfa/sorgu bazlı arama performansının günlük anlık görüntüsü. Kaynak
+ * Search Console; kimlik bilgisi yokken `source: "internal"` ile kendi
+ * PageView verimizden doldurulur, böylece tazeleme döngüsü her hâlükârda çalışır.
+ */
+model SearchPerformance {
+  id          String   @id @default(cuid())
+  date        DateTime
+  page        String
+  query       String
+  clicks      Int      @default(0)
+  impressions Int      @default(0)
+  ctr         Float    @default(0)
+  position    Float    @default(0)
+  source      String   @default("gsc")
+  createdAt   DateTime @default(now())
+
+  @@unique([date, page, query])
+  @@index([page, date(sort: Desc)])
+  @@index([date(sort: Desc), impressions(sort: Desc)])
 }

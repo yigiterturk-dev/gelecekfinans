@@ -278,9 +278,22 @@ async function uploadBufferToBlob(bytes: Buffer, prefix: string, contentType: st
     // Aynı makale yeniden üretilirse aynı adrese yazılır; böylece hem dosya adı
     // okunur kalır hem de eski görsel çöp olarak birikmez.
     const key = `gorseller/${safePrefix}.${extension}`;
-    const blob = await put(key, bytes, { access: "public", contentType, addRandomSuffix: false });
+    /**
+     * `allowOverwrite` şart: aynı makale ikinci kez işlendiğinde (görsel
+     * onarımı, yeniden üretim, elle tetikleme) `put` aynı adrese yazmayı
+     * "This blob already exists" ile reddediyordu. Hata aşağıdaki catch'te
+     * yutulduğu için sonuç sessizce `null` oluyor, makale de "kapak görseli
+     * yok" gerekçesiyle yayımlanmayıp inceleme kuyruğunda kalıyordu —
+     * ilk üretim başarılı olsa bile. Ölçüldü: aynı taslakta 1. deneme
+     * BRANDED_EDITORIAL, 2. deneme NONE.
+     */
+    const blob = await put(key, bytes, {
+      access: "public", contentType, addRandomSuffix: false, allowOverwrite: true,
+    });
     return blob.url;
-  } catch {
+  } catch (error) {
+    // Sessiz null, canlıda saatlerce yanlış yere baktırdı. Sebep artık kayıtta.
+    console.warn(`[gorsel] blob yüklemesi başarısız (${prefix}):`, (error as Error).message);
     return null;
   }
 }
