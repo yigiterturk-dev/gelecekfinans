@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
+import Select from "@/components/Select";
 
 const RichEditor = dynamic(() => import("@/components/RichEditor"), { ssr: false });
 
@@ -43,9 +44,13 @@ export default function NewArticle() {
 
         <label style={{ display: "block", marginBottom: 16 }}>
           <span className="adm-label">Kategori</span>
-          <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} className="adm-select">
-            {["kripto", "borsa", "doviz", "altin", "ekonomi"].map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
+          <Select
+            className="sel-adm"
+            value={form.category}
+            onChange={value => setForm(f => ({ ...f, category: value }))}
+            options={["kripto", "borsa", "doviz", "altin", "ekonomi"].map(c => ({ value: c, label: c }))}
+            ariaLabel="Kategori"
+          />
         </label>
 
         <Field label="Görsel URL" value={form.imageUrl} onChange={v => setForm(f => ({ ...f, imageUrl: v }))} />

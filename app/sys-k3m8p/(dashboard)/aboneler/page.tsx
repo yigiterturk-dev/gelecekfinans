@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
+import Select from "@/components/Select";
 
 interface Sub {
   id: string;
@@ -170,10 +171,13 @@ function CampaignSender() {
       <div style={{ display: "grid", gridTemplateColumns: "180px 1fr 1fr", gap: 10, alignItems: "end" }}>
         <div>
           <label className="adm-label">Segment</label>
-          <select value={segment} onChange={e => setSegment(e.target.value)} className="adm-select">
-            <option value="">Tüm aboneler</option>
-            {SEGMENTS.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
+          <Select
+            className="sel-adm"
+            value={segment}
+            onChange={setSegment}
+            options={[{ value: "", label: "Tüm aboneler" }, ...SEGMENTS.map(s => ({ value: s, label: s }))]}
+            ariaLabel="Abone segmenti"
+          />
         </div>
         <div>
           <label className="adm-label">Konu A</label>

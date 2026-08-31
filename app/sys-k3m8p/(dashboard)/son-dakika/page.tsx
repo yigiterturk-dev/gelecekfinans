@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Select from "@/components/Select";
 
 interface BN {
   id: string;
@@ -87,10 +88,13 @@ export default function BreakingNewsAdmin() {
           className="adm-input" style={{ marginBottom: 12, fontSize: 12 }} />
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
           <label style={{ fontSize: 12, color: "var(--muted)" }}>Geçerlilik süresi:</label>
-          <select value={ttlHours} onChange={e => setTtlHours(parseInt(e.target.value))}
-            className="adm-select" style={{ width: "auto", padding: "6px 10px", fontSize: 12 }}>
-            {TTL_OPTIONS.map(h => <option key={h} value={h}>{h} saat</option>)}
-          </select>
+          <Select
+            className="sel-adm"
+            value={String(ttlHours)}
+            onChange={value => setTtlHours(parseInt(value))}
+            options={TTL_OPTIONS.map(h => ({ value: String(h), label: `${h} saat` }))}
+            ariaLabel="Yayında kalma süresi"
+          />
         </div>
         {error && <p style={{ fontSize: 12, color: "var(--dn)", marginBottom: 10 }}>{error}</p>}
         <div style={{ display: "flex", gap: 8 }}>

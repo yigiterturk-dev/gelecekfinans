@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Select from "@/components/Select";
 
 interface Topic {
   title: string;
@@ -296,15 +297,17 @@ export default function BotPage() {
         <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
           <div>
             <label className="adm-label">Kategori</label>
-            <select value={category} onChange={(e) => loadTopics(e.target.value)} className="adm-select" style={{ width: "auto" }}>
-              {CATEGORIES.map((c) => (<option key={c.value} value={c.value}>{c.label}</option>))}
-            </select>
+            <Select className="sel-adm" value={category} onChange={loadTopics} options={CATEGORIES} ariaLabel="Kategori" />
           </div>
           <div>
             <label className="adm-label">Adet</label>
-            <select value={count} onChange={(e) => setCount(Number(e.target.value))} className="adm-select" style={{ width: "auto" }}>
-              {[1, 2, 3, 5, 10].map((n) => (<option key={n} value={n}>{n} makale</option>))}
-            </select>
+            <Select
+            className="sel-adm"
+              value={String(count)}
+              onChange={(value) => setCount(Number(value))}
+              options={[1, 2, 3, 5, 10].map((n) => ({ value: String(n), label: `${n} makale` }))}
+              ariaLabel="Üretilecek makale adedi"
+            />
           </div>
           <button onClick={generate} disabled={generating} className="adm-btn adm-btn-primary">
             {generating ? "Akış çalışıyor..." : "Akışı Başlat"}

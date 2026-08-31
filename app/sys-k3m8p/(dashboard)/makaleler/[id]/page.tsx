@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { SEO_PUBLISH_THRESHOLD } from "@/lib/seo";
+import Select from "@/components/Select";
 
 const RichEditor = dynamic(() => import("@/components/RichEditor"), { ssr: false });
 
@@ -107,15 +108,23 @@ export default function EditArticle() {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
           <div>
             <label className="adm-label">Kategori</label>
-            <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} className="adm-select">
-              {["kripto", "borsa", "doviz", "altin", "ekonomi"].map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
+            <Select
+            className="sel-adm"
+              value={form.category}
+              onChange={value => setForm(f => ({ ...f, category: value }))}
+              options={["kripto", "borsa", "doviz", "altin", "ekonomi"].map(c => ({ value: c, label: c }))}
+              ariaLabel="Kategori"
+            />
           </div>
           <div>
             <label className="adm-label">Durum</label>
-            <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))} className="adm-select">
-              {["DRAFT", "PUBLISHED", "REJECTED", "ARCHIVED"].map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
+            <Select
+            className="sel-adm"
+              value={form.status}
+              onChange={value => setForm(f => ({ ...f, status: value }))}
+              options={["DRAFT", "PUBLISHED", "REJECTED", "ARCHIVED"].map(s => ({ value: s, label: s }))}
+              ariaLabel="Yayın durumu"
+            />
           </div>
         </div>
 

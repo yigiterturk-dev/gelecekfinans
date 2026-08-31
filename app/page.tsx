@@ -102,7 +102,11 @@ export default async function HomePage() {
               style={{
                 marginTop: 18,
                 display: "grid",
-                gridTemplateColumns: "repeat(2, 1fr)",
+                // Tek kart kaldığında sabit iki sütun ikinci hücreyi boş bırakıyor
+                // ve grid'in çizgi rengi zeminini gri bir blok gibi gösteriyordu
+                // (canlıda "görsel gitmiş" gibi görünüyordu). Sütun sayısı kart
+                // sayısını takip eder.
+                gridTemplateColumns: `repeat(${Math.min(lead2.length, 2)}, 1fr)`,
                 gap: 1,
                 overflow: "hidden",
                 borderRadius: 12,

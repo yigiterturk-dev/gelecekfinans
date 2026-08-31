@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Select from "@/components/Select";
 
 /**
  * Altın hesaplama: tür + adet/gram → güncel TL değeri.
@@ -15,6 +16,8 @@ const TYPES = [
   { key: "cumhuriyet-altini", label: "Cumhuriyet Altını", unit: "adet" },
   { key: "ons", label: "Ons Altın", unit: "ons" },
 ];
+
+const TYPE_OPTIONS = TYPES.map((type) => ({ value: type.key, label: type.label }));
 
 export default function GoldCalculator() {
   const [prices, setPrices] = useState<GoldMap>({});
@@ -42,9 +45,7 @@ export default function GoldCalculator() {
       <div className="calc-row">
         <label className="calc-field">
           <span>Altın Türü</span>
-          <select value={type} onChange={(e) => setType(e.target.value)} aria-label="Altın türü">
-            {TYPES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
-          </select>
+          <Select value={type} onChange={setType} options={TYPE_OPTIONS} ariaLabel="Altın türü" />
         </label>
         <label className="calc-field">
           <span>Miktar ({unit})</span>

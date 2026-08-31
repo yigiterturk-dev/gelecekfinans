@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Select from "@/components/Select";
 
 /**
  * Canlı döviz çevirici. Kurları /api/doviz uçundan alır (savunmacı, önbellekli).
@@ -15,6 +16,8 @@ const OPTIONS = [
   { code: "GBP", label: "Sterlin (GBP)", pair: "gbp-try" },
   { code: "TRY", label: "Türk Lirası (TRY)", pair: null as string | null },
 ];
+
+const SELECT_OPTIONS = OPTIONS.map((option) => ({ value: option.code, label: option.label }));
 
 export default function CurrencyConverter({ defaultFrom = "USD" }: { defaultFrom?: string }) {
   const [rates, setRates] = useState<Record<string, number>>({});
@@ -66,11 +69,12 @@ export default function CurrencyConverter({ defaultFrom = "USD" }: { defaultFrom
         </label>
         <label className="conv-field">
           <span>Kaynak</span>
-          <select value={from} onChange={(e) => setFrom(e.target.value)} aria-label="Kaynak para birimi">
-            {OPTIONS.map((o) => (
-              <option key={o.code} value={o.code}>{o.label}</option>
-            ))}
-          </select>
+          <Select
+            value={from}
+            onChange={setFrom}
+            options={SELECT_OPTIONS}
+            ariaLabel="Kaynak para birimi"
+          />
         </label>
         <button
           type="button"
@@ -80,11 +84,12 @@ export default function CurrencyConverter({ defaultFrom = "USD" }: { defaultFrom
         >⇅</button>
         <label className="conv-field">
           <span>Hedef</span>
-          <select value={to} onChange={(e) => setTo(e.target.value)} aria-label="Hedef para birimi">
-            {OPTIONS.map((o) => (
-              <option key={o.code} value={o.code}>{o.label}</option>
-            ))}
-          </select>
+          <Select
+            value={to}
+            onChange={setTo}
+            options={SELECT_OPTIONS}
+            ariaLabel="Hedef para birimi"
+          />
         </label>
       </div>
       <div className="conv-result" aria-live="polite">

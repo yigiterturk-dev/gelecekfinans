@@ -3136,3 +3136,87 @@ html.dark {
     overscroll-behavior-x: contain;
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * Select (components/Select.tsx) — native <select> yerine.
+ * Tarayıcının kendi açılır menüsü işletim sistemine göre değişiyor ve sitenin
+ * tipografisiyle uyuşmuyordu. Renkler tema değişkenlerinden gelir, karanlık
+ * temada da ayrıca tanım gerektirmez.
+ * ------------------------------------------------------------------------ */
+.sel-root { position: relative; width: 100%; }
+
+.sel-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 15px;
+  line-height: 1.2;
+  text-align: left;
+  cursor: pointer;
+}
+.sel-trigger:hover:not(:disabled) { border-color: var(--accent); }
+.sel-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.sel-trigger:disabled { opacity: .6; cursor: not-allowed; }
+
+.sel-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.sel-caret {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-right: 1.5px solid var(--muted);
+  border-bottom: 1.5px solid var(--muted);
+  transform: translateY(-2px) rotate(45deg);
+}
+.sel-trigger[aria-expanded="true"] .sel-caret { transform: translateY(2px) rotate(225deg); }
+
+.sel-list {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  background: var(--paper);
+  box-shadow: 0 12px 28px rgb(0 0 0 / 14%);
+}
+
+.sel-option {
+  padding: 9px 10px;
+  border-radius: 5px;
+  font-family: var(--mono);
+  font-size: 14px;
+  color: var(--ink);
+  cursor: pointer;
+}
+.sel-option.is-active { background: var(--surface2); }
+.sel-option.is-selected { font-weight: 700; }
+.sel-option.is-selected::after { content: " ✓"; color: var(--accent); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .sel-caret { transition: transform .15s ease; }
+}
+
+/* Yönetim paneli varyantı: .adm-input ile aynı tipografi ve yüzey. */
+.sel-adm .sel-trigger {
+  font-family: var(--sans);
+  font-size: 14px;
+  border-radius: 8px;
+  background: var(--paper);
+  transition: border-color .15s var(--ease);
+}
+.sel-adm .sel-option { font-family: var(--sans); font-size: 14px; }
