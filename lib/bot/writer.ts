@@ -7,13 +7,20 @@ import type { Topic } from "./topics";
 import { MIN_EVIDENCE_MATERIAL_CHARS, evidenceMaterialCharacterCount } from "./research";
 import {
   ArticleDraftSchema,
+  GuideDraftSchema,
   SameStorySchema,
   VerificationSchema,
   type ArticleDraft,
   type SameStoryVerdict,
   type VerificationReport,
 } from "./article-schema";
-import { renderDraftHtml, validateDraft, type QualityReport } from "./quality";
+import { GUIDE_QUALITY_PRESET } from "./quality";
+import type { GuideTopic } from "./evergreen";
+import { MIN_GUIDE_EVIDENCE_CHARS } from "./evergreen";
+import {
+  NEWS_QUALITY_PRESET, renderDraftHtml, validateDraft,
+  type QualityPreset, type QualityReport,
+} from "./quality";
 import { checkPlagiarism, type PlagiarismReport } from "./plagiarism";
 import { resolveArticleAIBudgetConfig } from "./ai-budget";
 import {
@@ -230,14 +237,79 @@ function articleInstructions(targetWords: number): string {
 }
 
 /**
+ * Rehber (evergreen) yazım talimatı.
+ *
+ * Haber talimatından üç yerde ayrılır ve her ayrım kasıtlı:
+ *
+ * 1. GÜNCEL RAKAM YASAK. Rehber sayfa aylarca ayakta kalacak; "gram altın
+ *    4.655 TL" yazan bir rehber iki gün sonra yanlış bilgi kaynağıdır.
+ *    Güncel veri için sitenin kendi canlı sayfalarına link verilir.
+ * 2. Kanıt resmî kurumun kendi sayfasıdır, ikinci bir gazete değildir.
+ * 3. Yapı soru-cevap odaklıdır: her H2 okurun sorduğu bir soruya karşılık
+ *    gelir. Hem klasik aramada hem de AI cevaplarında alıntılanabilirliği
+ *    belirleyen şey bu — model bir paragrafı ancak tek başına anlaşılıyorsa
+ *    alıntılar.
+ */
+function guideInstructions(targetWords: number, context: {
+  keyword: string;
+  category: string;
+  isHub: boolean;
+  clusterArticles: Array<{ title: string; slug: string; isHub: boolean }>;
+}): string {
+  const related = context.clusterArticles.length
+    ? context.clusterArticles.map((item) => `- ${item.title}`).join("\n")
+    : "(bu kümede henüz başka içerik yok)";
+  return [
+    `GelecekFinans için "${context.keyword}" sorusuna eksiksiz cevap veren, kalıcı bir Türkçe rehber yaz.`,
+    context.isHub
+      ? "Bu bir ANA REHBER (hub) sayfasıdır: konunun tamamını kapsa, alt başlıkların her birine kısa ama doyurucu cevap ver."
+      : "Bu tek bir dar soruya odaklanan bir rehberdir: konuyu dağıtma, sorunun cevabını derinleştir.",
+    "",
+    "KANIT KURALI:",
+    "Yalnızca verilen RESMÎ KAYNAK metinlerindeki olguları, kuralları ve tanımları kullan.",
+    "Kanıtta olmayan hiçbir kurum adı, oran, tarih, tutar, yasa maddesi veya prosedür uydurma.",
+    "Her somut iddiayı claims alanında yaz ve evidenceIds değerlerini KANIT PAKETİ'ndeki kimliklerin birebir kopyası olarak ver; köşeli parantez ekleme.",
+    "",
+    "GÜNCEL RAKAM YASAĞI:",
+    "Bu sayfa aylarca yayında kalacak. Güncel fiyat, kur, faiz oranı, endeks seviyesi veya 'bugün' ifadesi KULLANMA.",
+    "Bunun yerine kalıcı bilgiyi anlat: tanım, işleyiş, hesaplama yöntemi, kurallar, dikkat edilecekler, sık yapılan hatalar.",
+    "Güncel veriye ihtiyaç duyulan yerde 'güncel değerler ilgili canlı veri sayfasından takip edilebilir' de; sayı yazma.",
+    "",
+    "YAPI:",
+    "Her bölüm başlığı (heading) okurun gerçekten sorduğu bir soru ya da net bir alt konu olsun; 'Giriş', 'Sonuç' gibi boş başlık kullanma.",
+    "Her paragraf tek başına okunduğunda anlaşılır olsun; bir önceki cümleye bağımlı 'bu durumda', 'yukarıda' gibi ifadelerden kaçın.",
+    "Adım gerektiren konularda bullets alanını gerçek adımlarla doldur.",
+    "",
+    "AYNI KÜMEDEKİ MEVCUT İÇERİKLER (tekrar etme, bunlara değinip geç):",
+    related,
+    "",
+    `Gövde EN AZ 900, en fazla 1800 kelime olmalı; hedef ${Math.max(900, Math.min(targetWords, 1800))} kelime.`,
+    // Üst sınır 160: SEO çözümleyicisi 165'in üstünü uzun sayıyor ve arama
+    // sonucu zaten ~155'te kırpıyor.
+    "Başlık 35-85 karakter olsun. Meta açıklama 145-160 karakter arasında olsun; 165 karakteri KESİNLİKLE geçme.",
+    "Her ana bölüme 1-2 adet H3 alt başlık (subsections) ekle; alt başlık da okurun sorduğu bir soru olsun. En az iki bölümde alt başlık bulunsun.",
+    `keyword alanı tam olarak "${context.keyword}" olsun ve bu ifade AYNEN hem meta hem de lede içinde geçsin.`,
+    "Odak kelime meta açıklamada cümlenin içinde doğal geçmeli; metanın sonuna \"Keyword: ...\" gibi etiket EKLEME.",
+    "4-8 bölüm, 3 özet maddesi ve 4-6 SSS üret. SSS'ler okurun gerçekten arayacağı sorular olsun, cevaplar 2-4 cümle.",
+    "Kaynak metindeki cümleleri KOPYALAMA; kendi cümlelerinle yaz, 10 kelimeden uzun birebir ortak dizi kalmasın.",
+    "Yatırım tavsiyesi, getiri vaadi, fiyat hedefi ve 'şunu al' tarzı yönlendirme YASAK.",
+    'Disclaimer tam olarak "Bu içerik yalnızca bilgilendirme amaçlıdır, yatırım tavsiyesi değildir." olsun.',
+  ].join("\n");
+}
+
+/**
  * Kaynakla birebir örtüşen taslağı yeniden yazdırmak için ek talimat.
  * İntihal kapısı bir taslağı düşürdüğünde konuyu tamamen kaybetmek yerine
  * tek bir onarım turu veriyoruz (bkz. writeArticle → plagiarismRepairApplied).
  */
 /** Kalite kapısının ihlallerini modele geri veren onarım talimatı. */
-function qualityRepairInstructions(targetWords: number, issues: string[]): string {
+function qualityRepairInstructions(
+  targetWords: number,
+  issues: string[],
+  baseInstructions: string = articleInstructions(targetWords),
+): string {
   return [
-    articleInstructions(targetWords),
+    baseInstructions,
     "",
     "ÖNCEKİ DENEME KALİTE KAPISINA TAKILDI. Aşağıdaki ihlalleri düzelt, kalan her kuralı koru:",
     ...issues.map((issue) => `- ${issue}`),
@@ -247,6 +319,7 @@ function qualityRepairInstructions(targetWords: number, issues: string[]): strin
 function plagiarismRepairInstructions(
   targetWords: number,
   report: PlagiarismReport,
+  baseInstructions?: string,
 ): string {
   // Sadece "%17, 21 kelime eşleşme" demek yetmiyordu: model hangi ifadeyi
   // kopyaladığını bilmeden yeniden yazınca aynı diziyi tekrar üretiyordu.
@@ -256,7 +329,7 @@ function plagiarismRepairInstructions(
     .filter((match) => match.longestExactRunText)
     .map((match) => `- "${match.longestExactRunText}"`);
   return [
-    articleInstructions(targetWords),
+    baseInstructions ?? articleInstructions(targetWords),
     "",
     "ÖNCEKİ DENEME İNTİHAL KAPISINA TAKILDI:",
     ...report.issues.map((issue) => `- ${issue}`),
@@ -273,12 +346,26 @@ async function generateDraft(
   topic: Topic,
   targetWords: number,
   systemOverride?: string,
+  /**
+   * Rehber şeridi aynı üretim makinesini kullanır ama daha çok bölüm ve daha
+   * çok SSS ister. Şema dışarıdan geçirilebilir olmasaydı bütün sağlayıcı
+   * dallanması (OpenAI / Anthropic / DeepSeek) ikinci kez kopyalanacaktı.
+   */
+  schema: typeof ArticleDraftSchema = ArticleDraftSchema,
 ): Promise<ArticleDraft> {
   const config = resolveArticleAIConfig();
   const budget = resolveArticleAIBudgetConfig();
   try {
     const instructions = systemOverride || articleInstructions(targetWords);
-    const userPrompt = `KONU: ${topic.title}\nKATEGORİ: ${topic.category}\n\nKANIT PAKETİ:\n${evidencePrompt(topic)}`;
+    /**
+     * Kanıtsız rehber şeridinde kanıt bloğu yoktur; `evidencePrompt` bu durumda
+     * hata atar. Konu başlığı ve kategorisi tek girdidir, kuralların tamamı
+     * sistem talimatında.
+     */
+    const hasEvidence = Boolean(topic.evidencePacket?.evidence.length);
+    const userPrompt = hasEvidence
+      ? `KONU: ${topic.title}\nKATEGORİ: ${topic.category}\n\nKANIT PAKETİ:\n${evidencePrompt(topic)}`
+      : `KONU: ${topic.title}\nKATEGORİ: ${topic.category}`;
     if (config.provider === "anthropic") {
       const response = await anthropic().messages.parse({
         model: config.writerModel,
@@ -287,7 +374,7 @@ async function generateDraft(
         messages: [{ role: "user", content: userPrompt }],
         output_config: {
           effort: "low",
-          format: zodOutputFormat(ArticleDraftSchema),
+          format: zodOutputFormat(schema),
         },
       });
       if (!response.parsed_output) throw new Error("Claude yapılandırılmış makale çıktısı alınamadı");
@@ -309,7 +396,7 @@ async function generateDraft(
           budget.writerMaxOutputTokens,
           config.writerModel.includes("reasoner") ? 16000 : 6000,
         ),
-        schema: ArticleDraftSchema,
+        schema,
         name: "gelecekfinans_article",
       });
     }
@@ -328,7 +415,7 @@ async function generateDraft(
         { role: "system", content: instructions },
         { role: "user", content: userPrompt },
       ],
-      text: { format: zodTextFormat(ArticleDraftSchema, "gelecekfinans_article") },
+      text: { format: zodTextFormat(schema, "gelecekfinans_article") },
     });
     if (!response.output_parsed) throw new Error("OpenAI yapılandırılmış makale çıktısı alınamadı");
     return response.output_parsed;
@@ -412,6 +499,87 @@ async function verifyDraft(topic: Topic, draft: ArticleDraft): Promise<Verificat
  * demezse ikinci kaynak sayılmaz ve HER hata (kota, ağ, bozuk çıktı) hayır
  * kabul edilir. Koşum başına çağrı tavanı ve süreç içi önbellek var.
  */
+/**
+ * Kanıtsız rehber şeridinin doğrulayıcısı.
+ *
+ * Haber doğrulayıcısı "bu iddia kanıtta var mı" diye sorar; burada kanıt yok,
+ * dolayısıyla soru değişir: "bu metinde DOĞRULANMASI GEREKEN ama
+ * doğrulanamayan bir şey var mı?" Uydurma kurum, uydurma yasa maddesi,
+ * uydurma oran, ülkeye özgü yanlış prosedür — hepsi burada yakalanır.
+ *
+ * Bu, kalite kapısındaki mekanik rakam yasağının ÜSTÜNE gelen ikinci
+ * katmandır: kapı sayıyı yakalar, model yanlış kuralı yakalar.
+ */
+async function verifyGuideDraft(topic: Topic, draft: ArticleDraft): Promise<VerificationReport> {
+  const config = resolveArticleAIConfig();
+  const budget = resolveArticleAIBudgetConfig();
+  const system = [
+    "Türkiye finans mevzuatı ve piyasa işleyişi konusunda titiz bir editörsün.",
+    "Önündeki metin bir okur rehberi; kaynak listesi YOK, bu yüzden metnin kendisi doğru olmak zorunda.",
+    "Şunları ara ve bulduklarını unsupportedClaims alanına yaz:",
+    "- Var olmayan kurum, kanun, yönetmelik veya kurul adı",
+    "- Türkiye'de geçerli olmayan bir prosedürün geçerliymiş gibi anlatılması",
+    "- Doğrulanması gereken oran, tutar, süre veya limit",
+    "- Yatırım tavsiyesi, getiri vaadi veya yönlendirme",
+    "conflictingClaims alanına metnin kendi içinde çelişen ifadelerini yaz.",
+    "Hiçbiri yoksa passed=true ve listeleri boş bırak. Emin olmadığın genel tanımları sorun sayma.",
+    // Cevap uzunluğu sınırlanmazsa model her paragrafı ayrı madde yapıp
+    // çıktı tavanını doldurdu ve JSON yarıda kesildi (durum: incomplete,
+    // eksik: max_output_tokens). Kapı için 5 madde fazlasıyla yeterli:
+    // tek gerçek ihlal bile makaleyi durdurur.
+    "EN FAZLA 5 madde yaz; her madde en fazla 15 kelime olsun. corrections alanını boş bırak.",
+  ].join("\n");
+  const user = [
+    `KONU: ${topic.title}`,
+    `BAŞLIK: ${draft.title}`,
+    `GİRİŞ: ${draft.lede}`,
+    ...draft.sections.map((section) => `${section.heading}: ${section.paragraphs.join(" ")} ${section.bullets.join(" ")}`),
+    ...draft.faq.map((item) => `SSS ${item.q}: ${item.a}`),
+  ].join("\n\n").slice(0, 12000);
+
+  try {
+    if (config.provider === "anthropic") {
+      const response = await anthropic().messages.parse({
+        model: config.verifierModel,
+        max_tokens: budget.verifierMaxOutputTokens,
+        system,
+        messages: [{ role: "user", content: user }],
+        output_config: { effort: "low", format: zodOutputFormat(VerificationSchema) },
+      });
+      if (!response.parsed_output) throw new Error("Rehber doğrulaması alınamadı");
+      return response.parsed_output;
+    }
+    if (config.provider === "deepseek") {
+      return await deepseekJson<VerificationReport>({
+        model: config.verifierModel, system, user,
+        maxTokens: Math.max(budget.verifierMaxOutputTokens, 1200),
+        schema: VerificationSchema, name: "gelecekfinans_guide_verification",
+      });
+    }
+    const response = await openai().responses.parse({
+      model: config.verifierModel,
+      // Rehber doğrulayıcısı haberinkinden daha uzun cevap verir: 900-1800
+      // kelimelik metinde bulduğu her sorunu ayrı madde olarak yazıyor.
+      // 800 token tavanında cevap ortadan kesiliyor ve `output_parsed` boş
+      // dönüyordu — canlı kayıtta "Rehber doğrulaması alınamadı".
+      max_output_tokens: Math.max(budget.verifierMaxOutputTokens, 4000),
+      input: [{ role: "system", content: system }, { role: "user", content: user }],
+      text: { format: zodTextFormat(VerificationSchema, "gelecekfinans_guide_verification") },
+    });
+    if (!response.output_parsed) {
+      throw new Error(
+        `Rehber doğrulaması alınamadı (durum: ${response.status ?? "bilinmiyor"}, ` +
+        `eksik: ${response.incomplete_details?.reason ?? "yok"})`,
+      );
+    }
+    return response.output_parsed;
+  } catch (error) {
+    if (config.provider === "anthropic" && isAnthropicBillingError(error)) throw new AnthropicBillingError();
+    if (isOpenAIQuotaError(error)) throw new OpenAIQuotaError();
+    throw error;
+  }
+}
+
 const JUDGE_MAX_CALLS_PER_RUN = Number(process.env.RESEARCH_JUDGE_MAX_CALLS_PER_RUN) || 8;
 const judgeCache = new Map<string, boolean>();
 let judgeBudget = JUDGE_MAX_CALLS_PER_RUN;
@@ -509,9 +677,24 @@ export async function judgeSameStory(primary: StoryBrief, candidate: StoryBrief)
   }
 }
 
+/**
+ * Yazım şeridi ayarı. İki şerit aynı üretim/onarım makinesini paylaşır;
+ * yalnızca talimat, şema, kalite ayarı ve kanıt eşiği değişir.
+ */
+export interface WriteArticleOptions {
+  /** Talimat metni; verilmezse haber talimatı kullanılır. */
+  instructions?: string;
+  preset?: QualityPreset;
+  schema?: typeof ArticleDraftSchema;
+  minEvidenceChars?: number;
+  /** Kanıt kapısı geçilmediğinde atılacak hata metni. */
+  researchBlockedMessage?: string;
+}
+
 export async function writeArticle(
   topic: Topic,
   targetWords = 650,
+  options: WriteArticleOptions = {},
 ): Promise<{
   title: string;
   meta: string;
@@ -527,14 +710,25 @@ export async function writeArticle(
   plagiarismRepairApplied: boolean;
   ai: ArticleAIConfig;
 }> {
-  const packet = topic.evidencePacket;
-  if (!packet || packet.status !== "VERIFIED") {
-    throw new Error("RESEARCH_BLOCKED: İki bağımsız kaynak doğrulaması tamamlanmadı");
-  }
+  const preset = options.preset ?? NEWS_QUALITY_PRESET;
+  const schema = options.schema ?? ArticleDraftSchema;
+  const baseInstructions = options.instructions ?? articleInstructions(targetWords);
+  const minEvidenceChars = options.minEvidenceChars ?? MIN_EVIDENCE_MATERIAL_CHARS;
 
-  const materialCharacters = evidenceMaterialCharacterCount(packet);
-  if (materialCharacters < MIN_EVIDENCE_MATERIAL_CHARS) {
-    throw new Error(`RESEARCH_BLOCKED: Kanıt metni sağlam bir haber için fazla kısa: ${materialCharacters} karakter`);
+  const packet = topic.evidencePacket;
+  if (!packet) throw new Error("RESEARCH_BLOCKED: Kanıt paketi yok");
+  if (preset.requireEvidence) {
+    if (packet.status !== "VERIFIED") {
+      throw new Error(
+        `RESEARCH_BLOCKED: ${options.researchBlockedMessage ?? "İki bağımsız kaynak doğrulaması tamamlanmadı"}`,
+      );
+    }
+    const materialCharacters = evidenceMaterialCharacterCount(packet);
+    if (materialCharacters < minEvidenceChars) {
+      throw new Error(
+        `RESEARCH_BLOCKED: Kanıt metni sağlam bir ${preset.label} için fazla kısa: ${materialCharacters} karakter`,
+      );
+    }
   }
 
   const packetIds = new Set(packet.evidence.map((item) => item.id));
@@ -636,9 +830,32 @@ export async function writeArticle(
    * için faturayı dörde katlar. Pahalı sağlayıcıda tek onarım hakkı var:
    * ölçümde kazancın büyük kısmı zaten ilk onarımda geliyordu (%53 → %12).
    */
+  /**
+   * Meta uzunluğunu mekanik olarak sınırlar.
+   *
+   * Modellere karakter saydırmak güvenilmez: talimat "145-160" dese de çıktı
+   * 166 geliyor ve arama sonucu ~155'te zaten kırpıldığı için bu 1 karakter
+   * okur açısından hiçbir şey değiştirmiyor. Onarım turu harcamak yerine
+   * cümle sınırından kesiyoruz. Odak kelime kesilen parçada kalıyorsa
+   * DOKUNMUYORUZ — kelimeyi kaybetmek uzunluktan daha kötü, kapı devreye
+   * girip modele geri göndersin.
+   */
+  const SEO_META_MAX = 165;
+  const trimMeta = (candidate: ArticleDraft): ArticleDraft => {
+    if (candidate.meta.length <= SEO_META_MAX) return candidate;
+    const cut = candidate.meta.slice(0, SEO_META_MAX);
+    const boundary = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("? "), cut.lastIndexOf("! "));
+    const trimmed = (boundary > 100 ? cut.slice(0, boundary + 1) : cut.slice(0, cut.lastIndexOf(" "))).trim();
+    const keeps = trimmed.toLocaleLowerCase("tr-TR")
+      .includes(candidate.keyword.toLocaleLowerCase("tr-TR"));
+    return keeps && trimmed.length >= 110 ? { ...candidate, meta: trimmed } : candidate;
+  };
+
   const MAX_ATTEMPTS = resolveArticleAIConfig().provider === "deepseek" ? 4 : 2;
-  let draft = normalizeKeyword(normalizeEvidenceIds(await generateDraft(topic, targetWords)));
-  let quality = validateDraft(draft, packet);
+  let draft = trimMeta(normalizeKeyword(normalizeEvidenceIds(
+    await generateDraft(topic, targetWords, baseInstructions, schema),
+  )));
+  let quality = validateDraft(draft, packet, preset);
   let content = quality.passed ? renderDraftHtml(draft, packet) : "";
   let plagiarism = quality.passed
     ? checkPlagiarism(plagiarismInput(draft, content))
@@ -648,11 +865,13 @@ export async function writeArticle(
   for (let attempt = 1; attempt < MAX_ATTEMPTS; attempt++) {
     if (quality.passed && plagiarism?.passed) break;
     const feedback = quality.passed && plagiarism
-      ? plagiarismRepairInstructions(targetWords, plagiarism)
-      : qualityRepairInstructions(targetWords, quality.issues);
-    draft = normalizeKeyword(normalizeEvidenceIds(await generateDraft(topic, targetWords, feedback)));
+      ? plagiarismRepairInstructions(targetWords, plagiarism, baseInstructions)
+      : qualityRepairInstructions(targetWords, quality.issues, baseInstructions);
+    draft = trimMeta(normalizeKeyword(normalizeEvidenceIds(
+      await generateDraft(topic, targetWords, feedback, schema),
+    )));
     repairApplied = true;
-    quality = validateDraft(draft, packet);
+    quality = validateDraft(draft, packet, preset);
     content = quality.passed ? renderDraftHtml(draft, packet) : "";
     plagiarism = quality.passed ? checkPlagiarism(plagiarismInput(draft, content)) : null;
   }
@@ -671,7 +890,9 @@ export async function writeArticle(
   }
   const plagiarismRepairApplied = repairApplied;
 
-  const verification = await verifyDraft(topic, draft);
+  const verification = packet.evidence.length
+    ? await verifyDraft(topic, draft)
+    : await verifyGuideDraft(topic, draft);
   if (!verification.passed || verification.unsupportedClaims.length || verification.conflictingClaims.length) {
     const reasons = [...verification.unsupportedClaims, ...verification.conflictingClaims].join("; ");
     throw new Error(`VERIFICATION_BLOCKED: ${reasons || "Model doğrulaması geçmedi"}`);
@@ -692,4 +913,46 @@ export async function writeArticle(
     plagiarismRepairApplied,
     ai: resolveArticleAIConfig(),
   };
+}
+
+
+/**
+ * Rehber (evergreen) makale yazar.
+ *
+ * Haber yazarıyla aynı üretim, onarım, kalite, intihal ve doğrulama
+ * makinesini kullanır — ayrı bir "gevşek yol" AÇILMADI. Değişen yalnızca
+ * talimat, şema, kalite ayarı ve kanıt eşiği: rehberde eşik daha YÜKSEK
+ * (1200 karakter), çünkü metin daha uzun ve modelin uydurma alanı daha geniş.
+ */
+export async function writeGuideArticle(
+  topic: GuideTopic,
+  targetWords = 1200,
+): Promise<Awaited<ReturnType<typeof writeArticle>>> {
+  // Rehber konusu haber `Topic` biçimine uyarlanır: başlık odak kelimedir,
+  // makale başlığını modelin kendisi kurar.
+  const asTopic: Topic = {
+    title: topic.keyword,
+    summary: `"${topic.keyword}" sorusuna resmî kaynaklara dayalı kalıcı rehber.`,
+    category: topic.category,
+    source: topic.evidencePacket.evidence.map((item) => item.source).join(", "),
+    sourceUrl: topic.evidencePacket.evidence[0]?.sourceUrl,
+    pubDate: Date.now(),
+    sourcePriority: 100,
+    relevanceScore: 100,
+    relevanceReasons: ["Anahtar kelime havuzundan seçildi"],
+    evidencePacket: topic.evidencePacket,
+  };
+
+  return writeArticle(asTopic, targetWords, {
+    instructions: guideInstructions(targetWords, {
+      keyword: topic.keyword,
+      category: topic.category,
+      isHub: topic.isHub,
+      clusterArticles: topic.clusterArticles,
+    }),
+    preset: GUIDE_QUALITY_PRESET,
+    schema: GuideDraftSchema,
+    minEvidenceChars: MIN_GUIDE_EVIDENCE_CHARS,
+    researchBlockedMessage: "Resmî kaynak kanıtı toplanamadı",
+  });
 }

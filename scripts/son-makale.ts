@@ -10,7 +10,10 @@ async function main() {
   console.log("meta:", a.meta, `(${a.meta.length})`);
   console.log("keyword:", a.keyword, "| seo:", a.seoScore, "| karar:", a.publicationDecision, "| durum:", a.status);
   console.log("görsel:", a.imageUrl, "| strateji:", a.imageStrategy);
-  const m = a.automationMeta as Record<string, any> | null;
+  const m = a.automationMeta as {
+    decisionReasons?: unknown; seoIssues?: unknown; quality?: { wordCount?: number };
+    visual?: { audit?: unknown; attempts?: unknown };
+  } | null;
   console.log("karar gerekçeleri:", JSON.stringify(m?.decisionReasons));
   console.log("seo sorunları:", JSON.stringify(m?.seoIssues));
   console.log("görsel audit:", JSON.stringify(m?.visual?.audit));

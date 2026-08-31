@@ -34,6 +34,40 @@ export const VerificationSchema = z.object({
   verifiedEvidenceIds: z.array(z.string()),
 });
 
+/**
+ * Rehber (evergreen) taslağı. Haber şemasıyla aynı ALANLARA sahiptir —
+ * dolayısıyla `ArticleDraft` tipiyle uyumludur ve aynı kalite/render/intihal
+ * makinesinden geçer — yalnızca sayı sınırları farklıdır: rehber daha çok
+ * bölüm ve daha çok SSS taşır. SSS sayısı bilerek yüksek: rehber sayfaların
+ * AI cevaplarında ve "Sıkça Sorulan Sorular" zengin sonucunda alıntılanma
+ * şansı doğrudan buna bağlı.
+ */
+export const GuideDraftSchema = ArticleDraftSchema.extend({
+  // Kanıt paketi olmadan üretilen kavramsal rehberde "iddia -> kanıt kimliği"
+  // eşlemesi anlamsız; boş bırakılabilir. Uydurmaya karşı koruma burada değil,
+  // kalite kapısındaki somut rakam yasağında ve doğrulayıcı modelde.
+  claims: z.array(ArticleClaimSchema),
+  sections: z.array(z.object({
+    heading: z.string().min(1),
+    paragraphs: z.array(z.string().min(1)).min(1),
+    bullets: z.array(z.string().min(1)),
+    /**
+     * H3 alt başlıklar. Uzun rehberde H2-only yapı hem okuru yorar hem de
+     * SEO çözümlemesinde eksik sayılır; ayrıca AI cevapları bir bölümü ancak
+     * kendi başlığıyla birlikte alıntılıyor.
+     */
+    subsections: z.array(z.object({
+      heading: z.string().min(1),
+      paragraphs: z.array(z.string().min(1)).min(1),
+    })),
+  })).min(4).max(8),
+  summary: z.array(z.string().min(1)).length(3),
+  faq: z.array(z.object({
+    q: z.string().min(1),
+    a: z.string().min(1),
+  })).min(4).max(6),
+});
+
 export type ArticleDraft = z.infer<typeof ArticleDraftSchema>;
 export type VerificationReport = z.infer<typeof VerificationSchema>;
 

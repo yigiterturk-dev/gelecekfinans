@@ -125,3 +125,62 @@ function injectKeywordLinks(
 
   return html;
 }
+
+/**
+ * Rehber kümesi (hub & spoke) iç linklemesi.
+ *
+ * Kategori linkleri her makaleye aynı yerlere bağlanır ve tek başına konu
+ * otoritesi kurmaz. Küme linklemesi farklı iş yapar: aynı konuyu işleyen
+ * sayfaları birbirine bağlar, böylece arama motoru "bu site altın yatırımı
+ * konusunu bütün olarak ele almış" sinyalini alır.
+ *
+ * Yön kasıtlı olarak asimetrik:
+ *  - Spoke → hub: metnin İÇİNDE, ana rehbere tek bir güçlü bağlantı.
+ *  - Hub → spoke: metnin SONUNDA liste; hub sayfası kümenin dağıtım noktasıdır.
+ *
+ * Zaten var olan bir bağlantı tekrarlanmaz; aynı hedefe iki kez link vermek
+ * ikinci linki değersizleştirir.
+ */
+export async function linkGuideCluster(
+  content: string,
+  cluster: string,
+  currentSlug: string,
+  isHub: boolean,
+): Promise<string> {
+  const siblings = await prisma.article.findMany({
+    where: { status: "PUBLISHED", cluster, slug: { not: currentSlug } },
+    select: { slug: true, title: true, keyword: true, track: true },
+    orderBy: { publishedAt: "desc" },
+    take: 12,
+  });
+  if (!siblings.length) return content;
+
+  const hub = await prisma.keyword.findFirst({
+    where: { cluster, isHub: true, status: "PUBLISHED" },
+    select: { articleId: true, term: true },
+  });
+
+  let html = content;
+
+  if (!isHub && hub?.articleId) {
+    const hubArticle = await prisma.article.findUnique({
+      where: { id: hub.articleId },
+      select: { slug: true, title: true },
+    });
+    if (hubArticle && !html.includes(`href="/${hubArticle.slug}"`)) {
+      html = `${html.trimEnd()}\n<p>Konunun tamamı için ana rehberimize göz atın: <a href="/${hubArticle.slug}">${hubArticle.title}</a>.</p>`;
+    }
+  }
+
+  if (isHub) {
+    const items = siblings
+      .filter((item) => !html.includes(`href="/${item.slug}"`))
+      .slice(0, 8)
+      .map((item) => `<li><a href="/${item.slug}">${item.title}</a></li>`);
+    if (items.length) {
+      html = `${html.trimEnd()}\n<h2>Bu konudaki diğer rehberler</h2>\n<ul>\n${items.join("\n")}\n</ul>`;
+    }
+  }
+
+  return html;
+}

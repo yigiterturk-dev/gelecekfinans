@@ -88,7 +88,12 @@ function paragraphKey(value: string): string {
 export function countDraftWords(draft: ArticleDraft): number {
   const body = [
     draft.lede,
-    ...draft.sections.flatMap((section) => [...section.paragraphs, ...section.bullets]),
+    ...draft.sections.flatMap((section) => [
+      ...section.paragraphs,
+      ...section.bullets,
+      ...((section as { subsections?: Array<{ heading: string; paragraphs: string[] }> }).subsections ?? [])
+        .flatMap((sub) => [sub.heading, ...sub.paragraphs]),
+    ]),
     ...draft.summary,
     draft.impact,
     ...draft.faq.flatMap((item) => [item.q, item.a]),
@@ -110,6 +115,24 @@ export interface QualityPreset {
   maxWords: number;
   minIndependentSources: number;
   label: string;
+  /**
+   * Kanıt paketi zorunlu mu?
+   *
+   * Haberde zorunlu: haber "ne oldu" anlatır, olay kanıtla doğrulanmalıdır.
+   * Rehberde değil: rehber "nasıl işler" anlatır ve dış kaynağa bağlı olmayan
+   * bir sistem, kaynağın HTML'i değiştiği gün susmaz. Bunun bedeli aşağıdaki
+   * `forbidSpecificFigures` kuralıyla ödenir — kanıt yoksa somut rakam da yok.
+   */
+  requireEvidence: boolean;
+  /**
+   * Somut rakam yasağı (yalnızca kanıtsız şeritte).
+   *
+   * Kanıtsız üretimin tek gerçek tehlikesi uydurma SAYIdır: yanlış vergi
+   * oranı, uydurma faiz yüzdesi, hayali fiyat. Kavramsal anlatımda bunlara
+   * ihtiyaç yoktur; kapı hepsini reddeder. Böylece rehber hem dış kaynağa
+   * bağımsız hem de uydurmaya kapalı olur.
+   */
+  forbidSpecificFigures: boolean;
 }
 
 export const NEWS_QUALITY_PRESET: QualityPreset = {
@@ -117,16 +140,34 @@ export const NEWS_QUALITY_PRESET: QualityPreset = {
   maxWords: 800,
   minIndependentSources: 2,
   label: "haber",
+  requireEvidence: true,
+  forbidSpecificFigures: false,
 };
 
 export const GUIDE_QUALITY_PRESET: QualityPreset = {
   minWords: 850,
   maxWords: 2000,
-  // Rehberde ikinci gazete aranmaz; kuralı koyan kurumun kendi sayfası
-  // ikinci bir haber kaynağından daha güçlü kanıttır.
-  minIndependentSources: 1,
+  minIndependentSources: 0,
   label: "rehber",
+  requireEvidence: false,
+  forbidSpecificFigures: true,
 };
+
+/**
+ * Kanıtsız rehberde yasak sayı kalıpları.
+ *
+ * Ölçüt "sayı geçmesin" değil — "3 adım", "18 yaş", "2 farklı yöntem" gibi
+ * ifadeler zararsız ve metni okunur kılıyor. Yasaklanan, DOĞRULANMASI GEREKEN
+ * sayı: yüzde oranı, ondalıklı değer, üç haneden büyük tutar ve para birimiyle
+ * yazılmış miktar. Bunların hepsi zamanla değişir ve yanlış olduğunda okuru
+ * doğrudan zarara uğratır.
+ */
+const SPECIFIC_FIGURE_PATTERNS: Array<[RegExp, string]> = [
+  [/%\s?\d|\byüzde\s+\d/i, "Rehberde yüzde/oran yazılamaz"],
+  [/\d+[.,]\d/, "Rehberde ondalıklı sayı yazılamaz"],
+  [/\b\d{4,}\b/, "Rehberde dört haneli veya daha büyük sayı yazılamaz"],
+  [/\b\d+\s?(?:tl|lira|dolar|euro|avro|usd|try|bin|milyon|milyar)\b/i, "Rehberde para tutarı yazılamaz"],
+];
 
 export function validateDraft(
   draft: ArticleDraft,
@@ -142,12 +183,15 @@ export function validateDraft(
   const supportedNumbers = numbersIn(evidenceText, true);
   const draftText = textParts(draft).join(" ");
 
-  if (packet.status !== "VERIFIED" || packet.independentSourceCount < preset.minIndependentSources) {
-    issues.push(
-      preset.minIndependentSources >= 2
-        ? "İki bağımsız kaynak kapısı geçilmedi"
-        : "Resmî kaynak kanıt kapısı geçilmedi",
-    );
+  if (preset.requireEvidence
+    && (packet.status !== "VERIFIED" || packet.independentSourceCount < preset.minIndependentSources)) {
+    issues.push("İki bağımsız kaynak kapısı geçilmedi");
+  }
+  if (preset.forbidSpecificFigures) {
+    for (const [pattern, label] of SPECIFIC_FIGURE_PATTERNS) {
+      const hit = draftText.match(pattern);
+      if (hit) issues.push(`${label}: "${hit[0]}"`);
+    }
   }
   if (draft.title.length < 35 || draft.title.length > 85) issues.push(`Başlık uzunluğu uygun değil: ${draft.title.length}`);
   // Alt sınır 2026-08-31'de 120 -> 110 indirildi. Kayıtlarda tamamlanmış
@@ -181,14 +225,16 @@ export function validateDraft(
     issues.push("Metada etiket eki var (ör. \"Keyword: ...\"); kelime cümlenin içinde doğal geçmeli");
   }
 
-  for (const claim of draft.claims) {
-    const unknown = claim.evidenceIds.filter((id) => !evidenceIds.has(id));
-    if (unknown.length) issues.push(`İddiada bilinmeyen kanıt kimliği: ${unknown.join(", ")}`);
-    if (!claim.evidenceIds.length) issues.push(`Kanıtsız iddia: ${claim.text.slice(0, 80)}`);
-  }
+  if (preset.requireEvidence) {
+    for (const claim of draft.claims) {
+      const unknown = claim.evidenceIds.filter((id) => !evidenceIds.has(id));
+      if (unknown.length) issues.push(`İddiada bilinmeyen kanıt kimliği: ${unknown.join(", ")}`);
+      if (!claim.evidenceIds.length) issues.push(`Kanıtsız iddia: ${claim.text.slice(0, 80)}`);
+    }
 
-  const unsupportedNumbers = [...numbersIn(draftText)].filter((number) => !supportedNumbers.has(number));
-  if (unsupportedNumbers.length) issues.push(`Kaynaklarda bulunmayan rakamlar: ${unsupportedNumbers.join(", ")}`);
+    const unsupportedNumbers = [...numbersIn(draftText)].filter((number) => !supportedNumbers.has(number));
+    if (unsupportedNumbers.length) issues.push(`Kaynaklarda bulunmayan rakamlar: ${unsupportedNumbers.join(", ")}`);
+  }
 
   for (const [pattern, label] of FORBIDDEN_PATTERNS) {
     if (pattern.test(draftText)) issues.push(label);
@@ -216,6 +262,12 @@ export function renderDraftHtml(draft: ArticleDraft, packet: EvidencePacket): st
   for (const section of draft.sections) {
     output.push(`<h2>${escapeHtml(section.heading)}</h2>`);
     for (const paragraph of section.paragraphs) output.push(`<p>${escapeHtml(paragraph)}</p>`);
+    // Rehber şeridinde bölümler H3 alt başlık taşıyabilir; haber taslaklarında
+    // bu alan yok ve döngü sessizce atlanır.
+    for (const sub of (section as { subsections?: Array<{ heading: string; paragraphs: string[] }> }).subsections ?? []) {
+      output.push(`<h3>${escapeHtml(sub.heading)}</h3>`);
+      for (const paragraph of sub.paragraphs) output.push(`<p>${escapeHtml(paragraph)}</p>`);
+    }
     if (section.bullets.length) {
       output.push("<ul>");
       for (const bullet of section.bullets) output.push(`<li>${escapeHtml(bullet)}</li>`);
@@ -223,6 +275,9 @@ export function renderDraftHtml(draft: ArticleDraft, packet: EvidencePacket): st
     }
   }
   output.push(`<p><em>${escapeHtml(draft.disclaimer)}</em></p>`);
+  // Kanıtsız rehber şeridinde kaynak listesi yoktur; boş bir "Kaynaklar"
+  // başlığı hem okuru yanıltır hem de içi boş bölüm olarak SEO'da zarar verir.
+  if (!packet.evidence.length) return output.join("\n");
   output.push("<h2>Kaynaklar</h2>", "<ul>");
   for (const evidence of packet.evidence) {
     output.push(

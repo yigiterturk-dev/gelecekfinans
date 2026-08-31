@@ -109,6 +109,22 @@ export interface GuideTopic {
 
 export interface BuildGuideTopicOptions {
   clusterArticles?: GuideTopic["clusterArticles"];
+  /**
+   * Resmî kaynak kazımasını dener.
+   *
+   * VARSAYILAN KAPALI ve bu bilinçli bir karar. 2026-08-31'de 14 resmî kaynak
+   * canlı ölçüldü: TCMB, TÜİK, SPK, GİB sayfaları JavaScript ile render
+   * ediliyor (HTML geliyor, metin 0 karakter); Borsa İstanbul, BDDK, EGM ve
+   * mevzuat.gov.tr bağlantıyı reddediyor. Kazımaya bağlı bir rehber şeridi,
+   * ilk gün çalışsa bile kaynak sayfasının her tasarım değişikliğinde sessizce
+   * durur — kendi kendine yürümesi beklenen bir sistemde bu kabul edilemez.
+   *
+   * Bunun yerine rehber KAVRAMSAL üretilir ve karşılığında somut rakam yazması
+   * yasaklanır (bkz. GUIDE_QUALITY_PRESET.forbidSpecificFigures) + ikinci bir
+   * model uydurma kurum/kural/oran avı yapar. Resmî PDF korpusu kurulduğunda
+   * bu bayrak açılır ve vergi/mevzuat kelimeleri de yazılabilir hale gelir.
+   */
+  useOfficialSources?: boolean;
   /** Testlerde ağ çağrısını devre dışı bırakmak için. */
   fetcher?: (source: OfficialSource) => Promise<EvidenceItem | null>;
 }
@@ -122,6 +138,32 @@ export async function buildGuideTopic(
   keyword: KeywordPick,
   options: BuildGuideTopicOptions = {},
 ): Promise<GuideTopic> {
+  const base = {
+    keywordId: keyword.id,
+    keyword: keyword.term,
+    category: keyword.category,
+    cluster: keyword.cluster,
+    isHub: keyword.isHub,
+    intent: keyword.intent,
+    clusterArticles: options.clusterArticles ?? [],
+  };
+
+  if (!options.useOfficialSources) {
+    return {
+      ...base,
+      evidencePacket: {
+        storyKey: `guide:${keyword.cluster}:${keyword.term}`,
+        status: "VERIFIED",
+        independentSourceCount: 0,
+        evidence: [],
+        reasons: [
+          "Kavramsal rehber: dış kaynağa bağımlı değil",
+          "Karşılığında somut oran, tutar ve mevzuat maddesi yazımı kalite kapısında yasak",
+        ],
+      },
+    };
+  }
+
   const fetcher = options.fetcher ?? fetchReference;
   const sources = matchOfficialSources(keyword.term);
   const fetched = await Promise.all(sources.map(fetcher));
@@ -137,13 +179,7 @@ export async function buildGuideTopic(
 
   const verified = evidence.length >= 1 && materialCharacters >= MIN_GUIDE_EVIDENCE_CHARS;
   return {
-    keywordId: keyword.id,
-    keyword: keyword.term,
-    category: keyword.category,
-    cluster: keyword.cluster,
-    isHub: keyword.isHub,
-    intent: keyword.intent,
-    clusterArticles: options.clusterArticles ?? [],
+    ...base,
     evidencePacket: {
       storyKey: `guide:${keyword.cluster}:${keyword.term}`,
       status: verified ? "VERIFIED" : "INSUFFICIENT",
