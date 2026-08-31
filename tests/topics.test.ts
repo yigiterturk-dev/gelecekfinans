@@ -35,3 +35,33 @@ test("finans dışı negatif sinyal zayıf özet eşleşmesini geçersiz kılar"
   );
   assert.equal(result.category, null);
 });
+
+/**
+ * Şirket/fintek haberleri kapıdan geçmeli.
+ *
+ * Bu testler bir kayıptan doğdu: "Midas ödeme sistemleri işine giriyor,
+ * kurucu Egem Eraslan açıkladı" haberi sitenin Search Console'da iş yapan
+ * TEK sayfasıydı ("midas kurucu" 12. sıra), ama başlığı makro sözlükteki
+ * hiçbir kelimeyi içermediği için kapı bugün onu elerdi. Aşağıdakiler o
+ * kör noktanın geri gelmesini engeller.
+ */
+test("fintek şirket haberi konu olarak kabul edilir", () => {
+  const sonuc = classifyTopicText("Midas ödeme sistemleri işine giriyor, kurucu Egem Eraslan açıkladı");
+  assert.notEqual(sonuc.category, null);
+});
+
+test("aracı kurum lisans haberi kabul edilir", () => {
+  const sonuc = classifyTopicText("Aracı kurum için SPK onayı çıktı");
+  assert.notEqual(sonuc.category, null);
+});
+
+test("şirket birleşmesi kabul edilir", () => {
+  const sonuc = classifyTopicText("İki katılım bankası birleşme kararı aldı");
+  assert.notEqual(sonuc.category, null);
+});
+
+test("finans dışı haber hâlâ reddedilir", () => {
+  // Kapı gevşetildi ama delinmedi: alakasız gündem hâlâ girmemeli.
+  const sonuc = classifyTopicText("Metro istasyonunda kaza: 3 yaralı");
+  assert.equal(sonuc.category, null);
+});

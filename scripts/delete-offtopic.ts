@@ -1,5 +1,21 @@
-// Finans/ekonomi ile alakasız (metro kazası vb.) mevcut makaleleri bulur ve siler.
-// Çalıştırma: npx tsx --env-file=.env scripts/delete-offtopic.ts [--apply]
+// Finans/ekonomi ile alakasız (metro kazası vb.) mevcut makaleleri bulur ve
+// ARŞİVLER. Çalıştırma: npx tsx --env-file=.env scripts/delete-offtopic.ts [--apply]
+//
+// ⚠️ ARTIK SİLMİYOR — ve bunun somut bir bedeli oldu.
+// Bu script "Midas ödeme sistemleri işine giriyor, kurucu Egem Eraslan
+// açıkladı" haberini alakasız sayıp KALICI olarak sildi. Oysa 2026-08-31
+// Search Console verisine göre o sayfa sitenin Google'da iş yapan TEK
+// sayfasıydı: "midas kurucu" 12., "midasın sahibi kim" 20., "egem eraslan
+// kimdir" 26. sıra — altı ayrı sorguda görünürlük. Ne yedeği vardı ne de
+// Wayback kaydı; içerik geri getirilemedi, URL 404'e düştü.
+//
+// Sebep, aşağıdaki alaka listesinin makro sözlükten (dolar, faiz, enflasyon)
+// oluşması: şirket ve kişi haberleri bu kelimelerin hiçbirini içermiyor.
+// Yani filtre tam olarak sitenin KAZANDIĞI içerik tipini eliyordu.
+//
+// İki koruma eklendi: (1) silme yerine arşivleme — karar geri alınabilir,
+// (2) Search Console'da gösterim almış sayfaya hiç dokunulmaz; Google'ın
+// değer verdiği bir sayfayı yerel bir kelime listesine bakarak atmak yanlış.
 import { prisma } from "../lib/db";
 import { CATEGORIES } from "../lib/bot/config";
 
@@ -22,17 +38,36 @@ function isRelevant(title: string, content: string): boolean {
 
 async function main() {
   const apply = process.argv.includes("--apply");
-  const arts = await prisma.article.findMany({ select: { id: true, title: true, content: true } });
-  const offtopic = arts.filter((a) => !isRelevant(a.title, a.content.slice(0, 600)));
+  const arts = await prisma.article.findMany({
+    where: { status: { not: "ARCHIVED" } },
+    select: { id: true, title: true, content: true, slug: true },
+  });
+  const aday = arts.filter((a) => !isRelevant(a.title, a.content.slice(0, 600)));
 
-  if (!offtopic.length) { console.log("[offtopic] Alakasız makale yok."); await prisma.$disconnect(); return; }
+  // Search Console'da gösterim almış her sayfa dokunulmazdır.
+  const gorunur = new Set(
+    (await prisma.searchPerformance.findMany({
+      where: { impressions: { gt: 0 } },
+      select: { page: true },
+    })).map((row) => row.page),
+  );
+  const korunan = aday.filter((a) => [...gorunur].some((page) => page.includes(a.slug)));
+  const offtopic = aday.filter((a) => !korunan.includes(a));
+
+  for (const a of korunan) {
+    console.log(`[offtopic] KORUNDU (Search Console'da gösterim alıyor): ${a.title}`);
+  }
+  if (!offtopic.length) { console.log("[offtopic] Arşivlenecek makale yok."); await prisma.$disconnect(); return; }
   console.log(`[offtopic] ${offtopic.length} alakasız makale:`);
   for (const a of offtopic) console.log(`  - ${a.title}`);
   if (apply) {
-    for (const a of offtopic) await prisma.article.delete({ where: { id: a.id } });
-    console.log(`[offtopic] ${offtopic.length} makale SİLİNDİ.`);
+    await prisma.article.updateMany({
+      where: { id: { in: offtopic.map((a) => a.id) } },
+      data: { status: "ARCHIVED" },
+    });
+    console.log(`[offtopic] ${offtopic.length} makale ARŞİVLENDİ (silinmedi — geri alınabilir).`);
   } else {
-    console.log("[offtopic] (kuru çalışma — silmek için --apply)");
+    console.log("[offtopic] (kuru çalışma — arşivlemek için --apply)");
   }
   await prisma.$disconnect();
 }

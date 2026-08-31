@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { promoteEntitiesToKeywords } from "@/lib/bot/entities";
 import { isGscConfigured, syncSearchPerformance } from "@/lib/gsc";
 import {
   attachPerformanceToKeywords,
@@ -21,8 +22,18 @@ export async function GET(req: NextRequest) {
   if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  // Varlık terfisi GSC'den bağımsız: haber şeridi çalıştığı sürece varlık
+  // birikir ve terfi saf DB işidir (model çağırmaz, bedava). Bu yüzden
+  // Search Console kimliği olmasa bile çalışmalı — aşağıdaki erken çıkışın
+  // ÜSTÜNDE duruyor.
+  const entityPromotion = await promoteEntitiesToKeywords();
+
   if (!isGscConfigured()) {
-    return NextResponse.json({ skipped: true, reason: "Search Console kimlik bilgileri tanımlı değil" });
+    return NextResponse.json({
+      skipped: true,
+      reason: "Search Console kimlik bilgileri tanımlı değil",
+      entitiesPromoted: entityPromotion.promoted,
+    });
   }
 
   const sync = await syncSearchPerformance(28);
@@ -32,6 +43,7 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     sync,
+    entitiesPromoted: entityPromotion.promoted,
     keywordsUpdated: performance.updated,
     keywordsAdded: mined.added,
     minedTerms: mined.picked.map((k) => k.term),

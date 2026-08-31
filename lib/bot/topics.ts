@@ -120,6 +120,23 @@ const CATEGORY_SIGNALS: Record<TopicCategory, string[]> = {
     "dış ticaret", "ihracat", "ithalat", "bütçe", "vergi", "kredi", "asgari ücret",
     "emekli aylığı", "sanayi üretimi", "kapasite kullanım", "güven endeksi", "akaryakıt",
     "motorin", "benzin", "doğal gaz", "doğalgaz", "petrol fiyatı", "e ticaret",
+    // ── Şirket ve fintek sinyalleri ────────────────────────────────────────
+    // Neden eklendi (varsayım değil, ölçüm): 2026-08-31 Search Console verisi
+    // sitenin jenerik makro sorgularda (dolar kuru, faiz) 75-90. sırada
+    // takıldığını, buna karşılık ŞİRKET/KİŞİ haberlerinde ilk 20'ye girdiğini
+    // gösterdi — Midas/Egem Eraslan haberi "midas kurucu" 12. sıradaydı.
+    // O haberin başlığı ("Midas ödeme sistemleri işine giriyor, kurucu Egem
+    // Eraslan açıkladı") yukarıdaki makro listenin HİÇBİR kelimesini
+    // içermiyor: bot bugün aynı haberi görse "Başlıkta yeterli finans
+    // sinyali yok" deyip elerdi. Yani kapı, sitenin kazandığı tek içerik
+    // tipini eliyordu. Bu satırlar o kör noktayı kapatır.
+    "ödeme sistemleri", "ödeme kuruluşu", "fintek", "fintech", "dijital cüzdan",
+    "aracı kurum", "menkul değerler", "portföy yönetimi", "yatırım turu",
+    "girişim sermayesi", "risk sermayesi", "melek yatırımcı", "birleşme",
+    "devralma", "hisse devri", "sermaye artırımı", "kurucu ortak",
+    "genel müdür", "yönetim kurulu başkanı", "üst yöneticisi", "ceo",
+    "katılım bankası", "neobank", "faktoring", "leasing", "sigorta şirketi",
+    "kripto borsası", "lisans başvurusu", "spk onayı", "bddk onayı",
   ],
 };
 
@@ -130,6 +147,10 @@ const BUSINESS_SIGNALS = [
 
 const BUSINESS_ENTITIES = [
   "şirket", "holding", "banka", "fabrika", "sektör", "sanayi", "işletme", "ihracatçı",
+  // Fintek/girişim haberleri "şirket" kelimesini kullanmıyor; marka adı ve
+  // ürün adıyla yazılıyor. Bu sözcükler olmadan BUSINESS_SIGNALS bonusu
+  // (kâr, satın alma, yatırım) şirket haberlerinde hiç tetiklenmiyordu.
+  "girişim", "platform", "kurum", "kuruluş", "marka", "startup",
 ];
 
 const NEGATIVE_SIGNALS = [

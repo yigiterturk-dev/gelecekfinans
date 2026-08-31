@@ -81,3 +81,21 @@ export const SameStorySchema = z.object({
   reason: z.string(),
 });
 export type SameStoryVerdict = z.infer<typeof SameStorySchema>;
+
+/**
+ * Haberde adı geçen gerçek varlıklar (şirket, kişi, kurum).
+ *
+ * `excerpt` zorunlu ve kanıt metninden BİREBİR alınmalı: varlık kaydının
+ * modelin hafızasından değil, doğrulanmış haberden geldiğinin ispatı budur.
+ * Alıntı kanıtta bulunamazsa varlık düşürülür (bkz. entities.ts).
+ */
+export const ExtractedEntitySchema = z.object({
+  name: z.string().min(2).max(80),
+  type: z.enum(["COMPANY", "PERSON", "INSTITUTION"]),
+  role: z.string().min(3).max(160),
+  excerpt: z.string().min(10).max(400),
+});
+
+export const EntityExtractionSchema = z.object({
+  entities: z.array(ExtractedEntitySchema).max(6),
+});

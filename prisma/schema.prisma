@@ -73,6 +73,8 @@ model Article {
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
 
+  entityMentions EntityMention[]
+
   @@index([category, status])
   @@index([status, publishedAt(sort: Desc)])
   @@index([publicationDecision, createdAt(sort: Desc)])
@@ -240,4 +242,79 @@ model SearchPerformance {
   @@unique([date, page, query])
   @@index([page, date(sort: Desc)])
   @@index([date(sort: Desc), impressions(sort: Desc)])
+}
+
+/// Haberlerde adı geçen gerçek varlıklar: şirket, kişi, kurum.
+///
+/// Neden var: Search Console 90 günlük gerçek verisi, sitenin jenerik fiyat
+/// sorgularında (dolar kuru, bitcoin kaç tl) 75-90. sırada takıldığını ama
+/// SPESİFİK varlık sorgularında ilk 20'ye girdiğini gösterdi — Midas/Egem
+/// Eraslan haberi tek başına "midas kurucu" 12., "midasın sahibi kim" 20.
+/// sıradaydı. Bu tesadüftü; bu tablo onu sisteme çevirir.
+///
+/// ⚠️ Varlık YALNIZCA botun doğruladığı bir haberin kanıt paketinden çıkar,
+/// asla modelin hafızasından üretilmez. Gerçek kişi/şirket hakkında kanıtsız
+/// cümle kurmak YMYL ihlalidir ve AdSense'i kalıcı olarak kaybettirir.
+model Entity {
+  id              String       @id @default(cuid())
+  /// Normalize edilmiş eşleşme anahtarı (küçük harf, aksansız) — "midas", "egem eraslan".
+  key             String       @unique
+  /// Okura gösterilecek hâli: "Midas", "Egem Eraslan".
+  name            String
+  type            EntityType
+  /// Varlığın haberdeki rolü, tek cümle. Kanıttan alınır, modelden değil.
+  role            String?
+  /// Aynı varlığın haberlerde geçen diğer yazımları ("Midas Menkul", "MIDAS").
+  aliases         String[]     @default([])
+  category        String?
+  /// Kaç ayrı yayımlanmış makalede geçtiği. Terfi eşiği bunu kullanır.
+  mentions        Int          @default(0)
+  /// Bu geçişlerin kaçında varlık haberin ÖZNESİYDİ (adı manşette geçti).
+  /// Terfi için en az 1 şart: gövdede adı geçen her şey makale konusu olamaz.
+  subjectMentions Int          @default(0)
+  status          EntityStatus @default(OBSERVED)
+  /// Terfi sonucu açılan "X kimdir" kelimesinin kimliği.
+  keywordId       String?
+  notes           String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  articles EntityMention[]
+
+  @@index([status, mentions(sort: Desc)])
+  @@index([type])
+}
+
+/// Varlık ile içinde geçtiği makale arasındaki bağ. Varlık makalesi
+/// yazılırken kanıt bu makalelerin kanıt paketlerinden toplanır.
+model EntityMention {
+  id        String   @id @default(cuid())
+  entityId  String
+  articleId String
+  /// Kanıtta varlığı destekleyen cümle — varlık makalesinin hammaddesi.
+  excerpt   String?
+  /// Bu haberde varlık özne miydi (adı manşette/kanıt başlığında geçti mi).
+  subject   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  entity  Entity  @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([entityId, articleId])
+  @@index([articleId])
+}
+
+enum EntityType {
+  COMPANY
+  PERSON
+  INSTITUTION
+}
+
+enum EntityStatus {
+  /// Gözlemlendi, henüz terfi eşiğini aşmadı.
+  OBSERVED
+  /// Kelime havuzuna "X kimdir" olarak eklendi.
+  PROMOTED
+  /// Elle veya otomatik olarak dışlandı (çok jenerik, alakasız).
+  IGNORED
 }

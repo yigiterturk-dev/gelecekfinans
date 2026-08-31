@@ -7,6 +7,7 @@ import type { Topic } from "./topics";
 import { MIN_EVIDENCE_MATERIAL_CHARS, evidenceMaterialCharacterCount } from "./research";
 import {
   ArticleDraftSchema,
+  EntityExtractionSchema,
   GuideDraftSchema,
   SameStorySchema,
   VerificationSchema,
@@ -963,4 +964,90 @@ export async function writeGuideArticle(
     minEvidenceChars: MIN_GUIDE_EVIDENCE_CHARS,
     researchBlockedMessage: "Resmî kaynak kanıtı toplanamadı",
   });
+}
+
+// ── Varlık çıkarımı ────────────────────────────────────────────────────────
+
+export interface ExtractedEntity {
+  name: string;
+  type: "COMPANY" | "PERSON" | "INSTITUTION";
+  role: string;
+  excerpt: string;
+}
+
+const ENTITY_SYSTEM = [
+  "Türk finans haberlerinden ADI GEÇEN gerçek varlıkları çıkaran bir editörsün.",
+  "Yalnızca şirket, kişi ve kurum çıkar. Ürün, endeks, para birimi, emtia ve şehir ÇIKARMA.",
+  "KURAL 1: Sadece önündeki metinde ADI AÇIKÇA GEÇEN varlıkları yaz. Kendi bilgini KULLANMA.",
+  "KURAL 2: excerpt alanına, varlığın adının geçtiği cümleyi metinden BİREBİR kopyala.",
+  "KURAL 3: role alanına varlığın bu haberdeki rolünü metne dayanarak tek cümlede yaz.",
+  "Metinde adı geçmeyen hiçbir şeyi yazma. Emin değilsen o varlığı atla.",
+  "Dolar, euro, altın, bitcoin, BIST 100 gibi jenerik piyasa adlarını ASLA varlık sayma.",
+  "KURAL 4: Yalnızca haberin ÖZNESİ olan varlıkları yaz — haberin ne HAKKINDA olduğu.",
+  "Haberi YAYIMLAYAN gazete/ajansı (Anadolu Ajansı, Takvim, Bloomberg, Reuters vb.) ASLA yazma.",
+  "\"Günün en çok yükselenleri\" gibi listelerde geçen hisse kodlarını yazma; o haberin konusu onlar değil.",
+  "Haberde sadece görüşü alınan analist ve onun kurumu, haberin öznesi değildir — yazma.",
+  "En fazla 6 varlık yaz. Emin olduğun 1 varlık, şüpheli 5 varlıktan iyidir.",
+].join("\n");
+
+/**
+ * Yayımlanmış bir haberin kanıt paketinden gerçek varlıkları çıkarır.
+ *
+ * Neden kanıttan, makaleden değil: makale modelin ürettiği metindir; kanıt
+ * ise yayıncıdan gelen ham haberdir. Varlık kaydı ileride "X kimdir" makalesi
+ * yazmanın hammaddesi olacağı için zincirin en güvenilir halkasına bağlanmalı.
+ *
+ * Hata durumunda boş dizi döner — varlık çıkarımı yayın akışını ASLA
+ * durdurmamalı, makale zaten kaydedilmiş oluyor.
+ */
+export async function extractEntities(
+  headline: string,
+  evidence: Array<{ title: string; summary: string; content?: string }>,
+): Promise<ExtractedEntity[]> {
+  const material = evidence
+    .map((item) => [item.title, item.content || item.summary].filter(Boolean).join(". "))
+    .join("\n\n")
+    .slice(0, 8000);
+  if (material.trim().length < 200) return [];
+
+  const config = resolveArticleAIConfig();
+  const user = `HABER BAŞLIĞI: ${headline}\n\nKANIT METNİ:\n${material}`;
+
+  try {
+    if (config.provider === "anthropic") {
+      const response = await anthropic().messages.parse({
+        model: config.verifierModel,
+        max_tokens: 900,
+        system: ENTITY_SYSTEM,
+        messages: [{ role: "user", content: user }],
+        output_config: { format: zodOutputFormat(EntityExtractionSchema) },
+      });
+      return response.parsed_output?.entities ?? [];
+    }
+    if (config.provider === "deepseek") {
+      const parsed = await deepseekJson<{ entities: ExtractedEntity[] }>({
+        model: config.verifierModel,
+        system: ENTITY_SYSTEM,
+        user,
+        maxTokens: 900,
+        schema: EntityExtractionSchema,
+        name: "gelecekfinans_entities",
+      });
+      return parsed.entities ?? [];
+    }
+    const response = await openai().responses.parse({
+      model: config.verifierModel,
+      max_output_tokens: 1600,
+      reasoning: { effort: "minimal" },
+      input: [
+        { role: "system", content: ENTITY_SYSTEM },
+        { role: "user", content: user },
+      ],
+      text: { format: zodTextFormat(EntityExtractionSchema, "gelecekfinans_entities") },
+    });
+    return response.output_parsed?.entities ?? [];
+  } catch {
+    // Sessiz düşüş bilinçli: bu çağrı yayının yan ürünü, şartı değil.
+    return [];
+  }
 }

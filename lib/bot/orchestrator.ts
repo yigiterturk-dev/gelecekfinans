@@ -7,7 +7,8 @@ import { autoLink } from "@/lib/bot/linker";
 import { ensureExternalLink } from "@/lib/bot/external-link";
 import { getArticleImageResult } from "@/lib/bot/images";
 import { getTopics } from "@/lib/bot/topics";
-import { judgeSameStory, resetSameStoryJudgeBudget, resolveArticleAIConfig, writeArticle } from "@/lib/bot/writer";
+import { extractEntities, judgeSameStory, resetSameStoryJudgeBudget, resolveArticleAIConfig, writeArticle } from "@/lib/bot/writer";
+import { recordEntities } from "@/lib/bot/entities";
 import {
   classifyRisk, decidePublication, scoreSource,
 } from "@/lib/bot/autonomy";
@@ -371,6 +372,31 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
         decision: publication.decision, risk: risk.level, sourceScore: source.score,
         seoScore: seo.score, imageStrategy: image.strategy,
       }, created.id);
+
+      // Varlık çıkarımı: haberin yan ürünü olarak şirket/kişi/kurum kaydı.
+      // Neden burada: elimizde HEM doğrulanmış kanıt paketi HEM de kaydedilmiş
+      // makale kimliği yalnızca bu noktada birlikte var. Çağrı bilerek
+      // try/catch içinde ve hatası yutuluyor — makale zaten kaydedildi,
+      // varlık kaydı tutmazsa yayın geri alınmamalı.
+      try {
+        const evidenceText = packet.evidence
+          .map((item) => [item.title, item.content || item.summary].filter(Boolean).join(". "))
+          .join("\n\n");
+        const extracted = await extractEntities(article.title, packet.evidence);
+        if (extracted.length) {
+          const entityResult = await recordEntities(
+            created.id, article.category, extracted, evidenceText,
+            article.title, packet.evidence.map((item) => item.title),
+          );
+          await logEvent(run.id, "entity",
+            `${entityResult.recorded} varlık kaydedildi` +
+            (entityResult.rejected ? `, ${entityResult.rejected} kanıtsız düşürüldü: ${entityResult.rejectedNames.join(", ")}` : ""),
+            entityResult, created.id);
+        }
+      } catch (entityError) {
+        await logEvent(run.id, "entity", `Varlık çıkarımı başarısız: ${(entityError as Error).message}`,
+          {}, created.id, "warning");
+      }
       // Sayaçlar yalnızca makale gerçekten kaydedildikten sonra artar. Böylece
       // DB hataları karar istatistiklerini şişirmez.
       if (publication.decision === "AUTO_PUBLISH") autoPublished++;
