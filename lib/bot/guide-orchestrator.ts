@@ -3,11 +3,12 @@ import { asJson } from "@/lib/prisma-json";
 import { slugify } from "@/lib/slug";
 import { analyzeSeo } from "@/lib/seo";
 import { isDuplicate } from "@/lib/duplicate";
-import { autoLink, linkGuideCluster } from "@/lib/bot/linker";
+import { autoLink, linkEntitySources, linkGuideCluster } from "@/lib/bot/linker";
 import { ensureExternalLink } from "@/lib/bot/external-link";
 import { getArticleImageResult } from "@/lib/bot/images";
-import { writeGuideArticle } from "@/lib/bot/writer";
+import { writeEntityArticle, writeGuideArticle } from "@/lib/bot/writer";
 import { buildGuideTopic } from "@/lib/bot/evergreen";
+import { buildEntityTopic, type EntityTopic } from "@/lib/bot/entity-topic";
 import {
   markKeywordFailed, markKeywordInProgress, markKeywordPublished, pickKeywords,
 } from "@/lib/bot/keywords";
@@ -109,18 +110,31 @@ export async function runGuidePipeline(options: GuidePipelineOptions) {
         select: { articleId: true },
       });
 
-      const topic = await buildGuideTopic(keyword, {
-        clusterArticles: clusterArticles.map((item) => ({
-          title: item.title,
-          slug: item.slug,
-          isHub: Boolean(hubKeyword?.articleId) && item.keywordId === keyword.id,
-        })),
-      });
+      /**
+       * Şerit seçimi kelimenin KÖKENİNE bakar, kategorisine değil.
+       * `origin: "entity"` olan kelimeler varlık motorunun terfi ettirdiği
+       * "X kimdir" sorularıdır: kanıtları resmî kurumdan değil, botun kendi
+       * arşivindeki doğrulanmış haberlerden gelir ve kanıt kapısı zorunlu
+       * çalışır. Aynı kuyruk, aynı bütçe, farklı malzeme.
+       */
+      const isEntity = keyword.origin === "entity";
+      const topic = isEntity
+        ? await buildEntityTopic(keyword)
+        : await buildGuideTopic(keyword, {
+            clusterArticles: clusterArticles.map((item) => ({
+              title: item.title,
+              slug: item.slug,
+              isHub: Boolean(hubKeyword?.articleId) && item.keywordId === keyword.id,
+            })),
+          });
 
       if (topic.evidencePacket.status !== "VERIFIED") {
         blocked++;
         await markKeywordFailed(keyword.id, topic.evidencePacket.reasons.join("; "));
-        await logEvent(run.id, "research", "Resmî kaynak kanıtı yetersiz; kelime kuyruğa geri kondu", {
+        await logEvent(run.id, "research",
+          isEntity
+            ? "Arşiv kanıtı yetersiz; varlık kelimesi kuyruğa geri kondu"
+            : "Resmî kaynak kanıtı yetersiz; kelime kuyruğa geri kondu", {
           keyword: keyword.term,
           reasons: topic.evidencePacket.reasons,
           sourceCount: topic.evidencePacket.independentSourceCount,
@@ -134,7 +148,9 @@ export async function runGuidePipeline(options: GuidePipelineOptions) {
       });
       dailyWriterCalls++;
 
-      const article = await writeGuideArticle(topic, targetWords);
+      const article = isEntity
+        ? await writeEntityArticle(topic as EntityTopic, Math.min(targetWords, 1000))
+        : await writeGuideArticle(topic, targetWords);
       const slug = slugify(article.title);
       if (await prisma.article.findUnique({ where: { slug }, select: { id: true } })) {
         await markKeywordFailed(keyword.id, "Aynı slug zaten var");
@@ -149,7 +165,9 @@ export async function runGuidePipeline(options: GuidePipelineOptions) {
       }
 
       let content = await autoLink(article.content, article.category, slug);
-      content = await linkGuideCluster(content, keyword.cluster, slug, keyword.isHub);
+      content = isEntity
+        ? linkEntitySources(content, (topic as EntityTopic).clusterArticles, slug)
+        : await linkGuideCluster(content, keyword.cluster, slug, keyword.isHub);
       /**
        * Rehber kavramsal üretiliyor, yani atıf verecek bir haber kaynağı yok.
        * Buna rağmen okuru resmî veri kaynağına yönlendiren tek bir dış bağlantı
@@ -197,7 +215,7 @@ export async function runGuidePipeline(options: GuidePipelineOptions) {
           automationMeta: asJson({
             pipelineVersion: "gf-guide-v1",
             trigger: options.trigger,
-            track: "GUIDE",
+            track: isEntity ? "ENTITY" : "GUIDE",
             cluster: keyword.cluster,
             isHub: keyword.isHub,
             intent: keyword.intent,
@@ -217,7 +235,8 @@ export async function runGuidePipeline(options: GuidePipelineOptions) {
       if (publish) autoPublished++;
       else reviewQueued++;
       recent.push({ id: created.id, title: created.title, content: created.content });
-      await logEvent(run.id, "decision", publish ? "Rehber otomatik yayımlandı" : "Rehber incelemeye alındı", {
+      await logEvent(run.id, "decision",
+        `${isEntity ? "Varlık yazısı" : "Rehber"} ${publish ? "otomatik yayımlandı" : "incelemeye alındı"}`, {
         keyword: keyword.term, seoScore: seo.score, imageStrategy: image.strategy,
         wordCount: article.wordCount, cluster: keyword.cluster,
       }, created.id);

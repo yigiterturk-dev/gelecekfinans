@@ -184,3 +184,28 @@ export async function linkGuideCluster(
 
   return html;
 }
+
+/**
+ * Varlık makalesini, o varlığın çıktığı haberlere bağlar.
+ *
+ * Varlık sayfası kendi kümesinde yalnız kalır (küme `varlik-<ad>`, içinde tek
+ * makale var), dolayısıyla `linkGuideCluster` ona hiçbir bağ kuramaz. Oysa bu
+ * şeridin bütün mantığı arşivi bir varlık etrafında toplamak: "X kimdir"
+ * sayfası X'in geçtiği haberlere link vermezse, ne okur ne de tarayıcı ikisinin
+ * aynı konu olduğunu görür.
+ *
+ * DB'ye gitmez — kaynak listesi konuyu kuran taraftan gelir, çünkü orada zaten
+ * yayımlanmışlık filtresinden geçmiştir.
+ */
+export function linkEntitySources(
+  content: string,
+  sources: Array<{ title: string; slug: string }>,
+  currentSlug: string,
+): string {
+  const items = sources
+    .filter((item) => item.slug !== currentSlug && !content.includes(`href="/${item.slug}"`))
+    .slice(0, 6)
+    .map((item) => `<li><a href="/${item.slug}">${item.title}</a></li>`);
+  if (!items.length) return content;
+  return `${content.trimEnd()}\n<h2>İlgili haberler</h2>\n<ul>\n${items.join("\n")}\n</ul>`;
+}

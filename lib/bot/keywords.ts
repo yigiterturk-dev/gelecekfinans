@@ -68,6 +68,8 @@ export interface KeywordPick {
   isHub: boolean;
   intent: string;
   priority: number;
+  /** "seed" | "gsc" | "entity" — hangi kaynaktan geldiği; şerit seçimini belirler. */
+  origin: string;
 }
 
 /**
@@ -95,7 +97,7 @@ export async function pickKeywords(limit = 1, category?: string): Promise<Keywor
     take: Math.max(limit * 6, 12),
     select: {
       id: true, term: true, category: true, cluster: true,
-      isHub: true, intent: true, priority: true,
+      isHub: true, intent: true, priority: true, origin: true,
     },
   });
 

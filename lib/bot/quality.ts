@@ -154,6 +154,28 @@ export const GUIDE_QUALITY_PRESET: QualityPreset = {
 };
 
 /**
+ * Varlık ("X kimdir") şeridi.
+ *
+ * Rehberin tersine kanıt ZORUNLU ve somut rakam SERBEST — çünkü malzeme
+ * arşivdeki doğrulanmış haberlerin kanıt paketinden geliyor, uydurmadan
+ * değil. Gerçek bir kişi ya da şirket hakkında kanıtsız cümle kurmak bu
+ * şeritte en büyük risk; bu yüzden koruma rakam yasağında değil, iddia-kanıt
+ * eşlemesinde (claims + evidenceIds) ve kaynakta bulunmayan rakam kapısında.
+ *
+ * Kelime alt sınırı rehberden düşük: arşiv malzemesi sınırlıdır ve 850
+ * kelimeye zorlamak modeli tam olarak yapmasını istemediğimiz şeye,
+ * doldurmaya iter.
+ */
+export const ENTITY_QUALITY_PRESET: QualityPreset = {
+  minWords: 600,
+  maxWords: 1400,
+  minIndependentSources: 2,
+  label: "varlık",
+  requireEvidence: true,
+  forbidSpecificFigures: false,
+};
+
+/**
  * Kanıtsız rehberde yasak sayı kalıpları.
  *
  * Ölçüt "sayı geçmesin" değil — "3 adım", "18 yaş", "2 farklı yöntem" gibi

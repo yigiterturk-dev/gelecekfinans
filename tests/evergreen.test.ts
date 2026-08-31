@@ -8,7 +8,7 @@ import type { EvidencePacket } from "../lib/bot/research";
 
 const KEYWORD = {
   id: "k1", term: "altın yatırımı nasıl yapılır", category: "altin",
-  cluster: "altin-yatirimi", isHub: true, intent: "INFORMATIONAL", priority: 90,
+  cluster: "altin-yatirimi", isHub: true, intent: "INFORMATIONAL", priority: 90, origin: "seed",
 };
 
 const CONCEPTUAL_PACKET: EvidencePacket = {

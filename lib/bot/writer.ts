@@ -15,9 +15,11 @@ import {
   type SameStoryVerdict,
   type VerificationReport,
 } from "./article-schema";
-import { GUIDE_QUALITY_PRESET } from "./quality";
+import { ENTITY_QUALITY_PRESET, GUIDE_QUALITY_PRESET } from "./quality";
 import type { GuideTopic } from "./evergreen";
 import { MIN_GUIDE_EVIDENCE_CHARS } from "./evergreen";
+import type { EntityTopic } from "./entity-topic";
+import { MIN_ENTITY_EVIDENCE_CHARS } from "./entity-topic";
 import {
   NEWS_QUALITY_PRESET, renderDraftHtml, validateDraft,
   type QualityPreset, type QualityReport,
@@ -963,6 +965,107 @@ export async function writeGuideArticle(
     schema: GuideDraftSchema,
     minEvidenceChars: MIN_GUIDE_EVIDENCE_CHARS,
     researchBlockedMessage: "Resmî kaynak kanıtı toplanamadı",
+  });
+}
+
+/**
+ * Varlık ("X kimdir") yazım talimatı.
+ *
+ * Rehber talimatından iki yerde ayrılır ve ikisi de YMYL kaygısıyla:
+ *
+ * 1. Konu GERÇEK bir kişi ya da şirket. Rehberde uydurma bir tanım okuru
+ *    yanıltır; burada uydurma bir biyografi cümlesi doğrudan iftiraya kadar
+ *    gidebilir ve alan adının itibarını kalıcı yakar. Bu yüzden "kanıtta yoksa
+ *    yazma" kuralı burada mutlak, "bilinmiyor" demek serbesttir.
+ * 2. Malzeme arşivdeki haberlerdir; yani doğal olarak eksiktir. Modelden
+ *    eksiği kapatması değil, eksiği AÇIKÇA BIRAKMASI istenir — boşluğu
+ *    doldurmaya çalışan model tam olarak uydurur.
+ */
+function entityInstructions(targetWords: number, context: {
+  name: string;
+  type: string;
+  role: string | null;
+  sourceArticles: Array<{ title: string; slug: string; isHub: boolean }>;
+}): string {
+  const kisi = context.type === "PERSON";
+  const related = context.sourceArticles.length
+    ? context.sourceArticles.map((item) => `- ${item.title}`).join("\n")
+    : "(henüz yayımlanmış ilgili haber yok)";
+  return [
+    kisi
+      ? `GelecekFinans için "${context.name} kimdir?" sorusuna cevap veren, olgusal bir Türkçe künye yazısı yaz.`
+      : `GelecekFinans için "${context.name} nedir, sahibi kim?" sorularına cevap veren, olgusal bir Türkçe şirket profili yaz.`,
+    context.role ? `Varlığın arşivdeki rolü: ${context.role}` : "",
+    "",
+    "KANIT KURALI (bu şeritte mutlak):",
+    "Konu GERÇEK bir kişi/kurumdur. Yalnızca KANIT PAKETİ'nde açıkça yazan olguları kullan.",
+    "Doğum tarihi, eğitim, unvan, ortaklık yapısı, kuruluş yılı, sermaye, çalışan sayısı gibi bilgileri kanıtta GEÇMİYORSA YAZMA — belleğinden tamamlama, tahmin etme, 'muhtemelen' deme.",
+    "Bilgi eksikse bunu açıkça söyle: 'kamuya açık haber kaynaklarında bu bilgiye yer verilmedi' gibi. Eksiği belirtmek hata değil, doğru davranıştır.",
+    "Her somut iddiayı claims alanında yaz ve evidenceIds değerlerini KANIT PAKETİ'ndeki kimliklerin birebir kopyası olarak ver; köşeli parantez ekleme, kimlik uydurma.",
+    "Olumsuz, suçlayıcı veya itibar zedeleyici bir ifadeyi kanıtta birebir dayanağı yoksa asla yazma.",
+    "",
+    "YAPI:",
+    kisi
+      ? `Başlık "${context.name} kimdir?" sorusunu içersin.`
+      : `Başlık "${context.name}" adını ve "nedir" ya da "sahibi kim" kalıbını içersin.`,
+    "İlk bölüm doğrudan cevabı versin: okur ilk paragrafta kim/ne olduğunu öğrensin.",
+    "Sonraki bölümler kanıtın izin verdiği kadarıyla: geçmiş, bugünkü konum, öne çıkan gelişmeler, sektördeki yeri.",
+    "Her bölüm başlığı okurun gerçekten sorduğu bir soru olsun; 'Giriş', 'Sonuç' gibi boş başlık kullanma.",
+    "Her paragraf tek başına okunduğunda anlaşılır olsun.",
+    "",
+    "ARŞİVDEKİ İLGİLİ HABERLER (bunlara değinebilirsin, kopyalama):",
+    related,
+    "",
+    `Gövde EN AZ 620, en fazla 1400 kelime olmalı; hedef ${Math.max(620, Math.min(targetWords, 1400))} kelime. Kanıt yetmiyorsa kısa tut — doldurma yapma, tekrar etme.`,
+    "Başlık 35-85 karakter olsun. Meta açıklama 145-160 karakter arasında olsun; 165 karakteri KESİNLİKLE geçme.",
+    `keyword alanı tam olarak "${context.name}" olsun ve bu ifade AYNEN hem meta hem de lede içinde geçsin.`,
+    "Odak kelime meta açıklamada cümlenin içinde doğal geçmeli; metanın sonuna \"Keyword: ...\" gibi etiket EKLEME.",
+    "4-6 bölüm, 3 özet maddesi ve 4-6 SSS üret. SSS'ler okurun gerçekten arayacağı sorular olsun.",
+    "Kanıt metnindeki cümleleri KOPYALAMA; kendi cümlelerinle yaz, 10 kelimeden uzun birebir ortak dizi kalmasın.",
+    "Yatırım tavsiyesi, hisse yorumu, fiyat hedefi ve övgü/reklam dili YASAK. Ton nötr ve haber dilinde olsun.",
+    'Disclaimer tam olarak "Bu içerik yalnızca bilgilendirme amaçlıdır, yatırım tavsiyesi değildir." olsun.',
+  ].filter(Boolean).join("\n");
+}
+
+/**
+ * Varlık makalesi yazar.
+ *
+ * Haber ve rehberle AYNI üretim/onarım/kalite/intihal/doğrulama makinesini
+ * kullanır; değişen yalnızca talimat, kalite ayarı ve kanıt eşiği. Kanıt
+ * kapısı burada haberdeki gibi ZORUNLU çalışır (ENTITY_QUALITY_PRESET
+ * requireEvidence: true) — arşivden gelen malzeme yetersizse makale hiç
+ * yazılmaz.
+ */
+export async function writeEntityArticle(
+  topic: EntityTopic,
+  targetWords = 800,
+): Promise<Awaited<ReturnType<typeof writeArticle>>> {
+  const asTopic: Topic = {
+    title: topic.entity.name,
+    summary: topic.entity.role
+      ? `${topic.entity.name}: ${topic.entity.role}`
+      : `${topic.entity.name} hakkında arşiv haberlerine dayalı künye.`,
+    category: topic.category,
+    source: topic.evidencePacket.evidence.map((item) => item.source).join(", "),
+    sourceUrl: topic.evidencePacket.evidence[0]?.sourceUrl,
+    pubDate: Date.now(),
+    sourcePriority: 100,
+    relevanceScore: 100,
+    relevanceReasons: ["Varlık motoru terfi ettirdi"],
+    evidencePacket: topic.evidencePacket,
+  };
+
+  return writeArticle(asTopic, targetWords, {
+    instructions: entityInstructions(targetWords, {
+      name: topic.entity.name,
+      type: topic.entity.type,
+      role: topic.entity.role,
+      sourceArticles: topic.clusterArticles,
+    }),
+    preset: ENTITY_QUALITY_PRESET,
+    schema: GuideDraftSchema,
+    minEvidenceChars: MIN_ENTITY_EVIDENCE_CHARS,
+    researchBlockedMessage: "Arşivden varlık kanıtı toplanamadı",
   });
 }
 
