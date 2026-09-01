@@ -29,6 +29,24 @@ interface BotRun {
   status: string;
 }
 
+interface CostSummary {
+  today: number;
+  week: number;
+  month: number;
+  calls: number;
+  measuredDays: number;
+  projectedMonthly: number;
+  byModel: Record<string, number>;
+  unpricedModels: string[];
+}
+
+interface BlockRow {
+  createdAt: string;
+  stage: string;
+  message: string;
+  level: string;
+}
+
 interface DecisionRow {
   id: string;
   title: string;
@@ -132,6 +150,8 @@ export default function BotPage() {
   const [result, setResult] = useState<string | null>(null);
   const [autoPublish, setAutoPublish] = useState(false);
   const [aiProvider, setAIProvider] = useState<AIProviderStatus | null>(null);
+  const [cost, setCost] = useState<CostSummary | null>(null);
+  const [blocks, setBlocks] = useState<BlockRow[]>([]);
 
   useEffect(() => {
     Promise.all([
@@ -143,6 +163,8 @@ export default function BotPage() {
         setTopics(t.topics || []);
         setRuns(r.runs || []);
         setDecisions(r.recentDecisions || []);
+        setCost(r.cost || null);
+        setBlocks(r.blocks || []);
         if (!billing.error) setAIProvider(billing);
       })
       .finally(() => setLoading(false));
@@ -222,6 +244,8 @@ export default function BotPage() {
       const runsData = await runsRes.json();
       setRuns(runsData.runs || []);
       setDecisions(runsData.recentDecisions || []);
+      setCost(runsData.cost || null);
+      setBlocks(runsData.blocks || []);
     } catch (e) {
       setResult(`Hata: ${(e as Error).message}`);
     } finally {
@@ -284,10 +308,91 @@ export default function BotPage() {
               OpenAI Billing&apos;i Aç ↗
             </a>
             <p style={{ maxWidth: 680, color: "var(--muted)", fontSize: 11, lineHeight: 1.55 }}>
-              OpenAI Luna hem yazımda hem doğrulamada kullanılır. Her üretim işi en fazla bir yazar çağrısı yapar;
-              kalite veya özgünlük kapısında kalan taslak ücretli olarak yeniden yazdırılmaz. Günlük limit dolunca motor yeni çağrı yapmadan durur.
+              Yazar ve doğrulayıcı ayrı modellerdir. Kalite, özgünlük ve kanıt doğrulaması kapılarında kalan taslak
+              BİR kez onarıma gönderilir (ek yazar çağrısı = ek maliyet); ikinci onarım turu yoktur. Günlük limit
+              dolunca motor yeni çağrı yapmadan durur. Gerçek harcama aşağıdaki kartta ölçülür.
             </p>
           </div>
+        </div>
+      </div>
+
+      <div className="adm-card">
+        <div className="adm-card-h">
+          <div>
+            <b>Model Harcaması</b>
+            <small>
+              {cost?.measuredDays
+                ? `Gerçek token ölçümü · ${cost.measuredDays} gün kayıtlı · ${cost.calls} çağrı`
+                : "Ölçüm 1 Eylül 2026'da eklendi; ilk koşumdan sonra dolar."}
+            </small>
+          </div>
+          {cost && cost.projectedMonthly > 0 && (
+            <span style={{
+              whiteSpace: "nowrap", fontSize: 10, padding: "5px 9px", borderRadius: 999,
+              background: cost.projectedMonthly > 75 ? "#fef2f2" : "var(--up-soft)",
+              color: cost.projectedMonthly > 75 ? "var(--dn)" : "var(--up)",
+              fontFamily: "var(--mono)",
+            }}>
+              {cost.projectedMonthly > 75 ? "BÜTÇE ÜSTÜ" : "BÜTÇE İÇİNDE"}
+            </span>
+          )}
+        </div>
+        <div className="adm-card-b">
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12 }}>
+            <ProviderMetric label="BUGÜN" value={cost ? `$${cost.today.toFixed(4)}` : "—"} />
+            <ProviderMetric label="SON 7 GÜN" value={cost ? `$${cost.week.toFixed(2)}` : "—"} />
+            <ProviderMetric label="SON 30 GÜN" value={cost ? `$${cost.month.toFixed(2)}` : "—"} />
+            <ProviderMetric
+              label="AYLIK GİDİŞ"
+              value={cost?.projectedMonthly ? `$${cost.projectedMonthly.toFixed(2)} / $75` : "—"}
+            />
+            {cost && Object.entries(cost.byModel).map(([model, value]) => (
+              <ProviderMetric key={model} label={model.toUpperCase()} value={`$${value.toFixed(4)}`} />
+            ))}
+          </div>
+          {cost && cost.unpricedModels.length > 0 && (
+            <p style={{ marginTop: 12, color: "var(--dn)", fontSize: 11 }}>
+              Fiyatı bilinmeyen model: {cost.unpricedModels.join(", ")} — toplam eksik.
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="adm-card">
+        <div className="adm-card-h">
+          <div>
+            <b>Son 48 Saatte Duran İşler</b>
+            <small>Makale neden çıkmadı: kanıt, kalite, bütçe ve yapılandırma engelleri</small>
+          </div>
+        </div>
+        <div className="adm-card-b">
+          {blocks.length === 0 ? (
+            <p style={{ color: "var(--muted)", fontSize: 12 }}>Son 48 saatte duran iş yok.</p>
+          ) : (
+            <ul style={{ display: "grid", gap: 8, listStyle: "none", padding: 0, margin: 0 }}>
+              {blocks.map((block, index) => (
+                <li
+                  key={`${block.createdAt}-${index}`}
+                  style={{
+                    display: "grid", gridTemplateColumns: "auto auto 1fr", gap: 10, alignItems: "baseline",
+                    background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, padding: "9px 12px",
+                  }}
+                >
+                  <span style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--muted)", whiteSpace: "nowrap" }}>
+                    {new Date(block.createdAt).toLocaleString("tr-TR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                  <span style={{
+                    fontFamily: "var(--mono)", fontSize: 9, padding: "3px 7px", borderRadius: 999, whiteSpace: "nowrap",
+                    background: block.level === "error" ? "#fef2f2" : "var(--surface-2, #f4f4f5)",
+                    color: block.level === "error" ? "var(--dn)" : "var(--muted)",
+                  }}>
+                    {block.stage.toUpperCase()}
+                  </span>
+                  <span style={{ fontSize: 12, color: "var(--ink)", overflowWrap: "anywhere" }}>{block.message}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </div>
 
