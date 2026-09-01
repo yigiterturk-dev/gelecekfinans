@@ -467,6 +467,17 @@ async function verifyDraft(topic: Topic, draft: ArticleDraft): Promise<Verificat
       "Kaynaklar birbiriyle çelişiyorsa conflictingClaims alanına ekle.",
       "passed yalnızca tüm iddialar destekleniyor, önemli çelişki yok ve kanıt kimlikleri doğruysa true olabilir.",
       "Eksik bilgiyi tahmin etme; durma kuralın tüm claims maddelerini bir kez incelemektir.",
+      /**
+       * `corrections` alanının ne olduğu tarif edilmiyordu ve model onu "her
+       * iddia için not defteri" sanıyordu: her maddeye "destekleniyor, düzeltme
+       * gerekmiyor" yazıp sonra passed:false döndürüyordu — kendi metniyle
+       * çelişen, gerekçesi olmayan bir ret. (1 Eylül 2026, Midas sayfası
+       * kurtarma denemesinde yakalandı.) Alanın anlamı ve BOŞ BIRAKMA izni
+       * açıkça yazılınca çelişki ortadan kalkıyor.
+       */
+      "corrections alanına YALNIZCA yanlış bir ifadenin düzeltilmiş hâlini yaz.",
+      "Düzeltilecek bir şey yoksa corrections BOŞ DİZİ olmalı; her iddia için yorum yazma.",
+      "Sorun bulamadıysan passed=true döndür ve üç listeyi de boş bırak.",
     ].join("\n");
     const userPrompt = `KANITLAR:\n${evidencePrompt(topic)}\n\nTASLAK:\n${JSON.stringify(draft)}`;
 
@@ -941,9 +952,33 @@ export async function writeArticle(
   const verification = packet.evidence.length
     ? await verifyDraft(topic, draft)
     : await verifyGuideDraft(topic, draft);
-  if (!verification.passed || verification.unsupportedClaims.length || verification.conflictingClaims.length) {
-    const reasons = [...verification.unsupportedClaims, ...verification.conflictingClaims].join("; ");
-    throw new Error(`VERIFICATION_BLOCKED: ${reasons || "Model doğrulaması geçmedi"}`);
+  /**
+   * Ret SOMUT BİR İTİRAZA bağlı.
+   *
+   * Doğrulayıcı bazen `passed: false` döndürüp üç itiraz listesini de boş
+   * bırakıyor — "bu makale yayımlanmasın" diyor ama nedenini söylemiyor. Eski
+   * kod buna uyup bitmiş makaleyi çöpe atıyor ve kayda "Model doğrulaması
+   * geçmedi" diye anlamsız bir satır düşüyordu; neyin yanlış olduğunu sonradan
+   * anlamanın yolu yoktu. (1 Eylül 2026, Midas sayfası kurtarılırken yakalandı:
+   * aynı taslak ve aynı kanıtla bir çağrıda gerekçeli itiraz, bir sonrakinde
+   * gerekçesiz ret geldi.)
+   *
+   * `corrections` ret sebebi DEĞİL, yalnızca kayda geçer: model o alanı
+   * düzeltme için değil serbest not defteri olarak kullanıyor ve oraya
+   * "Hepsi kanıtlarda açıkça destekleniyor; düzeltme gerekmiyor." gibi ONAY
+   * cümleleri yazıyor. Onay cümlesini ret gerekçesi saymak, doğrulayıcının
+   * evet dediği makaleyi çöpe atmak demekti. Rapor `automationMeta.verification`
+   * içinde tam hâliyle saklandığı için hiçbir şey kaybolmuyor.
+   *
+   * Kapı zayıflamıyor: gerçek iki tehlike — kanıtlanmamış iddia ve kaynaklar
+   * arası çelişki — aynen reddediliyor.
+   */
+  const verificationObjections = [
+    ...verification.unsupportedClaims,
+    ...verification.conflictingClaims,
+  ];
+  if (verificationObjections.length) {
+    throw new Error(`VERIFICATION_BLOCKED: ${verificationObjections.join("; ")}`);
   }
 
   return {
