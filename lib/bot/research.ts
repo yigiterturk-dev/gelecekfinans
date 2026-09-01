@@ -304,7 +304,7 @@ export const STORY_MATCH_THRESHOLD = 0.44;
  * manşeti arasında BAŞLIK benzerliği 0 olabiliyor, özetler katılınca 0.29'a
  * çıkıyor — bu yüzden ön eleme başlık+özet üzerinden yapılır.
  */
-export const STORY_GRAY_BAND_MIN = 0.2;
+export const STORY_GRAY_BAND_MIN = Number(process.env.STORY_GRAY_BAND_MIN) || 0.2;
 
 function storyText(candidate: ResearchCandidate): string {
   return `${candidate.title} ${candidate.summary}`;

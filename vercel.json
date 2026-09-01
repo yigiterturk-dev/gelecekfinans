@@ -25,6 +25,14 @@
       "schedule": "0 8 * * *"
     },
     {
+      "path": "/api/bot/guide-cron",
+      "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/bot/guide-cron",
+      "schedule": "0 20 * * *"
+    },
+    {
       "path": "/api/bot/gsc-cron",
       "schedule": "30 4 * * *"
     }
