@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/db";
 import { asJson } from "@/lib/prisma-json";
+import { saveBlockedDraft } from "./blocked-draft";
+import { isVerificationBlockedError } from "./errors";
 import { slugify } from "@/lib/slug";
 import { analyzeSeo } from "@/lib/seo";
 import { isDuplicate } from "@/lib/duplicate";
@@ -94,6 +96,11 @@ export async function runGuidePipeline(options: GuidePipelineOptions) {
   });
 
   for (const keyword of keywords) {
+    // `catch` bloğu da bunlara bakıyor (bkz. taslak kurtarma), bu yüzden
+    // `try` dışında duruyorlar.
+    const isEntity = keyword.origin === "entity";
+    let evidencePacket: unknown;
+    let evidenceSourceScore = 0;
     try {
       if (dailyWriterCalls >= aiBudget.dailyWriterCallLimit) {
         await logEvent(run.id, "budget", "Günlük yazar çağrısı sınırına ulaşıldı; rehber akışı durdu", {
@@ -119,7 +126,6 @@ export async function runGuidePipeline(options: GuidePipelineOptions) {
        * arşivindeki doğrulanmış haberlerden gelir ve kanıt kapısı zorunlu
        * çalışır. Aynı kuyruk, aynı bütçe, farklı malzeme.
        */
-      const isEntity = keyword.origin === "entity";
       const topic = isEntity
         ? await buildEntityTopic(keyword)
         : await buildGuideTopic(keyword, {
@@ -143,6 +149,9 @@ export async function runGuidePipeline(options: GuidePipelineOptions) {
         }, undefined, "warning");
         continue;
       }
+
+      evidencePacket = topic.evidencePacket;
+      evidenceSourceScore = topic.evidencePacket.evidence[0]?.sourceScore ?? 0;
 
       await markKeywordInProgress(keyword.id);
       await logEvent(run.id, "writer_call_reserved", "Rehber yazar çağrısı bütçeden ayrıldı", {
@@ -246,6 +255,32 @@ export async function runGuidePipeline(options: GuidePipelineOptions) {
       const message = `${keyword.term}: ${(error as Error).message}`;
       errors.push(message);
       await markKeywordFailed(keyword.id, (error as Error).message);
+      /**
+       * Doğrulayıcı reddi = bitmiş makale. Çöpe atmak yerine `DRAFT` olarak
+       * kaydediyoruz; yayına çıkmaz, panelde onay bekler. Kayıt hatası koşumu
+       * düşürmemeli — kurtarma bir ikramiye, akışın şartı değil.
+       */
+      if (isVerificationBlockedError(error)) {
+        try {
+          const rescued = await saveBlockedDraft(error, {
+            trigger: options.trigger,
+            track: isEntity ? "ENTITY" : "GUIDE",
+            keywordId: keyword.id,
+            cluster: keyword.cluster,
+            sourceScore: evidenceSourceScore,
+            evidencePacket,
+          });
+          if (rescued) {
+            reviewQueued++;
+            await logEvent(run.id, "decision",
+              "Doğrulayıcı itiraz etti; makale silinmedi, incelemeye alındı", {
+              keyword: keyword.term, objections: error.draft.objections,
+            }, rescued.id, "warning");
+          }
+        } catch (rescueError) {
+          console.error("[bot-guide] taslak kurtarılamadı:", (rescueError as Error).message);
+        }
+      }
       if (error instanceof AIProviderFatalError) {
         fatalErrorCode = error.code;
         await logEvent(run.id, "configuration", message, { code: error.code }, undefined, "error");

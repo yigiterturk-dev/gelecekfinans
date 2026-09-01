@@ -109,3 +109,41 @@ export function isProviderRequestConfigurationError(error: unknown): boolean {
     code.includes("unsupported_value")
   );
 }
+
+/**
+ * Doğrulayıcının reddettiği ama BİTMİŞ olan taslak.
+ *
+ * Neden ayrı bir hata sınıfı: yazar çağrısının parası ödendi, metin yazıldı,
+ * kalite ve intihal kapılarından geçti — yalnızca doğrulayıcı itiraz etti.
+ * Eskiden bu taslak tamamen kayboluyordu ve gün sıfır makaleyle kapanıyordu
+ * (1 Eylül 2026'da üç koşum böyle bitti). Artık orchestrator hatayı yakalayıp
+ * içeriği `DRAFT` olarak kaydediyor: yayına ÇIKMIYOR, panelde onay bekliyor.
+ *
+ * Mesaj biçimi bilerek korunuyor (`VERIFICATION_BLOCKED: ... | onarım turu
+ * tutmadı`) — panel ve `engel-analiz.ts` bu metne bakıyor.
+ */
+export class VerificationBlockedError extends Error {
+  readonly code = "VERIFICATION_BLOCKED";
+
+  constructor(
+    message: string,
+    readonly draft: {
+      title: string;
+      meta: string;
+      keyword: string;
+      content: string;
+      aiExtras: unknown;
+      category: string;
+      source: string;
+      wordCount: number;
+      objections: string[];
+    },
+  ) {
+    super(message);
+    this.name = "VerificationBlockedError";
+  }
+}
+
+export function isVerificationBlockedError(error: unknown): error is VerificationBlockedError {
+  return error instanceof VerificationBlockedError;
+}

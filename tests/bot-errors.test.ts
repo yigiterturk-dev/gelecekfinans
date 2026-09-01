@@ -3,6 +3,8 @@ import test from "node:test";
 import {
   AIBudgetLimitError,
   AIProviderConfigurationError,
+  VerificationBlockedError,
+  isVerificationBlockedError,
   AIProviderFatalError,
   AnthropicBillingError,
   isAnthropicBillingError,
@@ -78,4 +80,23 @@ test("reasoning.effort yalnızca akıl yürüten modellere gönderilir", () => {
   assert.equal(supportsReasoningEffort("o3-mini"), true);
   assert.equal(supportsReasoningEffort("gpt-4o-mini"), false);
   assert.equal(supportsReasoningEffort("gpt-4.1"), false);
+});
+
+/**
+ * Doğrulayıcı reddi artık taslağı da taşıyor (orchestrator onu DRAFT olarak
+ * kurtarıyor). İki şey bozulmamalı: mesaj biçimi (panel ve `engel-analiz.ts`
+ * bu metne bakıyor) ve engel sınıflandırma regex'i.
+ */
+test("VerificationBlockedError taslağı taşır ve mesaj biçimi korunur", () => {
+  const message = "VERIFICATION_BLOCKED: Uydurma kurum adı | onarım turu tutmadı";
+  const error = new VerificationBlockedError(message, {
+    title: "Başlık", meta: "meta", keyword: "anahtar", content: "<p>metin</p>",
+    aiExtras: null, category: "ekonomi", source: "AA", wordCount: 900,
+    objections: ["Uydurma kurum adı"],
+  });
+  assert.equal(isVerificationBlockedError(error), true);
+  assert.equal(error.code, "VERIFICATION_BLOCKED");
+  assert.equal(error.draft.objections.length, 1);
+  assert.match(error.message, /^(?:QUALITY|VERIFICATION|RESEARCH|PLAGIARISM)_BLOCKED:/);
+  assert.equal(isVerificationBlockedError(new Error(message)), false);
 });

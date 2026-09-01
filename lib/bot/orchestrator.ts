@@ -13,7 +13,8 @@ import { recordEntities } from "@/lib/bot/entities";
 import {
   classifyRisk, decidePublication, scoreSource,
 } from "@/lib/bot/autonomy";
-import { AIBudgetLimitError, AIProviderFatalError } from "@/lib/bot/errors";
+import { AIBudgetLimitError, AIProviderFatalError, isVerificationBlockedError } from "@/lib/bot/errors";
+import { saveBlockedDraft } from "@/lib/bot/blocked-draft";
 import {
   MIN_EVIDENCE_MATERIAL_CHARS,
   buildEvidencePacket,
@@ -419,6 +420,28 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
         fatalErrorCode = error.code;
         await logEvent(run.id, "configuration", message, { code: error.code }, undefined, "error");
         break;
+      }
+      /**
+       * Doğrulayıcı reddi = bitmiş makale. Silmek yerine `DRAFT` olarak
+       * kaydediyoruz (yayına ÇIKMAZ, panelde onay bekler). Kurtarma hatası
+       * koşumu düşürmez; akışın şartı değil.
+       */
+      if (isVerificationBlockedError(error)) {
+        try {
+          const rescued = await saveBlockedDraft(error, {
+            trigger: options.trigger,
+            track: "NEWS",
+            sourceScore: 0,
+          });
+          if (rescued) {
+            await logEvent(run.id, "decision",
+              "Doğrulayıcı itiraz etti; makale silinmedi, incelemeye alındı", {
+              title: topic.title, objections: error.draft.objections,
+            }, rescued.id, "warning");
+          }
+        } catch (rescueError) {
+          console.error("[bot] taslak kurtarılamadı:", (rescueError as Error).message);
+        }
       }
       if (/^(?:QUALITY|VERIFICATION|RESEARCH|PLAGIARISM)_BLOCKED:/.test((error as Error).message)) {
         blocked++;

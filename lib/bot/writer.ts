@@ -30,6 +30,7 @@ import { checkPlagiarism, type PlagiarismReport } from "./plagiarism";
 import { resolveArticleAIBudgetConfig } from "./ai-budget";
 import {
   AIProviderConfigurationError,
+  VerificationBlockedError,
   AnthropicBillingError,
   isAnthropicBillingError,
   isOpenAIQuotaError,
@@ -1098,7 +1099,26 @@ export async function writeArticle(
   if (verificationObjections.length) {
     // Buraya gelindiyse onarım turu ya yapıldı ve tutmadı ya da kalite/intihal
     // kapısında düştü; ikisi de "bir tur denendi" demek.
-    throw new Error(`VERIFICATION_BLOCKED: ${verificationObjections.join("; ")} | onarım turu tutmadı`);
+    //
+    // Taslak hataya EKLENİYOR: metin bitmiş, yazar çağrısının parası ödenmiş,
+    // kalite ve intihal kapıları geçilmiş durumda. Orchestrator bunu `DRAFT`
+    // olarak kaydediyor (bkz. `isVerificationBlockedError`). Yayına ÇIKMAZ —
+    // hatayı yakalamayan bir çağrı için davranış eskisiyle birebir aynı, yani
+    // yanlışlıkla yayımlanma riski yok.
+    throw new VerificationBlockedError(
+      `VERIFICATION_BLOCKED: ${verificationObjections.join("; ")} | onarım turu tutmadı`,
+      {
+        title: draft.title,
+        meta: draft.meta,
+        keyword: draft.keyword,
+        content,
+        aiExtras: { summary: draft.summary, impact: draft.impact, faq: draft.faq },
+        category: topic.category,
+        source: packet.evidence.map((item) => item.source).join(", "),
+        wordCount: quality.wordCount,
+        objections: verificationObjections,
+      },
+    );
   }
 
   return {
