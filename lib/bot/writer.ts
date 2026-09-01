@@ -17,6 +17,7 @@ import {
   type VerificationReport,
 } from "./article-schema";
 import { ENTITY_QUALITY_PRESET, GUIDE_QUALITY_PRESET } from "./quality";
+import { guideBlockingObjections } from "./guide-objections";
 import type { GuideTopic } from "./evergreen";
 import { MIN_GUIDE_EVIDENCE_CHARS } from "./evergreen";
 import type { EntityTopic } from "./entity-topic";
@@ -361,7 +362,28 @@ function verificationRepairInstructions(
   targetWords: number,
   objections: string[],
   baseInstructions: string,
+  lane: "news" | "guide" = "news",
 ): string {
+  /**
+   * Rehber şeridinin kanıt paketi YOKTUR. Haber metnini ("kanıt paketinde
+   * birebir karşılığı olmayan hiçbir şey geçmesin") rehbere vermek, modelden
+   * metnin TAMAMINI silmesini istemek demekti; onarım turu bu yüzden hiç
+   * tutmuyordu (canlı kayıt: "onarım turu tutmadı", 1 Eylül 12:05 ve 20:51).
+   */
+  if (lane === "guide") {
+    return [
+      baseInstructions,
+      "",
+      "ÖNCEKİ DENEME DOĞRULAMAYA TAKILDI. Doğrulayıcının itirazları:",
+      ...objections.map((objection) => `- ${objection}`),
+      "",
+      "KURAL: İtiraz edilen cümleyi düzeltmeye çalışma, KALDIR.",
+      "Yerine rakam, tarih veya kesin limit EKLEME — bu rehberde somut rakam yasak.",
+      "İtiraz bir eksikliğe işaret ediyorsa hiçbir şey ekleme, o cümleyi çıkarmakla yetin.",
+      "Makalenin geri kalanını, başlığı ve yapısını olduğu gibi koru; kelime sayısını",
+      "kalan bölümleri genişleterek değil, olduğu gibi bırakarak koru.",
+    ].join("\n");
+  }
   return [
     baseInstructions,
     "",
@@ -607,9 +629,17 @@ async function verifyGuideDraft(topic: Topic, draft: ArticleDraft): Promise<Veri
     "Şunları ara ve bulduklarını unsupportedClaims alanına yaz:",
     "- Var olmayan kurum, kanun, yönetmelik veya kurul adı",
     "- Türkiye'de geçerli olmayan bir prosedürün geçerliymiş gibi anlatılması",
-    "- Doğrulanması gereken oran, tutar, süre veya limit",
+    "- Metinde RAKAMLA yazılmış ve doğrulanamayan bir oran, tutar, limit veya süre",
     "- Yatırım tavsiyesi, getiri vaadi veya yönlendirme",
     "conflictingClaims alanına metnin kendi içinde çelişen ifadelerini yaz.",
+    // Bu üç satır olmadan model rakam BULAMAYINCA rakam OLMAMASINI itiraz
+    // yazıyordu ("kesin süre belirtilmemiş", "şu bilgi eksik"). Rehberde somut
+    // rakam kalite kapısınca zaten YASAK; o itiraz kazanılamaz bir kilit
+    // kuruyor ve bitmiş rehberi çöpe atıyordu (1 Eylül: 3 koşumun 3'ü).
+    "EKSİKLİK İHLAL DEĞİLDİR. Bu rehber kavramsaldır; oran, tutar, limit ve tarih",
+    "KASITLI olarak yazılmaz. 'Kesin süre belirtilmemiş', 'şu bilgi eksik', 'daha",
+    "ayrıntı verilmeli' gibi itirazlar YAZMA — yalnızca metinde YAZAN yanlış bir",
+    "şeyi bildir. Kuruma/bankaya göre değiştiği söylenen prosedürler sorun değildir.",
     "Hiçbiri yoksa passed=true ve listeleri boş bırak. Emin olmadığın genel tanımları sorun sayma.",
     // Cevap uzunluğu sınırlanmazsa model her paragrafı ayrı madde yapıp
     // çıktı tavanını doldurdu ve JSON yarıda kesildi (durum: incomplete,
@@ -1017,10 +1047,16 @@ export async function writeArticle(
    * Kapı zayıflamıyor: gerçek iki tehlike — kanıtlanmamış iddia ve kaynaklar
    * arası çelişki — aynen reddediliyor.
    */
-  const objectionsOf = (report: VerificationReport) => [
-    ...report.unsupportedClaims,
-    ...report.conflictingClaims,
-  ];
+  const lane: "news" | "guide" = packet.evidence.length ? "news" : "guide";
+  /**
+   * Rehber şeridinde EKSİKLİK itirazları ret sebebi sayılmaz (bkz.
+   * `guideBlockingObjections`): kalite kapısı rakamı yasaklarken doğrulayıcının
+   * rakam istemesi kazanılamaz bir kilitti.
+   */
+  const objectionsOf = (report: VerificationReport) => {
+    const raw = [...report.unsupportedClaims, ...report.conflictingClaims];
+    return lane === "guide" ? guideBlockingObjections(raw) : raw;
+  };
   let verificationObjections = objectionsOf(verification);
 
   // Onarım hakkı bir kere: ikinci tur ölçülebilir kazanç getirmiyor, faturayı
@@ -1030,7 +1066,7 @@ export async function writeArticle(
       await generateDraft(
         topic,
         targetWords,
-        verificationRepairInstructions(targetWords, verificationObjections, baseInstructions),
+        verificationRepairInstructions(targetWords, verificationObjections, baseInstructions, lane),
         schema,
       ),
     )));
