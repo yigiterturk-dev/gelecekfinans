@@ -12,14 +12,21 @@ async function main() {
     where: onlyPublished ? { status: "PUBLISHED" } : {},
     orderBy: { createdAt: "desc" },
     take: limit,
-    select: { id: true, title: true, keyword: true, category: true },
+    select: { id: true, title: true, keyword: true, category: true, automationMeta: true },
   });
   console.log(`[backfill] ${articles.length} makale işlenecek (${onlyPublished ? "sadece yayında" : "tümü"})`);
 
   let ok = 0, fail = 0;
   for (const a of articles) {
     try {
-      const url = await getArticleImage({ title: a.title, keyword: a.keyword || "", category: a.category });
+      // Kanıt sayısı geçilmezse markalı kart "kaynakla doğrulandı" rozetini
+      // basamaz; eskiden bu durumda YAYINDAKİ makaleye "Editoryal inceleme
+      // bekliyor" ibaresi yazılıyordu.
+      const evidenceSourceCount = (a.automationMeta as { evidencePacket?: { independentSourceCount?: number } } | null)
+        ?.evidencePacket?.independentSourceCount;
+      const url = await getArticleImage({
+        title: a.title, keyword: a.keyword || "", category: a.category, evidenceSourceCount,
+      });
       if (!url) { fail++; console.log(`[backfill] ✗ görsel üretilemedi: ${a.title.slice(0, 50)}`); continue; }
       await prisma.article.update({ where: { id: a.id }, data: { imageUrl: url } });
       ok++;

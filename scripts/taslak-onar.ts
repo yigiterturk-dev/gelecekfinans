@@ -42,6 +42,9 @@ async function main() {
       const image = await getArticleImageResult({
         title: draft.title, keyword: draft.keyword || "", category: draft.category,
         slug: draft.slug, recentConcepts: [], maxAttempts: 1,
+        // Kanıt sayısı geçilmezse kart "kaynakla doğrulandı" rozetini basamaz.
+        evidenceSourceCount: (draft.automationMeta as { evidencePacket?: { independentSourceCount?: number } } | null)
+          ?.evidencePacket?.independentSourceCount,
       });
       imageUrl = image.url;
       imageStrategy = image.strategy;

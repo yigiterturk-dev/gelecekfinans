@@ -176,8 +176,7 @@ function quickChartUrl(points: number[], label: string, unit: string): string {
   return `https://quickchart.io/chart?width=1200&height=675&devicePixelRatio=2&backgroundColor=${encodeURIComponent(CHART_BG)}&c=${encodeURIComponent(json)}`;
 }
 
-function wrapHeadline(value: string, max = 34): string[] {
-  const words = value.split(/\s+/).filter(Boolean);
+function greedyWrap(words: string[], max: number): string[] {
   const lines: string[] = [];
   let current = "";
   for (const word of words) {
@@ -188,14 +187,72 @@ function wrapHeadline(value: string, max = 34): string[] {
     } else current = next;
   }
   if (current) lines.push(current);
-  return lines.slice(0, 4);
+  return lines;
+}
+
+/**
+ * Başlığı DENGELİ satırlara böler.
+ *
+ * Açgözlü sarma her satırı sonuna kadar doldurduğu için son satırda tek bir
+ * sözcük kalabiliyordu — "Kripto para nedir? Tanım, çalışma / prensipleri,
+ * kullanım ve riskler" kapağında "çalışma" ortada yapayalnız durdu.
+ * Önce satır sayısını açgözlü sarmayla buluyoruz, sonra AYNI satır sayısını
+ * koruyan en dar genişliği arıyoruz: satırlar birbirine yakın uzunlukta çıkıyor.
+ *
+ * ⚠️ `max` KARTIN GENİŞLİĞİNE bağlı, keyfi değil: 820px kutuda 58px Geist Bold
+ * ile satır başına ~27 karakter sığıyor. Eskiden 34'tü; sığmayan satırı görsel
+ * motoru ikinci kez kırıyor ve dengeleme boşa gidiyordu — kripto kapağında
+ * "çalışma" tek başına satırda kalmasının sebebi buydu.
+ */
+export function wrapHeadline(value: string, max = 26): string[] {
+  const words = value.split(/\s+/).filter(Boolean);
+  const target = greedyWrap(words, max).length;
+  let best = greedyWrap(words, max);
+  for (let width = max - 1; width >= 12; width--) {
+    const candidate = greedyWrap(words, width);
+    if (candidate.length !== target) break;
+    best = candidate;
+  }
+  return best.slice(0, 4);
+}
+
+/**
+ * Kategoriye göre vurgu rengi.
+ *
+ * Kartın düzeni sabit kalır ama renk değişir: aynı gün yayımlanan altı haberin
+ * kapağı birbirinin tıpatıp aynı olduğunda sosyal paylaşımda ve Google
+ * Discover'da hiçbiri ayırt edilemiyor. Renk, marka kimliğini bozmadan
+ * kategoriyi bir bakışta ayıran en ucuz sinyal.
+ */
+const CATEGORY_ACCENTS: Record<string, { accent: string; deep: string; soft: string }> = {
+  borsa: { accent: "#38bdf8", deep: "#0f2c46", soft: "#123b54" },
+  kripto: { accent: "#a78bfa", deep: "#2a1f4d", soft: "#3b2b63" },
+  altin: { accent: "#fbbf24", deep: "#3d2f10", soft: "#4d3c16" },
+  doviz: { accent: "#34d399", deep: "#0f3a30", soft: "#154c3e" },
+  ekonomi: { accent: "#60a5fa", deep: "#152a4d", soft: "#1d3a63" },
+};
+const DEFAULT_ACCENT = CATEGORY_ACCENTS.ekonomi;
+
+export function accentForCategory(category: string) {
+  return CATEGORY_ACCENTS[category.toLocaleLowerCase("tr-TR")] ?? DEFAULT_ACCENT;
 }
 
 export async function createBrandedCard(article: ArticleImageInput): Promise<Buffer> {
   const lines = wrapHeadline(article.title);
+  const palette = accentForCategory(article.category);
+  /**
+   * Rozet YALNIZCA kanıt sayısı bilindiğinde basılır.
+   *
+   * Eski davranış: sayı gelmediğinde "Editoryal inceleme bekliyor" yazıyordu.
+   * Görsel onarım scriptleri (`backfill-images`, `taslak-onar`) bu alanı hiç
+   * geçmiyor; sonuç olarak YAYINDAKİ makalelerin kapağında "inceleme bekliyor"
+   * ibaresi kaldı (1 Eylül 2026: BIST ve kripto kapaklarında canlı görüldü).
+   * Okura yanlış bilgi vermektense rozeti hiç basmamak doğru: bilinmeyen bir
+   * durumu uydurmuyoruz.
+   */
   const sourceLabel = article.evidenceSourceCount && article.evidenceSourceCount >= 2
     ? `${article.evidenceSourceCount} bağımsız kaynakla doğrulandı`
-    : "Editoryal inceleme bekliyor";
+    : null;
   const element = React.createElement(
     "div",
     {
@@ -208,24 +265,24 @@ export async function createBrandedCard(article: ArticleImageInput): Promise<Buf
     React.createElement("div", {
       style: {
         position: "absolute", width: 500, height: 500, borderRadius: 250,
-        right: -130, top: -140, background: "#0f2c46",
+        right: -130, top: -140, background: palette.deep,
       },
     }),
     React.createElement("div", {
       style: {
         position: "absolute", width: 380, height: 380, borderRadius: 190,
-        right: -40, bottom: -220, background: "#123b54", opacity: 0.72,
+        right: -40, bottom: -220, background: palette.soft, opacity: 0.72,
       },
     }),
     React.createElement("div", {
       style: {
         position: "absolute", width: 430, height: 220, right: 28, top: 120,
-        borderBottom: "3px solid #38bdf8", borderRadius: "0 0 100% 0",
+        borderBottom: `3px solid ${palette.accent}`, borderRadius: "0 0 100% 0",
         transform: "rotate(18deg)", opacity: 0.55,
       },
     }),
     React.createElement("div", {
-      style: { display: "flex", fontSize: 24, fontWeight: 700, color: "#38bdf8", letterSpacing: 3 },
+      style: { display: "flex", fontSize: 24, fontWeight: 700, color: palette.accent, letterSpacing: 3 },
     }, "GELECEK FİNANS"),
     React.createElement("div", {
       style: { display: "flex", marginTop: 34, fontSize: 22, fontWeight: 700, color: "#94a3b8" },
@@ -236,15 +293,17 @@ export async function createBrandedCard(article: ArticleImageInput): Promise<Buf
         fontSize: 58, lineHeight: 1.16, fontWeight: 700, letterSpacing: -1.5,
       },
     }, ...lines.map((line, index) => React.createElement("div", { key: `${index}-${line}`, style: { display: "flex" } }, line))),
-    React.createElement("div", {
-      style: {
-        display: "flex", position: "absolute", left: 86, bottom: 68,
-        alignItems: "center", fontSize: 20, color: "#cbd5e1",
+    sourceLabel
+      ? React.createElement("div", {
+        style: {
+          display: "flex", position: "absolute", left: 86, bottom: 68,
+          alignItems: "center", fontSize: 20, color: "#cbd5e1",
+        },
       },
-    },
-    React.createElement("div", {
-      style: { width: 12, height: 12, borderRadius: 6, background: "#38bdf8", marginRight: 14 },
-    }), sourceLabel),
+      React.createElement("div", {
+        style: { width: 12, height: 12, borderRadius: 6, background: palette.accent, marginRight: 14 },
+      }), sourceLabel)
+      : null,
     React.createElement("div", {
       style: { display: "flex", position: "absolute", right: 54, bottom: 68, fontSize: 18, color: "#64748b" },
     }, "gelecekfinans.com"),

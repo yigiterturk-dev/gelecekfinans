@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createBrandedCard } from "../lib/bot/images";
+import { accentForCategory, createBrandedCard, wrapHeadline } from "../lib/bot/images";
 import { createVisualBrief } from "../lib/bot/visual-director";
 
 test("doğrudan fiyat hareketi gerçek veri grafiğine gider", () => {
@@ -37,4 +37,17 @@ test("markalı kart gerçek PNG üretir", async () => {
   });
   assert.deepEqual([...png.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
   assert.ok(png.length > 10_000);
+});
+
+test("başlık dengeli satırlara bölünür, son satırda tek kelime kalmaz", () => {
+  const lines = wrapHeadline("Kripto para nedir? Tanım, çalışma prensipleri, kullanım ve riskler");
+  assert.ok(lines.length <= 4);
+  const uzunluklar = lines.map((l) => l.length);
+  // En kısa satır, en uzunun yarısından kısa olmamalı.
+  assert.ok(Math.min(...uzunluklar) >= Math.max(...uzunluklar) / 2, JSON.stringify(lines));
+});
+
+test("kategori vurgu rengi ayrışır, bilinmeyen kategori varsayılana düşer", () => {
+  assert.notEqual(accentForCategory("kripto").accent, accentForCategory("borsa").accent);
+  assert.equal(accentForCategory("bilinmeyen").accent, accentForCategory("ekonomi").accent);
 });
