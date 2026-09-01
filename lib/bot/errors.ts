@@ -82,3 +82,30 @@ export function isAnthropicBillingError(error: unknown): boolean {
   const message = `${value.message || ""} ${value.error?.message || ""}`.toLocaleLowerCase("en-US");
   return value.status === 402 || type === "billing_error" || message.includes("credit balance");
 }
+
+/**
+ * Modelin/parametrenin sağlayıcıda karşılığı olmadığını söyleyen 400'ler.
+ *
+ * Bunlar koşuma özgü değil, YAPILANDIRMAYA özgüdür: aynı env ile bir sonraki
+ * konu da, bir sonraki koşum da aynı hatayı alır. Sıradan hata sayıldıklarında
+ * döngü devam ediyor ve koşumun kalan yazar çağrısı hakkını da yakıyorlar —
+ * 1 Eylül 2026'da env'de yazar modeli akıl yürütmeyen bir modele çekilince
+ * "Unsupported parameter: 'reasoning.effort'" 400'ü iki çağrıyı birden yaktı,
+ * koşum 0 makaleyle bitti. Ölümcül sayılınca koşum ilk hatada durur ve uyarı
+ * maili gider.
+ */
+export function isProviderRequestConfigurationError(error: unknown): boolean {
+  const value = (error || {}) as OpenAIErrorLike;
+  if (value.status !== 400 && value.status !== 404) return false;
+  const message = `${value.message || ""} ${value.error?.message || ""}`.toLocaleLowerCase("en-US");
+  const code = `${value.code || ""} ${value.error?.code || ""}`.toLocaleLowerCase("en-US");
+  return (
+    message.includes("unsupported parameter") ||
+    message.includes("unsupported value") ||
+    message.includes("unknown parameter") ||
+    message.includes("does not exist") ||
+    code.includes("model_not_found") ||
+    code.includes("unsupported_parameter") ||
+    code.includes("unsupported_value")
+  );
+}

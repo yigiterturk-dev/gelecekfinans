@@ -31,6 +31,7 @@ import {
   AnthropicBillingError,
   isAnthropicBillingError,
   isOpenAIQuotaError,
+  isProviderRequestConfigurationError,
   OpenAIQuotaError,
 } from "./errors";
 
@@ -90,6 +91,22 @@ export function resolveArticleAIConfig(
         writerModel: env.OPENAI_ARTICLE_MODEL || "gpt-5",
         verifierModel: env.OPENAI_VERIFIER_MODEL || "gpt-5-mini",
       };
+}
+
+/**
+ * `reasoning.effort` YALNIZCA akıl yürüten modellerde (gpt-5*, o1/o3/o4) geçerli.
+ * gpt-4o / gpt-4.1 ailesine gönderildiğinde OpenAI 400 döndürüyor:
+ *   "Unsupported parameter: 'reasoning.effort' is not supported with this model."
+ * 1 Eylül 2026 sabahı env'de yazar modeli ucuz bir 4o sınıfına çekildiğinde
+ * koşumun İKİ yazar çağrısı da bu 400 ile öldü (0 makale). Model adını env
+ * belirlediği için parametreyi yeteneğe göre koşullu göndermek şart.
+ */
+export function supportsReasoningEffort(model: string): boolean {
+  return /^(gpt-5|o[134])/.test(model);
+}
+
+function reasoningParam(model: string) {
+  return supportsReasoningEffort(model) ? { reasoning: { effort: "minimal" as const } } : {};
 }
 
 let openaiClient: OpenAI | null = null;
@@ -406,14 +423,19 @@ async function generateDraft(
 
     const response = await openai().responses.parse({
       model: config.writerModel,
-      max_output_tokens: budget.writerMaxOutputTokens,
+      // Tavan hedef uzunlukla ölçeklenmeli: 5000 token 800 kelimelik habere
+      // yetiyor ama 1200-1800 kelimelik REHBER JSON'ı ortadan kesiliyordu
+      // (1 Eylül 2026: "Unterminated string in JSON at position 8467").
+      // Türkçe token başına daha az kelime taşır, claims/faq alanları da bu
+      // tavana sayılır: kelime başına 6 token güvenli pay bırakıyor.
+      max_output_tokens: Math.min(16000, Math.max(budget.writerMaxOutputTokens, targetWords * 6)),
       // effort: "none" DEĞİL — gpt-5 bunu reddediyor ve koşu 400 ile ölüyor:
       //   "Unsupported value: 'none' is not supported with the 'gpt-5' model.
       //    Supported values are: 'minimal', 'low', 'medium', and 'high'."
       // (2026-08-13'te canlı hata kaydından alındı; 7 günde 9 koşu bu yüzden
       //  düştü.) "minimal" en yakın karşılık: en az akıl yürütme, en hızlı,
       //  en ucuz — davranış "none" ile aynı niyette.
-      reasoning: { effort: "minimal" },
+      ...reasoningParam(config.writerModel),
       input: [
         { role: "system", content: instructions },
         { role: "user", content: userPrompt },
@@ -425,6 +447,11 @@ async function generateDraft(
   } catch (error) {
     if (config.provider === "anthropic" && isAnthropicBillingError(error)) throw new AnthropicBillingError();
     if (isOpenAIQuotaError(error)) throw new OpenAIQuotaError();
+    if (isProviderRequestConfigurationError(error)) {
+      throw new AIProviderConfigurationError(
+        `Model/parametre yapılandırması sağlayıcı tarafından reddedildi: ${(error as Error).message}`,
+      );
+    }
     throw error;
   }
 }
@@ -475,7 +502,7 @@ async function verifyDraft(topic: Topic, draft: ArticleDraft): Promise<Verificat
       // (2026-08-13'te canlı hata kaydından alındı; 7 günde 9 koşu bu yüzden
       //  düştü.) "minimal" en yakın karşılık: en az akıl yürütme, en hızlı,
       //  en ucuz — davranış "none" ile aynı niyette.
-      reasoning: { effort: "minimal" },
+      ...reasoningParam(config.verifierModel),
       input: [
         { role: "system", content: system },
         { role: "user", content: userPrompt },
@@ -487,6 +514,11 @@ async function verifyDraft(topic: Topic, draft: ArticleDraft): Promise<Verificat
   } catch (error) {
     if (config.provider === "anthropic" && isAnthropicBillingError(error)) throw new AnthropicBillingError();
     if (isOpenAIQuotaError(error)) throw new OpenAIQuotaError();
+    if (isProviderRequestConfigurationError(error)) {
+      throw new AIProviderConfigurationError(
+        `Model/parametre yapılandırması sağlayıcı tarafından reddedildi: ${(error as Error).message}`,
+      );
+    }
     throw error;
   }
 }
@@ -573,7 +605,7 @@ async function verifyGuideDraft(topic: Topic, draft: ArticleDraft): Promise<Veri
       // "durum: incomplete, eksik: max_output_tokens" (31 Ağu'da 4 rehber
       // koşumunun 2'si böyle öldü). Yazar ve haber doğrulayıcısı zaten
       // "minimal" kullanıyor; bu çağrı atlanmıştı.
-      reasoning: { effort: "minimal" },
+      ...reasoningParam(config.verifierModel),
       input: [{ role: "system", content: system }, { role: "user", content: user }],
       text: { format: zodTextFormat(VerificationSchema, "gelecekfinans_guide_verification") },
     });
@@ -587,6 +619,11 @@ async function verifyGuideDraft(topic: Topic, draft: ArticleDraft): Promise<Veri
   } catch (error) {
     if (config.provider === "anthropic" && isAnthropicBillingError(error)) throw new AnthropicBillingError();
     if (isOpenAIQuotaError(error)) throw new OpenAIQuotaError();
+    if (isProviderRequestConfigurationError(error)) {
+      throw new AIProviderConfigurationError(
+        `Model/parametre yapılandırması sağlayıcı tarafından reddedildi: ${(error as Error).message}`,
+      );
+    }
     throw error;
   }
 }
@@ -669,7 +706,7 @@ export async function judgeSameStory(primary: StoryBrief, candidate: StoryBrief)
       const response = await openai().responses.parse({
         model: config.verifierModel,
         max_output_tokens: 300,
-        reasoning: { effort: "minimal" },
+        ...reasoningParam(config.verifierModel),
         input: [
           { role: "system", content: JUDGE_SYSTEM },
           { role: "user", content: user },
@@ -1141,7 +1178,7 @@ export async function extractEntities(
     const response = await openai().responses.parse({
       model: config.verifierModel,
       max_output_tokens: 1600,
-      reasoning: { effort: "minimal" },
+      ...reasoningParam(config.verifierModel),
       input: [
         { role: "system", content: ENTITY_SYSTEM },
         { role: "user", content: user },

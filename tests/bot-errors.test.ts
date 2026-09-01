@@ -8,7 +8,9 @@ import {
   isAnthropicBillingError,
   OpenAIQuotaError,
   isOpenAIQuotaError,
+  isProviderRequestConfigurationError,
 } from "../lib/bot/errors";
+import { supportsReasoningEffort } from "../lib/bot/writer";
 
 test("harcama freni kalıcı biçimde yeni model çağrılarını durdurur", () => {
   const error = new AIBudgetLimitError();
@@ -40,4 +42,40 @@ test("eksik sağlayıcı ayarı akışı kalıcı biçimde durdurur", () => {
   const error = new AIProviderConfigurationError("eksik");
   assert.equal(error.code, "AI_PROVIDER_CONFIGURATION_ERROR");
   assert.ok(error instanceof AIProviderFatalError);
+});
+
+test("400 'unsupported parameter' yapılandırma hatası sayılır", () => {
+  const hata = {
+    status: 400,
+    message: "400 Unsupported parameter: 'reasoning.effort' is not supported with this model.",
+  };
+  assert.equal(isProviderRequestConfigurationError(hata), true);
+});
+
+test("model_not_found ve unsupported value da yapılandırma hatasıdır", () => {
+  assert.equal(
+    isProviderRequestConfigurationError({ status: 404, error: { code: "model_not_found" } }),
+    true,
+  );
+  assert.equal(
+    isProviderRequestConfigurationError({
+      status: 400,
+      message: "Unsupported value: 'none' is not supported with the 'gpt-5' model.",
+    }),
+    true,
+  );
+});
+
+test("kota/geçici hatalar yapılandırma hatası sayılmaz", () => {
+  assert.equal(isProviderRequestConfigurationError({ status: 429, message: "rate limit" }), false);
+  assert.equal(isProviderRequestConfigurationError({ status: 500, message: "server error" }), false);
+  assert.equal(isProviderRequestConfigurationError({ status: 400, message: "invalid json" }), false);
+});
+
+test("reasoning.effort yalnızca akıl yürüten modellere gönderilir", () => {
+  assert.equal(supportsReasoningEffort("gpt-5"), true);
+  assert.equal(supportsReasoningEffort("gpt-5-mini"), true);
+  assert.equal(supportsReasoningEffort("o3-mini"), true);
+  assert.equal(supportsReasoningEffort("gpt-4o-mini"), false);
+  assert.equal(supportsReasoningEffort("gpt-4.1"), false);
 });
