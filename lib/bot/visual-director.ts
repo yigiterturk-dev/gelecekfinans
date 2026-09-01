@@ -11,7 +11,17 @@ export interface VisualBrief {
   conceptKey: string;
   rationale: string;
 }
-const PRICE_EVENT = /\b(?:fiyat|kur|parite|endeks|yüzde|oran|rekor|zirve|dip|arttı|azaldı|yükseldi|düştü|geriledi)\b/iu;
+/**
+ * Başlığın bir FİYAT HAREKETİ anlattığını gösteren sözcükler.
+ *
+ * Piyasa kategorisinde olmak tek başına yetmez: "SPK kripto borsalarına yeni
+ * kural getirdi" haberinde grafik yanıltıcı olur. Ama liste dar kalırsa tersi
+ * olur — 1 Eylül 2026'da "BIST 100 güne kayıpla başladı" haberinde hiçbir
+ * sözcük eşleşmedi ve gerçek endeks serisi varken markalı karta düşüldü.
+ * Bu yüzden borsa dilinin günlük ifadeleri (kayıp, kazanç, açılış, kapanış,
+ * satıcılı, ekside…) listeye eklendi.
+ */
+const PRICE_EVENT = /\b(?:fiyat|kur|parite|endeks|yüzde|oran|rekor|zirve|dip|arttı|azaldı|yükseldi|düştü|geriledi|kayıp|kayıpla|kazanç|kazançla|kapanış|kapattı|açılış|başladı|satıcılı|alıcılı|primli|ekside|artıda|ralli|sıçradı|çakıldı|tırmandı|değer kayb|değer kazan|yükseliş|düşüş|gerileme)\w*/iu;
 
 function normalizedKey(value: string): string {
   return value
@@ -24,7 +34,13 @@ function normalizedKey(value: string): string {
 }
 
 export function createVisualBrief(article: ArticleImageInput): VisualBrief {
-  const isMarketCategory = ["kripto", "doviz", "altin"].includes(article.category);
+  /**
+   * "borsa" 1 Eylül 2026'da eklendi: BIST haberleri fiyat hareketi anlatmasına
+   * rağmen listede olmadığı için markalı karta düşüyordu — oysa endeksin gerçek
+   * kapanış serisi artık çekilebiliyor (`getBistHistory`). Altın da listedeydi
+   * ama grafik yolu `null` dönüyordu; ons/USD serisi bağlandı.
+   */
+  const isMarketCategory = ["kripto", "doviz", "altin", "borsa"].includes(article.category);
   if (isMarketCategory && PRICE_EVENT.test(`${article.title} ${article.keyword || ""}`)) {
     return {
       mode: "DATA_CHART",

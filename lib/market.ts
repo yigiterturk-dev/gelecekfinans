@@ -188,6 +188,57 @@ export async function getFxHistory(base: string): Promise<number[] | null> {
   return points.length > 1 ? points : null;
 }
 
+/**
+ * Yahoo Finance grafik uç noktasından günlük kapanış serisi.
+ *
+ * Neden Yahoo: BIST 100 için ücretsiz ve kimlik istemeyen tarihsel seri veren
+ * başka kaynak bulunamadı — Borsa İstanbul'un kendi sitesi bağlantı reddediyor
+ * (1 Eylül 2026 ölçümü). Uç nokta belgelenmiş değil; bu yüzden BOZULABİLİR ve
+ * bozulduğunda `null` dönüp çağıran taraf markalı karta düşer, sayfa çalışmaya
+ * devam eder. Sessiz yanlış veri riski yok: kapanış dizisi boşsa null.
+ *
+ * ⚠️ Tarayıcı kimliği ZORUNLU; User-Agent gönderilmezse Yahoo 429 döndürüyor.
+ */
+export async function getYahooCloseSeries(
+  symbol: string,
+  range = "1mo",
+): Promise<number[] | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  try {
+    const res = await fetch(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=${range}&interval=1d`,
+      {
+        next: { revalidate: 3600 },
+        signal: controller.signal,
+        headers: { Accept: "application/json", "User-Agent": "Mozilla/5.0 (compatible; GelecekFinansBot/1.0)" },
+      },
+    );
+    if (!res.ok) return null;
+    const data = (await res.json()) as {
+      chart?: { result?: Array<{ indicators?: { quote?: Array<{ close?: Array<number | null> }> } }> };
+    };
+    const closes = data.chart?.result?.[0]?.indicators?.quote?.[0]?.close;
+    if (!Array.isArray(closes)) return null;
+    const points = closes.filter((value): value is number => typeof value === "number" && value > 0);
+    return points.length > 4 ? points : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** BIST 100 endeksinin son ~1 aylık günlük kapanışları. */
+export async function getBistHistory(): Promise<number[] | null> {
+  return getYahooCloseSeries("XU100.IS");
+}
+
+/** Ons altının (USD) son ~1 aylık günlük kapanışları. */
+export async function getGoldUsdHistory(): Promise<number[] | null> {
+  return getYahooCloseSeries("GC=F");
+}
+
 /* ----------------------------------------------------------------------------
  * ALTIN
  * ------------------------------------------------------------------------- */

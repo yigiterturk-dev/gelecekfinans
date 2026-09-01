@@ -2,7 +2,7 @@
 // Jenerik Unsplash stok fotoları gider. Çalıştırma:
 //   npx tsx --env-file=.env --env-file=.env.local scripts/backfill-images.ts [limit] [--all]
 import { prisma } from "../lib/db";
-import { getArticleImage } from "../lib/bot/images";
+import { getArticleImageResult } from "../lib/bot/images";
 
 async function main() {
   const limit = parseInt(process.argv[2] || "100");
@@ -12,7 +12,7 @@ async function main() {
     where: onlyPublished ? { status: "PUBLISHED" } : {},
     orderBy: { createdAt: "desc" },
     take: limit,
-    select: { id: true, title: true, keyword: true, category: true, automationMeta: true },
+    select: { id: true, title: true, slug: true, keyword: true, category: true, automationMeta: true },
   });
   console.log(`[backfill] ${articles.length} makale işlenecek (${onlyPublished ? "sadece yayında" : "tümü"})`);
 
@@ -24,13 +24,20 @@ async function main() {
       // bekliyor" ibaresi yazılıyordu.
       const evidenceSourceCount = (a.automationMeta as { evidencePacket?: { independentSourceCount?: number } } | null)
         ?.evidencePacket?.independentSourceCount;
-      const url = await getArticleImage({
-        title: a.title, keyword: a.keyword || "", category: a.category, evidenceSourceCount,
+      // slug GEÇİLMELİ: verilmezse dosya adı `chart-borsa.png` gibi jenerik
+      // oluyor ve aynı kategorideki her makale birbirinin görselini eziyor.
+      // Dosya adı ayrıca görsel aramada sıralama sinyali.
+      const result = await getArticleImageResult({
+        title: a.title, slug: a.slug, keyword: a.keyword || "", category: a.category, evidenceSourceCount,
       });
+      const url = result.url;
       if (!url) { fail++; console.log(`[backfill] ✗ görsel üretilemedi: ${a.title.slice(0, 50)}`); continue; }
-      await prisma.article.update({ where: { id: a.id }, data: { imageUrl: url } });
+      await prisma.article.update({
+        where: { id: a.id },
+        data: { imageUrl: url, imageStrategy: result.strategy },
+      });
       ok++;
-      console.log(`[backfill] ✓ (${ok}) ${a.category.padEnd(7)} ${a.title.slice(0, 50)}`);
+      console.log(`[backfill] ✓ (${ok}) ${a.category.padEnd(7)} ${result.strategy.padEnd(18)} ${a.title.slice(0, 42)}`);
     } catch (e) {
       fail++;
       console.log(`[backfill] ✗ ${a.title.slice(0, 40)} → ${(e as Error).message}`);

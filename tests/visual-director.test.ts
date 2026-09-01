@@ -51,3 +51,12 @@ test("kategori vurgu rengi ayrışır, bilinmeyen kategori varsayılana düşer"
   assert.notEqual(accentForCategory("kripto").accent, accentForCategory("borsa").accent);
   assert.equal(accentForCategory("bilinmeyen").accent, accentForCategory("ekonomi").accent);
 });
+
+test("borsa haberi de gerçek veri grafiğine gider", () => {
+  const brief = createVisualBrief({
+    title: "BIST 100 güne kayıpla başladı",
+    keyword: "bist 100",
+    category: "borsa",
+  });
+  assert.equal(brief.mode, "DATA_CHART");
+});

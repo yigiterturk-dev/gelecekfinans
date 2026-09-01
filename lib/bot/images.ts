@@ -1,7 +1,7 @@
 import React from "react";
 import { ImageResponse } from "next/og";
 import { put } from "@vercel/blob";
-import { getCrypto, getFxHistory, CRYPTO_COINS } from "@/lib/market";
+import { getBistHistory, getCrypto, getFxHistory, getGoldUsdHistory, CRYPTO_COINS } from "@/lib/market";
 import { createVisualBrief, type VisualBrief } from "./visual-director";
 import { searchLicensedMedia, type LicensedMediaAsset } from "./licensed-media";
 
@@ -36,12 +36,6 @@ export interface ArticleImageResult {
   licensedAsset: LicensedMediaAsset | null;
 }
 
-const CHART_BG = "#0b1220";
-const CHART_LINE = "#38bdf8";
-const CHART_LINE_DOWN = "#f87171";
-const CHART_GRID = "rgba(148,163,184,0.12)";
-const CHART_TEXT = "#cbd5e1";
-
 export async function getArticleImage(article: ArticleImageInput): Promise<string | null> {
   return (await getArticleImageResult(article)).url;
 }
@@ -50,14 +44,21 @@ export async function getArticleImageResult(article: ArticleImageInput): Promise
   const brief = createVisualBrief(article);
 
   if (brief.mode === "DATA_CHART") {
-    const chartUrl = await buildMarketChart(article.category, article);
-    if (chartUrl) {
-      const stored = await uploadRemoteToBlob(chartUrl, article.slug || `chart-${article.category}`, true);
+    const chart = await buildMarketSeries(article.category, article);
+    if (chart) {
+      const card = await createChartCard(article, downsample(chart.series, 60), chart.label, chart.unit);
+      const stored = process.env.BLOB_READ_WRITE_TOKEN
+        ? await uploadBufferToBlob(card, article.slug || `chart-${article.category}`, "image/png")
+        : null;
       if (stored) return {
         url: stored,
         strategy: "MARKET_CHART",
         brief,
-        audit: { approved: true, method: "REAL_DATA", reasons: ["Doğrulanmış piyasa serisinden üretildi"] },
+        audit: {
+          approved: true,
+          method: "REAL_DATA",
+          reasons: [`${chart.label} serisi (${chart.series.length} kapanış) markalı şablona çizildi`],
+        },
         attempts: 1,
         licensedAsset: null,
       };
@@ -111,21 +112,37 @@ export async function getArticleImageResult(article: ArticleImageInput): Promise
   return { url: null, strategy: "NONE", brief, audit: null, attempts: 0, licensedAsset: null };
 }
 
-async function buildMarketChart(cat: string, article: ArticleImageInput): Promise<string | null> {
+interface MarketSeries { series: number[]; label: string; unit: string }
+
+async function buildMarketSeries(cat: string, article: ArticleImageInput): Promise<MarketSeries | null> {
   const text = `${article.title} ${article.keyword || ""}`.toLocaleLowerCase("tr-TR");
   if (cat === "kripto") {
     const data = await getCrypto(pickCryptoSlug(text));
     if (!data?.sparkline || data.sparkline.length < 5) return null;
-    return quickChartUrl(downsample(data.sparkline, 60), `${data.name} (₺) — Son 7 Gün`, "₺");
+    return { series: data.sparkline, label: `${data.name} — Son 7 Gün`, unit: "₺" };
   }
   if (cat === "doviz") {
     const base = pickFxBase(text);
     const series = await getFxHistory(base);
     if (!series || series.length < 5) return null;
-    return quickChartUrl(downsample(series, 60), `${base}/TRY — Son 30 Gün`, "₺");
+    return { series, label: `${base}/TRY — Son 30 Gün`, unit: "₺" };
   }
-  // Tarihsel USD/TRY olmadan gram-altın TL grafiği kesin değer izlenimi
-  // veriyordu. Güvenilir birleşik seri eklenene kadar altın haberi kart kullanır.
+  if (cat === "borsa") {
+    const series = await getBistHistory();
+    if (!series || series.length < 5) return null;
+    return { series, label: "BIST 100 — Son 1 Ay", unit: "" };
+  }
+  if (cat === "altin") {
+    /**
+     * TL cinsinden gram altın çizilmiyor: onu üretmek için ons/USD serisini
+     * tarihsel USD/TRY ile gün gün çarpmak gerekir ve iki serinin tatil
+     * günleri örtüşmediği için sonuç sessizce yanlış çıkıyordu. Bunun yerine
+     * GERÇEK olan seri, birimi açıkça yazılarak çiziliyor: ons altın / USD.
+     */
+    const series = await getGoldUsdHistory();
+    if (!series || series.length < 5) return null;
+    return { series, label: "Ons Altın — Son 1 Ay", unit: "$" };
+  }
   return null;
 }
 
@@ -151,30 +168,6 @@ function downsample(values: number[], max: number): number[] {
   return output;
 }
 
-function quickChartUrl(points: number[], label: string, unit: string): string {
-  const up = points.at(-1)! >= points[0];
-  const line = up ? CHART_LINE : CHART_LINE_DOWN;
-  const fill = up ? "rgba(56,189,248,0.18)" : "rgba(248,113,113,0.16)";
-  const config = {
-    type: "line",
-    data: { labels: points.map(() => ""), datasets: [{
-      label, data: points, borderColor: line, backgroundColor: fill,
-      borderWidth: 3, pointRadius: 0, fill: true, tension: 0.35,
-    }] },
-    options: {
-      plugins: {
-        legend: { display: true, labels: { color: CHART_TEXT, font: { size: 18, weight: "bold" } } },
-        title: { display: true, text: "gelecekfinans.com", color: "rgba(203,213,225,0.55)", font: { size: 13 }, position: "bottom" },
-      },
-      scales: {
-        x: { display: false, grid: { display: false } },
-        y: { ticks: { color: CHART_TEXT, font: { size: 13 }, callback: "__CB__" }, grid: { color: CHART_GRID } },
-      },
-    },
-  };
-  const json = JSON.stringify(config).replace('"__CB__"', `function(v){return '${unit}'+v.toLocaleString('tr-TR')}`);
-  return `https://quickchart.io/chart?width=1200&height=675&devicePixelRatio=2&backgroundColor=${encodeURIComponent(CHART_BG)}&c=${encodeURIComponent(json)}`;
-}
 
 function greedyWrap(words: string[], max: number): string[] {
   const lines: string[] = [];
@@ -235,6 +228,104 @@ const DEFAULT_ACCENT = CATEGORY_ACCENTS.ekonomi;
 
 export function accentForCategory(category: string) {
   return CATEGORY_ACCENTS[category.toLocaleLowerCase("tr-TR")] ?? DEFAULT_ACCENT;
+}
+
+/**
+ * Gerçek piyasa serisini MARKALI kartın içine gömer.
+ *
+ * Önceki hâl: quickchart.io'dan gelen çıplak PNG doğrudan kapak yapılıyordu.
+ * Veri gerçekti ama görselde ne logo, ne kaynak, ne tarih vardı — sosyal
+ * paylaşımda kimin ürettiği belirsizdi ve "hangi tarihe ait" sorusunun cevabı
+ * yoktu. Artık aynı seri kendi şablonumuzda çiziliyor: dış servise bağımlılık
+ * da kalkıyor (quickchart bozulursa kapak üretimi durmuyor).
+ *
+ * Çizim sütunlarla yapılır; satori (`ImageResponse`) SVG path'i değil ama
+ * flex kutularını güvenilir basıyor. 60 ince sütun çizgi grafik izlenimi verir.
+ */
+export async function createChartCard(
+  article: ArticleImageInput,
+  series: number[],
+  label: string,
+  unit: string,
+): Promise<Buffer> {
+  const palette = accentForCategory(article.category);
+  const min = Math.min(...series);
+  const max = Math.max(...series);
+  const span = max - min || 1;
+  const last = series.at(-1)!;
+  const first = series[0];
+  const changePct = ((last - first) / first) * 100;
+  const yukseldi = changePct >= 0;
+  const format = (value: number) =>
+    `${unit}${value.toLocaleString("tr-TR", { maximumFractionDigits: value >= 100 ? 0 : 2 })}`;
+
+  const element = React.createElement(
+    "div",
+    {
+      style: {
+        width: "100%", height: "100%", display: "flex", flexDirection: "column",
+        background: "#08111f", color: "#f8fafc", fontFamily: "Geist", padding: "56px 72px",
+      },
+    },
+    React.createElement("div", { style: { display: "flex", alignItems: "center" } },
+      React.createElement("div", {
+        style: { display: "flex", fontSize: 22, fontWeight: 700, color: palette.accent, letterSpacing: 3 },
+      }, "GELECEK FİNANS"),
+      React.createElement("div", {
+        style: { display: "flex", marginLeft: "auto", fontSize: 20, color: "#94a3b8" },
+      }, article.category.toLocaleUpperCase("tr-TR")),
+    ),
+    React.createElement("div", {
+      style: { display: "flex", marginTop: 26, fontSize: 40, fontWeight: 700, letterSpacing: -1 },
+    }, label),
+    React.createElement("div", { style: { display: "flex", alignItems: "flex-end", marginTop: 10 } },
+      React.createElement("div", {
+        style: { display: "flex", fontSize: 62, fontWeight: 700, letterSpacing: -2 },
+      }, format(last)),
+      React.createElement("div", {
+        style: {
+          display: "flex", marginLeft: 22, marginBottom: 14, fontSize: 28, fontWeight: 700,
+          color: yukseldi ? "#34d399" : "#f87171",
+        },
+      }, `${yukseldi ? "▲" : "▼"} %${Math.abs(changePct).toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`),
+    ),
+    /**
+     * Haber başlığı grafiğin ALTINDA: paylaşım önizlemesinde rakam ve yön
+     * bir bakışta okunur, başlık bağlamı verir. Başlıksız grafik "hangi haber"
+     * sorusunu cevapsız bırakıyordu.
+     */
+    React.createElement("div", {
+      style: {
+        display: "flex", alignItems: "flex-end", marginTop: 24,
+        height: 230, width: "100%", gap: 3,
+      },
+    }, ...series.map((value, index) => React.createElement("div", {
+      key: index,
+      style: {
+        display: "flex", flexGrow: 1,
+        height: `${8 + ((value - min) / span) * 92}%`,
+        background: palette.accent,
+        opacity: 0.35 + (index / series.length) * 0.65,
+        borderRadius: 2,
+      },
+    }))),
+    React.createElement("div", {
+      style: {
+        display: "flex", flexDirection: "column", marginTop: 22, width: 1000,
+        fontSize: 30, fontWeight: 700, lineHeight: 1.2, letterSpacing: -0.5, color: "#e2e8f0",
+      },
+    }, ...wrapHeadline(article.title, 52).slice(0, 2).map((line, index) =>
+      React.createElement("div", { key: `t-${index}`, style: { display: "flex" } }, line))),
+    React.createElement("div", {
+      style: { display: "flex", marginTop: "auto", alignItems: "center", fontSize: 18, color: "#64748b" },
+    },
+      React.createElement("div", { style: { display: "flex" } },
+        `En düşük ${format(min)} · En yüksek ${format(max)}`),
+      React.createElement("div", { style: { display: "flex", marginLeft: "auto" } }, "gelecekfinans.com"),
+    ),
+  );
+  const response = new ImageResponse(element, { width: 1200, height: 675 });
+  return Buffer.from(await response.arrayBuffer());
 }
 
 export async function createBrandedCard(article: ArticleImageInput): Promise<Buffer> {
