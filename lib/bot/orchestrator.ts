@@ -8,6 +8,7 @@ import { ensureExternalLink } from "@/lib/bot/external-link";
 import { getArticleImageResult } from "@/lib/bot/images";
 import { getTopics } from "@/lib/bot/topics";
 import { extractEntities, judgeSameStory, resetSameStoryJudgeBudget, resolveArticleAIConfig, writeArticle } from "@/lib/bot/writer";
+import { resetUsageLedger, usageSummary } from "@/lib/bot/usage";
 import { recordEntities } from "@/lib/bot/entities";
 import {
   classifyRisk, decidePublication, scoreSource,
@@ -171,6 +172,7 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
   const errors: string[] = [];
 
   resetSameStoryJudgeBudget();
+  resetUsageLedger();
 
   for (const topic of topics) {
     if (added >= count) break;
@@ -428,6 +430,24 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
       }
       await logEvent(run.id, "error", message, undefined, undefined, "error");
     }
+  }
+
+  // ── MALİYET KAYDI ────────────────────────────────────────────────────────
+  // Koşu boyunca biriken token kullanımı tek olayda yazılır. Ölçüm başarısız
+  // olsa bile koşu sonucu etkilenmemeli: kayıt hatası yutulur.
+  try {
+    const usage = usageSummary();
+    if (usage.calls > 0) {
+      await logEvent(
+        run.id,
+        "cost",
+        `${usage.calls} model çağrısı, ${usage.inputTokens + usage.outputTokens} token, ` +
+        `$${usage.costUsd.toFixed(4)}`,
+        usage,
+      );
+    }
+  } catch (usageError) {
+    console.error("[bot-cost] maliyet kaydedilemedi:", (usageError as Error).message);
   }
 
   await prisma.botRun.update({

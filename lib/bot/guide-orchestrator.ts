@@ -7,6 +7,7 @@ import { autoLink, linkEntitySources, linkGuideCluster } from "@/lib/bot/linker"
 import { ensureExternalLink } from "@/lib/bot/external-link";
 import { getArticleImageResult } from "@/lib/bot/images";
 import { writeEntityArticle, writeGuideArticle } from "@/lib/bot/writer";
+import { resetUsageLedger, usageSummary } from "@/lib/bot/usage";
 import { buildGuideTopic } from "@/lib/bot/evergreen";
 import { buildEntityTopic, type EntityTopic } from "@/lib/bot/entity-topic";
 import {
@@ -57,6 +58,7 @@ export async function runGuidePipeline(options: GuidePipelineOptions) {
   const autoPublishEnabled = options.autoPublish === true;
   const aiBudget = resolveArticleAIBudgetConfig();
 
+  resetUsageLedger();
   const run = await prisma.botRun.create({ data: { articlesFound: 0 } });
   await logEvent(run.id, "start", `${options.trigger} rehber akışı başladı`, {
     count, targetWords, category: options.category || "otomatik", autoPublishEnabled,
@@ -252,6 +254,24 @@ export async function runGuidePipeline(options: GuidePipelineOptions) {
       blocked++;
       await logEvent(run.id, "error", message, { keyword: keyword.term }, undefined, "error");
     }
+  }
+
+  // ── MALİYET KAYDI ────────────────────────────────────────────────────────
+  // Koşu boyunca biriken token kullanımı tek olayda yazılır. Ölçüm başarısız
+  // olsa bile koşu sonucu etkilenmemeli: kayıt hatası yutulur.
+  try {
+    const usage = usageSummary();
+    if (usage.calls > 0) {
+      await logEvent(
+        run.id,
+        "cost",
+        `${usage.calls} model çağrısı, ${usage.inputTokens + usage.outputTokens} token, ` +
+        `$${usage.costUsd.toFixed(4)}`,
+        usage,
+      );
+    }
+  } catch (usageError) {
+    console.error("[bot-cost] maliyet kaydedilemedi:", (usageError as Error).message);
   }
 
   await prisma.botRun.update({

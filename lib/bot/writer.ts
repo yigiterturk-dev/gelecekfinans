@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import OpenAI from "openai";
+import { recordUsage } from "@/lib/bot/usage";
 import { zodResponseFormat, zodTextFormat } from "openai/helpers/zod";
 import type { ArticleExtras } from "@/lib/types";
 import type { Topic } from "./topics";
@@ -175,6 +176,13 @@ async function deepseekJson<T>(args: {
         { role: "user", content: args.user },
       ],
     });
+    // Sağlayıcı ne olursa olsun maliyet ölçülmeli; aşama şema adından çıkarılıyor.
+    recordUsage(
+      args.name.includes("article") ? "writer" : args.name.includes("entities") ? "entity"
+        : args.name.includes("same_story") ? "judge" : "verifier",
+      args.model,
+      response.usage,
+    );
     const choice = response.choices[0];
     const content = choice?.message?.content;
     if (choice?.finish_reason === "length") {
@@ -336,6 +344,38 @@ function qualityRepairInstructions(
   ].join("\n");
 }
 
+/**
+ * Doğrulayıcı reddinde tek onarım turu.
+ *
+ * Neden: kalite ve intihal kapılarının onarım hakkı vardı, doğrulayıcının
+ * YOKTU — bitmiş makale tek bir desteklenmemiş cümle yüzünden çöpe gidiyordu.
+ * 1 Eylül 2026'da üç koşumun üçü de böyle bitti (Fed karar saati, altın çekim
+ * yöntemi, ÖTV litre fiyatı): yazar çağrısının parası ödenmiş, kanıt paketi
+ * sağlam, sorun makalenin BİR-İKİ cümlesindeydi.
+ *
+ * Onarım YENİDEN YAZMA değil ÇIKARMA işidir: itiraz edilen iddia ya kanıta
+ * dayandırılır ya da tamamen silinir. Modele "düzelt" demek yerine "sil"
+ * demek kritik — "düzelt" diyince aynı iddiayı başka kelimelerle uyduruyor.
+ */
+function verificationRepairInstructions(
+  targetWords: number,
+  objections: string[],
+  baseInstructions: string,
+): string {
+  return [
+    baseInstructions,
+    "",
+    "ÖNCEKİ DENEME KANIT DOĞRULAMASINA TAKILDI. Doğrulayıcının itirazları:",
+    ...objections.map((objection) => `- ${objection}`),
+    "",
+    "KURAL: Bu itirazların her biri için iddiayı YENİDEN YAZMA, KALDIR.",
+    "Kanıt paketinde birebir karşılığı olmayan hiçbir tarih, saat, oran, tutar veya",
+    "kurum kararı makalede geçmesin. Belirsiz olanı 'kanıtta yok' diye yazma; o cümleyi",
+    "tamamen çıkar ve makaleyi kalan doğrulanmış olgularla kur.",
+    "Makalenin geri kalanını, başlığı ve yapısını olduğu gibi koru.",
+  ].join("\n");
+}
+
 function plagiarismRepairInstructions(
   targetWords: number,
   report: PlagiarismReport,
@@ -442,6 +482,7 @@ async function generateDraft(
       ],
       text: { format: zodTextFormat(schema, "gelecekfinans_article") },
     });
+    recordUsage("writer", config.writerModel, response.usage);
     if (!response.output_parsed) throw new Error("OpenAI yapılandırılmış makale çıktısı alınamadı");
     return response.output_parsed;
   } catch (error) {
@@ -520,6 +561,7 @@ async function verifyDraft(topic: Topic, draft: ArticleDraft): Promise<Verificat
       ],
       text: { format: zodTextFormat(VerificationSchema, "gelecekfinans_verification") },
     });
+    recordUsage("verifier", config.verifierModel, response.usage);
     if (!response.output_parsed) throw new Error("OpenAI yapılandırılmış doğrulama çıktısı alınamadı");
     return response.output_parsed;
   } catch (error) {
@@ -620,6 +662,7 @@ async function verifyGuideDraft(topic: Topic, draft: ArticleDraft): Promise<Veri
       input: [{ role: "system", content: system }, { role: "user", content: user }],
       text: { format: zodTextFormat(VerificationSchema, "gelecekfinans_guide_verification") },
     });
+    recordUsage("verifier", config.verifierModel, response.usage);
     if (!response.output_parsed) {
       throw new Error(
         `Rehber doğrulaması alınamadı (durum: ${response.status ?? "bilinmiyor"}, ` +
@@ -724,6 +767,7 @@ export async function judgeSameStory(primary: StoryBrief, candidate: StoryBrief)
         ],
         text: { format: zodTextFormat(SameStorySchema, "gelecekfinans_same_story") },
       });
+      recordUsage("judge", config.verifierModel, response.usage);
       if (!response.output_parsed) return false;
       verdict = response.output_parsed;
     }
@@ -973,12 +1017,52 @@ export async function writeArticle(
    * Kapı zayıflamıyor: gerçek iki tehlike — kanıtlanmamış iddia ve kaynaklar
    * arası çelişki — aynen reddediliyor.
    */
-  const verificationObjections = [
-    ...verification.unsupportedClaims,
-    ...verification.conflictingClaims,
+  const objectionsOf = (report: VerificationReport) => [
+    ...report.unsupportedClaims,
+    ...report.conflictingClaims,
   ];
+  let verificationObjections = objectionsOf(verification);
+
+  // Onarım hakkı bir kere: ikinci tur ölçülebilir kazanç getirmiyor, faturayı
+  // katlıyor (kalite kapısında aynı ölçüm yapılmıştı: kazanç ilk turda).
   if (verificationObjections.length) {
-    throw new Error(`VERIFICATION_BLOCKED: ${verificationObjections.join("; ")}`);
+    const repairedDraft = trimMeta(normalizeKeyword(normalizeEvidenceIds(
+      await generateDraft(
+        topic,
+        targetWords,
+        verificationRepairInstructions(targetWords, verificationObjections, baseInstructions),
+        schema,
+      ),
+    )));
+    // Onarılan taslak ÖNCE kalite ve intihal kapılarından yeniden geçmeli:
+    // cümle çıkarmak makaleyi kısaltır, meta ve kelime sayısı bozulabilir.
+    const repairedQuality = validateDraft(repairedDraft, packet, preset);
+    if (repairedQuality.passed) {
+      const repairedContent = renderDraftHtml(repairedDraft, packet);
+      const repairedPlagiarism = checkPlagiarism(plagiarismInput(repairedDraft, repairedContent));
+      if (repairedPlagiarism.passed) {
+        const reverification = packet.evidence.length
+          ? await verifyDraft(topic, repairedDraft)
+          : await verifyGuideDraft(topic, repairedDraft);
+        const reobjections = objectionsOf(reverification);
+        if (!reobjections.length) {
+          draft = repairedDraft;
+          content = repairedContent;
+          plagiarism = repairedPlagiarism;
+          quality = repairedQuality;
+          verificationObjections = [];
+        } else {
+          // İkinci ret ilk retten farklı olabilir; ops tarafında ikisi de lazım.
+          verificationObjections = reobjections;
+        }
+      }
+    }
+  }
+
+  if (verificationObjections.length) {
+    // Buraya gelindiyse onarım turu ya yapıldı ve tutmadı ya da kalite/intihal
+    // kapısında düştü; ikisi de "bir tur denendi" demek.
+    throw new Error(`VERIFICATION_BLOCKED: ${verificationObjections.join("; ")} | onarım turu tutmadı`);
   }
 
   return {
@@ -1220,6 +1304,7 @@ export async function extractEntities(
       ],
       text: { format: zodTextFormat(EntityExtractionSchema, "gelecekfinans_entities") },
     });
+    recordUsage("entity", config.verifierModel, response.usage);
     return response.output_parsed?.entities ?? [];
   } catch {
     // Sessiz düşüş bilinçli: bu çağrı yayının yan ürünü, şartı değil.
