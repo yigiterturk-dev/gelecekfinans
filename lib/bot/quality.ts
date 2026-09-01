@@ -279,24 +279,46 @@ export function validateDraft(
   };
 }
 
+/**
+ * Kanıt kimliklerini OKURA GİDEN metinden söker.
+ *
+ * Kanıt paketi modele `[ev-1-publisher:tgrt-haber-...]` biçiminde gösteriliyor
+ * ve model bunları atıf sanıp madde işaretlerinin sonuna yapıştırıyor. Kimlik
+ * okur için tamamen anlamsız bir dizedir; kaynaklar zaten yazının sonunda
+ * "Kaynaklar" listesinde linkli veriliyor. (1 Eylül 2026 canlı koşumunda BIST
+ * haberinin üç maddesinin de sonunda göründü.)
+ *
+ * Kalite kapısı bu kimlikleri `claims.evidenceIds` alanından okuduğu için
+ * gövdeden silinmeleri denetimi zayıflatmaz.
+ */
+export function stripEvidenceMarkers(value: string): string {
+  return value
+    .replace(/\[\s*(?:ev|ark)-\d+[a-z0-9:_-]*\s*\]/gi, "")
+    .replace(/(?:ev|ark)-\d+-publisher:[a-z0-9-]+/gi, "")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\s+([.,;:!?])/g, "$1")
+    .trim();
+}
+
 export function renderDraftHtml(draft: ArticleDraft, packet: EvidencePacket): string {
-  const output = [`<p>${escapeHtml(draft.lede)}</p>`];
+  const clean = (value: string) => escapeHtml(stripEvidenceMarkers(value));
+  const output = [`<p>${clean(draft.lede)}</p>`];
   for (const section of draft.sections) {
-    output.push(`<h2>${escapeHtml(section.heading)}</h2>`);
-    for (const paragraph of section.paragraphs) output.push(`<p>${escapeHtml(paragraph)}</p>`);
+    output.push(`<h2>${clean(section.heading)}</h2>`);
+    for (const paragraph of section.paragraphs) output.push(`<p>${clean(paragraph)}</p>`);
     // Rehber şeridinde bölümler H3 alt başlık taşıyabilir; haber taslaklarında
     // bu alan yok ve döngü sessizce atlanır.
     for (const sub of (section as { subsections?: Array<{ heading: string; paragraphs: string[] }> }).subsections ?? []) {
-      output.push(`<h3>${escapeHtml(sub.heading)}</h3>`);
-      for (const paragraph of sub.paragraphs) output.push(`<p>${escapeHtml(paragraph)}</p>`);
+      output.push(`<h3>${clean(sub.heading)}</h3>`);
+      for (const paragraph of sub.paragraphs) output.push(`<p>${clean(paragraph)}</p>`);
     }
     if (section.bullets.length) {
       output.push("<ul>");
-      for (const bullet of section.bullets) output.push(`<li>${escapeHtml(bullet)}</li>`);
+      for (const bullet of section.bullets) output.push(`<li>${clean(bullet)}</li>`);
       output.push("</ul>");
     }
   }
-  output.push(`<p><em>${escapeHtml(draft.disclaimer)}</em></p>`);
+  output.push(`<p><em>${clean(draft.disclaimer)}</em></p>`);
   // Kanıtsız rehber şeridinde kaynak listesi yoktur; boş bir "Kaynaklar"
   // başlığı hem okuru yanıltır hem de içi boş bölüm olarak SEO'da zarar verir.
   if (!packet.evidence.length) return output.join("\n");

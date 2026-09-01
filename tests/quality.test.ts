@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { ArticleDraft } from "../lib/bot/article-schema";
-import { renderDraftHtml, validateDraft } from "../lib/bot/quality";
+import { renderDraftHtml, validateDraft, stripEvidenceMarkers } from "../lib/bot/quality";
 import type { EvidencePacket } from "../lib/bot/research";
 
 const packet: EvidencePacket = {
@@ -141,4 +141,19 @@ test("metaya yapıştırılan Keyword etiketi reddedilir", () => {
   };
   const report = validateDraft(draft, packet);
   assert.ok(report.issues.some((issue) => issue.includes("etiket eki")));
+});
+
+test("kanıt kimlikleri okura giden metinden sökülür", () => {
+  assert.equal(
+    stripEvidenceMarkers("Açılış: 14.324,75 puan [ev-1-publisher:tgrt-haber-bist-100-gune]"),
+    "Açılış: 14.324,75 puan",
+  );
+  assert.equal(
+    stripEvidenceMarkers("Kâr arttı [ark-2-publisher:aa-koc] ve pay senedi yükseldi ."),
+    "Kâr arttı ve pay senedi yükseldi.",
+  );
+  // Parantezsiz yazılan kimlik de temizlenir.
+  assert.equal(stripEvidenceMarkers("Veri ev-3-publisher:dunya-borsa kaynaklı"), "Veri kaynaklı");
+  // Normal metne dokunulmaz.
+  assert.equal(stripEvidenceMarkers("Enflasyon yüzde 3,58 arttı."), "Enflasyon yüzde 3,58 arttı.");
 });

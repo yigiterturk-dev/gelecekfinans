@@ -1,6 +1,7 @@
 /**
  * İnceleme kuyruğunda bekleyen bot taslaklarını onarır:
  *  - metaya yapıştırılmış "Keyword: ..." etiketini söker (arama sonucunda görünüyordu),
+ *  - gövdeye sızmış kanıt kimliklerini ([ev-1-publisher:...]) söker,
  *  - eksik kapak görselini üretir,
  *  - SEO skorunu ve yayın kararını yeniden hesaplar,
  *  - karar AUTO_PUBLISH ise yayına alır.
@@ -11,6 +12,7 @@ import { analyzeSeo } from "../lib/seo";
 import { getArticleImageResult } from "../lib/bot/images";
 import { decidePublication } from "../lib/bot/autonomy";
 import { asJson } from "../lib/prisma-json";
+import { stripEvidenceMarkers } from "../lib/bot/quality";
 
 const APPLY = process.argv.includes("--apply");
 
@@ -32,6 +34,8 @@ async function main() {
   for (const draft of drafts) {
     const meta = stripKeywordLabel(draft.meta);
     const metaFixed = meta !== draft.meta && meta.length >= 110;
+    const content = draft.content.split("\n").map(stripEvidenceMarkers).join("\n");
+    const contentFixed = content !== draft.content;
     let imageUrl = draft.imageUrl;
     let imageStrategy: string | null = null;
     if (!imageUrl) {
@@ -44,7 +48,7 @@ async function main() {
     }
     const seo = analyzeSeo({
       title: draft.title, meta, keyword: draft.keyword || "",
-      content: draft.content, slug: draft.slug, imageUrl,
+      content, slug: draft.slug, imageUrl,
     });
     const automation = draft.automationMeta as Record<string, unknown> | null;
     const decision = decidePublication({
@@ -57,6 +61,7 @@ async function main() {
     });
     console.log(
       `- ${draft.title.slice(0, 55)} | meta${metaFixed ? " ONARILDI" : " aynı"}` +
+      ` | gövde${contentFixed ? " ONARILDI" : " aynı"}` +
       ` | görsel ${imageUrl ? imageStrategy || "var" : "YOK"} | seo ${seo.score} | karar ${decision.decision}`,
     );
     if (!APPLY) continue;
@@ -64,6 +69,7 @@ async function main() {
       where: { id: draft.id },
       data: {
         meta: metaFixed ? meta : draft.meta,
+        ...(contentFixed ? { content } : {}),
         imageUrl,
         ...(imageStrategy ? { imageStrategy } : {}),
         seoScore: seo.score,
