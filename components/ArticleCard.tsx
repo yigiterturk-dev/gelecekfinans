@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
+import { publicImageUrl } from "@/lib/image-url";
 import type { Article } from "@/lib/types";
 
 export const CATS: Record<string, {l:string;c:string}> = {
@@ -28,7 +29,7 @@ function ViewCount({n}:{n?:number}){
 }
 
 export function HeroCard({article}:{article:Article}){
-  const img=article.imageUrl;
+  const img=publicImageUrl(article.imageUrl);
   return(
     <Link href={`/${article.slug}`} className="hero-editorial">
       <div className="hero-text-col">
@@ -55,7 +56,7 @@ export function HeroCard({article}:{article:Article}){
 }
 
 export function StripCard({article}:{article:Article}){
-  const img=article.imageUrl;
+  const img=publicImageUrl(article.imageUrl);
   return(
     <Link href={`/${article.slug}`} className="strip-card">
       {img
@@ -74,7 +75,7 @@ export function StripCard({article}:{article:Article}){
 }
 
 export function MedCard({article}:{article:Article}){
-  const img=article.imageUrl;
+  const img=publicImageUrl(article.imageUrl);
   return(
     <Link href={`/${article.slug}`} className="grid-card">
       {img
@@ -93,7 +94,7 @@ export function MedCard({article}:{article:Article}){
 }
 
 export function RankedCard({article,index,last=false}:{article:Article;index:number;last?:boolean}){
-  const img=article.imageUrl;
+  const img=publicImageUrl(article.imageUrl);
   const c=CATS[article.category];
   // Boşluklar inline → Tailwind/CSS düşse bile satırlar dip dibe olmaz.
   return(

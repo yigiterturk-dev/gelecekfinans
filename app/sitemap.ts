@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { FX_PAIRS, GOLD_TYPES, CRYPTO_COINS } from "@/lib/market";
+import { absoluteImageUrl } from "@/lib/image-url";
 import type { MetadataRoute } from "next";
 
 // Haber sitesi için saatlik tazeleme yeterli; her istekte tüm makaleleri
@@ -31,7 +32,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     lastModified: a.updatedAt,
     changeFrequency: "daily" as const,
     priority: 0.8,
-    ...(a.imageUrl ? { images: [a.imageUrl] } : {}),
+    // Görsel kendi alan adımızdan bildirilir (bkz. lib/image-url.ts); blob alt
+    // alan adı Google Görseller'de siteye atıf kazandırmıyor.
+    ...(a.imageUrl ? { images: [absoluteImageUrl(a.imageUrl, BASE)!] } : {}),
   }));
 
   const publishedCategories = new Set(articles.map((article) => article.category));

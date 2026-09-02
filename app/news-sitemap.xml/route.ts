@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { absoluteImageUrl } from "@/lib/image-url";
 
 const BASE = "https://gelecekfinans.com";
 
@@ -34,8 +35,10 @@ export async function GET() {
   const urls = articles.map((article) => {
     const publishedAt = article.publishedAt;
     if (!publishedAt) return "";
-    const image = article.imageUrl
-      ? `<image:image><image:loc>${escapeXml(article.imageUrl)}</image:loc><image:caption>${escapeXml(article.title)}</image:caption></image:image>`
+    // Görsel URL'i kendi alan adımıza normalize edilir (bkz. lib/image-url.ts).
+    const imageUrl = absoluteImageUrl(article.imageUrl, BASE);
+    const image = imageUrl
+      ? `<image:image><image:loc>${escapeXml(imageUrl)}</image:loc><image:caption>${escapeXml(article.title)}</image:caption></image:image>`
       : "";
     return `<url>
   <loc>${BASE}/${escapeXml(article.slug)}</loc>

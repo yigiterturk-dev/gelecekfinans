@@ -32,6 +32,15 @@ const securityHeaders = [
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), browsing-topics=()" },
 ];
 
+// Vercel Blob'un genel (public) host adı. Store kimliği yazma token'ının içinde
+// duruyor (`vercel_blob_rw_<storeId>_<secret>`); ayrı bir env değişkeni tanımlamak
+// yerine oradan türetiliyor. Token yoksa (yerel derleme) bilinen store'a düşülür.
+const BLOB_PUBLIC_HOST = (() => {
+  const storeId = process.env.BLOB_READ_WRITE_TOKEN?.split("_")[3];
+  const id = storeId && /^[A-Za-z0-9]+$/.test(storeId) ? storeId : "UDf1gvMMl4Eb3PiF";
+  return `${id.toLowerCase()}.public.blob.vercel-storage.com`;
+})();
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Sunucu kimliğini ifşa eden header'ı kaldır.
@@ -49,6 +58,18 @@ const nextConfig = {
       { protocol: "https", hostname: "images.unsplash.com" },
       { protocol: "https", hostname: "quickchart.io" },
     ],
+  },
+  async rewrites() {
+    return [
+      // SEO: kapak görselleri Vercel Blob'da duruyor ama Google Görseller'de
+      // blob alt alan adına değil gelecekfinans.com'a atfedilsinler diye aynı
+      // dosyalar kendi alan adımızdan da servis ediliyor. Sitemap ve JSON-LD
+      // artık bu yolu bildiriyor (bkz. lib/image-url.ts).
+      {
+        source: "/gorseller/:path*",
+        destination: `https://${BLOB_PUBLIC_HOST}/gorseller/:path*`,
+      },
+    ];
   },
   async headers() {
     return [

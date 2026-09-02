@@ -953,11 +953,21 @@ input:focus-visible,
 }
 .article-figure {
   margin: 0 0 32px;
+}
+/* Görsel kutusu ayrı bir katman: figcaption'ın aspect-ratio ve overflow:hidden
+   tarafından kırpılmaması için çerçeve figure'dan buraya taşındı. */
+.article-figure-media {
   border-radius: var(--radius);
   overflow: hidden;
   border: 1px solid var(--border);
   position: relative;
   aspect-ratio: 16/9;
+}
+.article-figcaption {
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
 }
 .article-figure img {
   width: 100%;

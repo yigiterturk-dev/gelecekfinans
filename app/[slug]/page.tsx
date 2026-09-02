@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
+import { absoluteImageUrl, imageObjectLd, publicImageUrl } from "@/lib/image-url";
 import { CATS, MedCard } from "@/components/ArticleCard";
 import ReadingProgress from "@/components/ReadingProgress";
 import ShareButtons from "@/components/ShareButtons";
@@ -20,7 +21,8 @@ const BASE = "https://gelecekfinans.com";
 
 export async function generateMetadata({params}:{params:Promise<{slug:string}>}):Promise<Metadata>{
   const {slug}=await params; const a=await getArticleBySlug(slug); if(!a)return{};
-  const img=a.imageUrl;
+  // OG/Twitter görselleri kendi alan adımızdan verilir (bkz. lib/image-url.ts).
+  const img=absoluteImageUrl(a.imageUrl,BASE);
   return{
     title:a.title,description:a.meta,keywords:a.keyword,
     alternates: { canonical: `${BASE}/${slug}` },
@@ -36,7 +38,7 @@ export async function generateMetadata({params}:{params:Promise<{slug:string}>})
 export default async function ArticlePage({params}:{params:Promise<{slug:string}>}){
   const {slug}=await params; const a=await getArticleBySlug(slug); if(!a)notFound();
   const cfg=CATS[a.category]??{l:a.category.toUpperCase(),c:"#555"};
-  const img=a.imageUrl;
+  const img=publicImageUrl(a.imageUrl);
   const publishedDate = new Date(a.created_at);
   const updatedDate = new Date(a.updatedAt || a.created_at);
   const date=publishedDate.toLocaleDateString("tr-TR",{day:"numeric",month:"long",year:"numeric"});
@@ -44,16 +46,18 @@ export default async function ArticlePage({params}:{params:Promise<{slug:string}
   const url = `${BASE}/${a.slug}`;
   const readTime = readingTime(a.content);
 
-  // Structured data
+  // Structured data — görsel düğümü mutlak URL ve bilinen boyutlarla üretilir;
+  // Google zengin sonuçlar için ImageObject'te width/height bekliyor.
+  const imageLd=imageObjectLd(a.imageUrl,BASE,a.title,`${url}#primaryimage`);
   const ld={
     "@context":"https://schema.org","@type":"NewsArticle","@id":`${url}#article`,headline:a.title,
     description:a.meta,datePublished:a.created_at,dateModified:a.updatedAt||a.created_at,keywords:a.keyword,
     articleSection:cfg.l,inLanguage:"tr-TR",
-    mainEntityOfPage:{"@type":"WebPage","@id":url,...(img&&{primaryImageOfPage:{"@type":"ImageObject","@id":`${url}#primaryimage`,url:img,caption:a.title}})},
+    mainEntityOfPage:{"@type":"WebPage","@id":url,...(imageLd&&{primaryImageOfPage:imageLd})},
     author:{"@type":"Organization","@id":`${BASE}/#organization`,name:"GelecekFinans Haber Merkezi",url:`${BASE}/hakkimizda`},
     publisher:{"@type":"NewsMediaOrganization","@id":`${BASE}/#organization`,name:"GelecekFinans",url:BASE,logo:{"@type":"ImageObject",url:`${BASE}/icon.svg`,width:512,height:512}},
     isAccessibleForFree:!a.premium,
-    ...(img&&{image:{"@type":"ImageObject","@id":`${url}#primaryimage`,url:img,caption:a.title}}),
+    ...(imageLd&&{image:imageLd}),
     ...(a.premium&&{
       hasPart:{"@type":"WebPageElement",isAccessibleForFree:false,cssSelector:".article-prose"},
     }),
@@ -149,7 +153,12 @@ export default async function ArticlePage({params}:{params:Promise<{slug:string}
       {/* Image */}
       {img&&(
         <figure className="article-figure">
-          <Image src={img} alt={a.title} fill style={{objectFit:"cover"}} sizes="720px" priority />
+          <div className="article-figure-media">
+            <Image src={img} alt={a.title} fill style={{objectFit:"cover"}} sizes="720px" priority />
+          </div>
+          {/* Görselin yanındaki metin Google Görseller'in en güçlü bağlam
+              sinyallerinden biri; alt metnin kopyası değil, kaynak künyesi. */}
+          <figcaption className="article-figcaption">{a.title} — GelecekFinans</figcaption>
         </figure>
       )}
 

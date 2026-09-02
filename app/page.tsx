@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { publicImageUrl } from "@/lib/image-url";
 import { getAllArticles } from "@/lib/articles";
 import { HeroCard, StripCard, MedCard, RankedCard, CATS, Ago } from "@/components/ArticleCard";
 import Newsletter from "@/components/Newsletter";
@@ -134,7 +135,7 @@ export default async function HomePage() {
                   {a.imageUrl && (
                     <div style={{ position: "relative", aspectRatio: "16/9", borderRadius: 8, overflow: "hidden", marginBottom: 4 }}>
                       <Image
-                        src={a.imageUrl}
+                        src={publicImageUrl(a.imageUrl)!}
                         alt={a.title}
                         fill
                         sizes="(max-width:768px) 100vw, 50vw"
