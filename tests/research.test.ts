@@ -149,3 +149,39 @@ test("hakem aynı olay dediğinde ikinci kaynak sayılır", () => {
   assert.equal(packet.status, "VERIFIED");
   assert.equal(packet.independentSourceCount, 2);
 });
+
+/**
+ * Kategori, konunun kendi sınıflandırıcımızdan gelen bir etiket; aynı olayı
+ * iki yayıncı farklı kovaya düşürebiliyor. Eşitlik şart koşulduğunda gerçek
+ * ikinci yayıncı hakeme hiç ulaşamadan eleniyordu (ölçüm: hakemsiz doğrulanan
+ * konu 12/74 → 18/74). Olay kimliğini benzerlik ve hakem belirler.
+ */
+test("farklı kategoriye düşmüş ikinci yayıncı doğrulamadan elenmez", () => {
+  const digerKova: ResearchCandidate = {
+    title: "Merkez Bankası faiz kararını açıkladı: Oran yüzde 43",
+    summary: "TCMB politika faizini değiştirmedi.",
+    source: "Dünya Gazetesi",
+    sourceUrl: "https://dunya.com/ekonomi/faiz",
+    pubDate: Date.now(),
+    sourcePriority: 2,
+    category: "doviz", // aynı olay, farklı kategori etiketi
+  };
+  const packet = buildEvidencePacket(primary, [primary, digerKova]);
+  assert.equal(packet.status, "VERIFIED");
+  assert.equal(packet.independentSourceCount, 2);
+});
+
+test("kategori filtresi kalkınca alakasız haber yine de doğrulamaz", () => {
+  const alakasiz: ResearchCandidate = {
+    title: "Bitcoin haftaya yükselişle başladı",
+    summary: "Kripto piyasasında alıcılı seyir.",
+    source: "Uzmancoin",
+    sourceUrl: "https://uzmancoin.com/bitcoin",
+    pubDate: Date.now(),
+    sourcePriority: 1,
+    category: "ekonomi", // aynı kategori ama farklı olay
+  };
+  const packet = buildEvidencePacket(primary, [primary, alakasiz]);
+  assert.equal(packet.status, "INSUFFICIENT");
+  assert.equal(packet.independentSourceCount, 1);
+});

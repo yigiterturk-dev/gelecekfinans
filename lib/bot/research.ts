@@ -321,8 +321,21 @@ function eligibleCandidates(
 ): Array<{ candidate: ResearchCandidate; similarity: number }> {
   const eventWindowMs = 14 * 24 * 60 * 60 * 1000;
   const marketSessionWindowMs = 36 * 60 * 60 * 1000;
+  /**
+   * KATEGORI ESITLIGI ARANMAZ.
+   *
+   * NEDEN (olcum, 2026-09-02, 74 konuluk canli havuz):
+   * Kategori, konunun KENDI siniflandiricimizdan gelen bir etiket; ayni olayi
+   * iki yayinci farkli kovaya dusurebiliyor ("TCMB faiz karari" birinde
+   * ekonomi, digerinde doviz). Esitlik sart kosulunca gercek ikinci yayinci
+   * hakeme hic ulasamadan eleniyordu:
+   *   hakeme gidebilen konu    48/74 -> 57/74
+   *   hakemsiz dogrulanan konu 12/74 -> 18/74  (+%50)
+   * Kapinin katiligi DEGISMEDI: hala iki bagimsiz yayinci ve ya baslik
+   * benzerligi esigi ya da hakemin "ayni olay" onayi gerekiyor. Kategori
+   * yalnizca bir vekil olcuttu; olay kimligini benzerlik ve hakem belirliyor.
+   */
   return candidates
-    .filter((candidate) => candidate.category === primary.category)
     .filter((candidate) => candidate === primary || !hasConflictingStoryPhase(primary.title, candidate.title))
     .filter((candidate) => {
       if (candidate === primary || !primary.pubDate || !candidate.pubDate) return true;

@@ -40,6 +40,28 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (status === "PUBLISHED") updateData.publishedAt = new Date();
   }
 
+  /**
+   * KAPAK GORSELI OLMADAN YAYIN YOK.
+   *
+   * NEDEN (2026-09-02): imageUrl'i bos bir makale elle yayina alinmisti ve
+   * anasayfanin lider kartinda gri bir kutu olarak duruyordu. Gorsel kontrolu
+   * yalnizca bot akisindaydi; elle yayin bu kontrolun disindaydi.
+   */
+  if (status === "PUBLISHED") {
+    const mevcut = await prisma.article.findUnique({
+      where: { id },
+      select: { imageUrl: true },
+    });
+    const sonGorsel =
+      updateData.imageUrl !== undefined ? updateData.imageUrl : mevcut?.imageUrl;
+    if (!sonGorsel) {
+      return NextResponse.json(
+        { error: "Kapak gorseli olmayan makale yayina alinamaz" },
+        { status: 400 },
+      );
+    }
+  }
+
   const article = await prisma.article.update({ where: { id }, data: updateData });
 
   const seo = analyzeSeo(article);
