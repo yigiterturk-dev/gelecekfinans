@@ -35,9 +35,15 @@ export const RSS_FEEDS = [
   "https://www.dunya.com/rss/sirketler.xml",
   "https://www.trthaber.com/sondakika.rss",
   // Kripto
-  "https://www.btchaber.com/feed/",
-  "https://coin-turk.com/feed",
+  //
+  // btchaber.com ve coin-turk.com 2026-09-02'de listeden CIKARILDI: ikisi de
+  // Cloudflare arkasindan baglantiyi resetliyor (curl 35, "Connection reset by
+  // peer"), bot her kosuda "2/20 RSS feed hata verdi" diyordu. Geriye tek bir
+  // kripto yayincisi (uzmancoin) kaliyordu ve iki bagimsiz yayinci sarti
+  // kripto haberlerinde matematiksel olarak saglanamiyordu.
   "https://uzmancoin.com/feed/",
+  "https://kriptohaber.com.tr/feed/",
+  "https://tr.investing.com/rss/news_301.rss",
 ];
 
 export const CATEGORIES: Record<string, string[]> = {
