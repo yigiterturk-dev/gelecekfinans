@@ -13,6 +13,7 @@ export default function EditArticle() {
   const { id } = useParams();
   const router = useRouter();
   const [form, setForm] = useState({ title: "", meta: "", keyword: "", category: "", content: "", imageUrl: "", status: "", premium: false });
+  const [generating, setGenerating] = useState(false);
   const [seo, setSeo] = useState<SeoResult | null>(null);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -49,6 +50,28 @@ export default function EditArticle() {
     const d = await res.json();
     setSeo(d.seo);
     setSaving(false);
+  }
+
+  /**
+   * Botun görsel hattını (grafik / lisanslı medya / markalı şablon) bu makale
+   * için tek tıkla çalıştırır. Taslakta kalan makalelerin kapağı üretilmediği
+   * için yayına alırken elle görsel aramak gerekiyordu.
+   */
+  async function generateImage() {
+    setGenerating(true);
+    try {
+      const res = await fetch(`/api/admin/articles/${id}/gorsel-uret`, { method: "POST" });
+      const d = await res.json();
+      if (!res.ok || !d.imageUrl) {
+        alert(d.error || "Görsel üretilemedi.");
+      } else {
+        setForm(f => ({ ...f, imageUrl: d.imageUrl }));
+      }
+    } catch {
+      alert("Görsel üretilirken bir hata oluştu.");
+    } finally {
+      setGenerating(false);
+    }
   }
 
   // Seçilen görsel dosyasını Vercel Blob'a yükler, dönen URL'i form.imageUrl'e yazar.
@@ -149,6 +172,15 @@ export default function EditArticle() {
             style={{ fontSize: 12, padding: "6px 14px" }}
           >
             {uploading ? "Yükleniyor..." : form.imageUrl ? "Görseli Değiştir" : "Görsel Yükle"}
+          </button>
+          <button
+            type="button"
+            onClick={generateImage}
+            disabled={generating}
+            className="adm-btn"
+            style={{ fontSize: 12, padding: "6px 14px", marginLeft: 8 }}
+          >
+            {generating ? "Üretiliyor..." : "Görsel Üret"}
           </button>
           {form.imageUrl && (
             <button

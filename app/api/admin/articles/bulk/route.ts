@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { ensureArticleImage } from "@/lib/bot/ensure-image";
+
+// Yayina alirken kapak gorseli uretilebiliyor; bu saniyeler surer.
+export const maxDuration = 300;
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -13,12 +17,33 @@ export async function POST(req: NextRequest) {
   }
 
   switch (action) {
-    case "publish":
-      await prisma.article.updateMany({
-        where: { id: { in: ids } },
-        data: { status: "PUBLISHED", publishedAt: new Date() },
+    case "publish": {
+      // Toplu yayinda da kapak gorseli sart: gorselsiz olanin gorseli burada
+      // uretiliyor (2026-09-02). Uretilemeyen makale taslakta birakiliyor,
+      // sessizce gri kutuyla yayina cikmiyor.
+      const gorselsiz = await prisma.article.findMany({
+        where: { id: { in: ids }, OR: [{ imageUrl: null }, { imageUrl: "" }] },
+        select: { id: true },
       });
-      break;
+      const basarisiz: string[] = [];
+      for (const { id } of gorselsiz) {
+        const sonuc = await ensureArticleImage(id);
+        if (!sonuc.imageUrl) basarisiz.push(id);
+      }
+      const yayinlanacak = ids.filter((id) => !basarisiz.includes(id));
+      if (yayinlanacak.length) {
+        await prisma.article.updateMany({
+          where: { id: { in: yayinlanacak } },
+          data: { status: "PUBLISHED", publishedAt: new Date() },
+        });
+      }
+      return NextResponse.json({
+        ok: true,
+        affected: yayinlanacak.length,
+        gorselUretildi: gorselsiz.length - basarisiz.length,
+        gorselsizKalan: basarisiz.length,
+      });
+    }
     case "draft":
       await prisma.article.updateMany({
         where: { id: { in: ids } },

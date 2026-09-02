@@ -4,6 +4,10 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { analyzeSeo } from "@/lib/seo";
 import { revalidatePath } from "next/cache";
+import { ensureArticleImage } from "@/lib/bot/ensure-image";
+
+// Yayina alirken kapak gorseli uretilebiliyor; bu saniyeler surer.
+export const maxDuration = 300;
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions);
@@ -41,22 +45,38 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   /**
-   * KAPAK GORSELI OLMADAN YAYIN YOK.
+   * KAPAK GORSELI OLMADAN YAYIN YOK — AMA ONCE URETMEYI DENE.
    *
    * NEDEN (2026-09-02): imageUrl'i bos bir makale elle yayina alinmisti ve
-   * anasayfanin lider kartinda gri bir kutu olarak duruyordu. Gorsel kontrolu
-   * yalnizca bot akisindaydi; elle yayin bu kontrolun disindaydi.
+   * anasayfanin lider kartinda gri bir kutu olarak duruyordu. Ilk cozum
+   * yayini reddetmekti; o da isi Yigit'in ustune yikiyordu (taslagi acip
+   * gorsel bekle, image-repair cron'una sira gelsin...). Artik yayina alma
+   * aninda gorsel yerinde uretiliyor; yalnizca uretim de basarisiz olursa
+   * yayin reddediliyor.
    */
   if (status === "PUBLISHED") {
     const mevcut = await prisma.article.findUnique({
       where: { id },
       select: { imageUrl: true },
     });
-    const sonGorsel =
+    let sonGorsel =
       updateData.imageUrl !== undefined ? updateData.imageUrl : mevcut?.imageUrl;
     if (!sonGorsel) {
+      // Once alanlar kaydedilsin ki gorsel brief'i guncel basliktan uretilsin.
+      if (Object.keys(updateData).length > 1) {
+        const { status: _s, publishedAt: _p, ...alanlar } = updateData as Record<string, unknown>;
+        if (Object.keys(alanlar).length) {
+          await prisma.article.update({ where: { id }, data: alanlar });
+        }
+      }
+      const uretilen = await ensureArticleImage(id);
+      sonGorsel = uretilen.imageUrl;
+      // ensureArticleImage imageUrl'i kendisi yazdi; ustune null yazmayalim.
+      if (uretilen.imageUrl) delete updateData.imageUrl;
+    }
+    if (!sonGorsel) {
       return NextResponse.json(
-        { error: "Kapak gorseli olmayan makale yayina alinamaz" },
+        { error: "Kapak gorseli uretilemedi, makale yayina alinamadi" },
         { status: 400 },
       );
     }
