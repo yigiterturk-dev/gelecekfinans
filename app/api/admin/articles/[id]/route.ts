@@ -32,7 +32,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (keyword !== undefined) updateData.keyword = keyword;
   if (category !== undefined) updateData.category = category;
   if (content !== undefined) updateData.content = content;
-  if (imageUrl !== undefined) updateData.imageUrl = imageUrl;
+  // Boş string yerine null yaz: image-repair cron'u null olanları onarıyor.
+  if (imageUrl !== undefined) updateData.imageUrl = typeof imageUrl === "string" && imageUrl.trim() ? imageUrl.trim() : null;
   if (premium !== undefined) updateData.premium = !!premium;
   if (status !== undefined) {
     updateData.status = status;

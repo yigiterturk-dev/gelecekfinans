@@ -14,16 +14,24 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const article = await prisma.article.findFirst({
-    where: {
-      articleSource: "BOT",
-      status: "DRAFT",
-      imageUrl: null,
-      publicationDecision: "REVIEW",
-      createdAt: { gte: new Date(Date.now() - 7 * 86400000) },
-    },
-    orderBy: { createdAt: "desc" },
-  });
+  // Görselsiz makale filtresi: imageUrl hem null hem boş string olabiliyordu
+  // (admin panelinden boş kapakla kaydedilen kayıtlar "" yazıyordu) ve yalnızca
+  // DRAFT aranınca elle yayına alınmış görselsiz makaleler onarımsız kalıyordu.
+  const missingImage = {
+    articleSource: "BOT" as const,
+    OR: [{ imageUrl: null }, { imageUrl: "" }],
+    createdAt: { gte: new Date(Date.now() - 7 * 86400000) },
+  };
+  // Canlıda görünen (yayındaki) makale önce onarılır.
+  const article =
+    (await prisma.article.findFirst({
+      where: { ...missingImage, status: "PUBLISHED" },
+      orderBy: { createdAt: "desc" },
+    })) ??
+    (await prisma.article.findFirst({
+      where: { ...missingImage, status: "DRAFT", publicationDecision: "REVIEW" },
+      orderBy: { createdAt: "desc" },
+    }));
   if (!article) return NextResponse.json({ repaired: 0, message: "Görsel bekleyen makale yok" });
 
   const recent = await prisma.article.findMany({
@@ -90,9 +98,15 @@ export async function GET(req: NextRequest) {
       automationMeta: asJson(automationMeta),
       seoScore: seo.score,
       publicationDecision: publication.decision,
-      status: publication.decision === "AUTO_PUBLISH" ? "PUBLISHED" : "DRAFT",
-      autoPublished: publication.decision === "AUTO_PUBLISH",
-      publishedAt: publication.decision === "AUTO_PUBLISH" ? new Date() : null,
+      // Zaten yayındaki bir makale görsel onarımı yüzünden taslağa DÜŞMEMELİ.
+      status: article.status === "PUBLISHED" || publication.decision === "AUTO_PUBLISH" ? "PUBLISHED" : "DRAFT",
+      autoPublished: article.status === "PUBLISHED" ? article.autoPublished : publication.decision === "AUTO_PUBLISH",
+      publishedAt:
+        article.status === "PUBLISHED"
+          ? article.publishedAt ?? new Date()
+          : publication.decision === "AUTO_PUBLISH"
+            ? new Date()
+            : null,
     },
   });
   return NextResponse.json({

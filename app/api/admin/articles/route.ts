@@ -58,7 +58,10 @@ export async function POST(req: NextRequest) {
   if (!rl.ok) return rateLimitResponse(rl);
 
   const body = await req.json();
-  const { title, meta, keyword, category, content, imageUrl, source } = body;
+  const { title, meta, keyword, category, content, imageUrl: rawImageUrl, source } = body;
+  // Boş string kapak görseli "görsel var" sanılıp NONE stratejisiyle yayına
+  // düşüyordu (anasayfada gri kutu). Boş/whitespace → null.
+  const imageUrl = typeof rawImageUrl === "string" && rawImageUrl.trim() ? rawImageUrl.trim() : null;
 
   if (!title || !meta || !category || !content) {
     return NextResponse.json({ error: "Eksik alan" }, { status: 400 });
