@@ -7,7 +7,7 @@ import { autoLink } from "@/lib/bot/linker";
 import { ensureExternalLink } from "@/lib/bot/external-link";
 import { getArticleImageResult } from "@/lib/bot/images";
 import { getTopics } from "@/lib/bot/topics";
-import { extractEntities, judgeSameStory, resetSameStoryJudgeBudget, resolveArticleAIConfig, writeArticle } from "@/lib/bot/writer";
+import { extractEntities, judgeSameStory, resetSameStoryJudgeBudget, resolveArticleAIConfig, sameStoryJudgeSkipped, writeArticle } from "@/lib/bot/writer";
 import { resetUsageLedger, usageSummary } from "@/lib/bot/usage";
 import { recordEntities } from "@/lib/bot/entities";
 import {
@@ -211,11 +211,16 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
             buildEvidencePacket(topicAsCandidate, [topicAsCandidate, ...confirmed], confirmed),
           );
         }
+        // `verdicts` DENEMEYİ sayar, gerçek model çağrısını değil: tavan
+        // dolunca soru modele hiç gitmeden "aynı olay değil" sayılır.
+        // `skippedByBudget` ikisini ayırır — reddedilen konu ile bakılmayan
+        // konu aynı şey değil, kayıtta da aynı görünmemeli.
         await logEvent(run.id, "corroboration_judge", "İkinci kaynak adayları hakeme soruldu", {
           title: topic.title,
           askedCandidates: candidates.length,
           verdicts,
           resolved: confirmed.size > 0,
+          skippedByBudget: sameStoryJudgeSkipped(),
         });
       }
       if (!packet || packet.status !== "VERIFIED" || packet.independentSourceCount < 2) {

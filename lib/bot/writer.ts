@@ -38,6 +38,7 @@ import {
   OpenAIQuotaError,
   QualityBlockedError,
 } from "./errors";
+import { CallBudget } from "./call-budget";
 
 export type ArticleAIProvider = "anthropic" | "openai" | "deepseek";
 
@@ -714,16 +715,38 @@ async function verifyGuideDraft(topic: Topic, draft: ArticleDraft): Promise<Veri
   }
 }
 
-const JUDGE_MAX_CALLS_PER_RUN = Number(process.env.RESEARCH_JUDGE_MAX_CALLS_PER_RUN) || 8;
+/**
+ * Koşum başına hakem çağrısı tavanı.
+ *
+ * ÖLÇÜM (2026-09-02, son 48 saatin 7 koşumu): hakeme 112 soru soruldu ama
+ * yalnızca 29'u modele ULAŞTI; kalan 83'ü tavan dolduğu için sessizce
+ * "aynı olay değil" sayıldı. Bir hakem çağrısı gpt-4o-mini ile ~$0,00011 —
+ * tavan 8'ken koşumun dörtte üçü, günde iki kuruşluk tasarruf uğruna
+ * değerlendirilmeden ölüyordu. 12 ve 14 konuluk koşumların ikisi de sıfır
+ * makaleyle bitti; 1-3 konuluk koşumlar üretti. İmza netti.
+ *
+ * Tavan hâlâ var (bozuk bir besleme sonsuz çağrı üretmesin diye) ama artık
+ * gerçek koşumu karşılıyor: konu başına en fazla 3 aday × ~20 konu.
+ */
+const JUDGE_MAX_CALLS_PER_RUN = Number(process.env.RESEARCH_JUDGE_MAX_CALLS_PER_RUN) || 60;
 const judgeCache = new Map<string, boolean>();
-let judgeBudget = JUDGE_MAX_CALLS_PER_RUN;
+const judgeBudget = new CallBudget(JUDGE_MAX_CALLS_PER_RUN);
 
 export function resetSameStoryJudgeBudget(): void {
-  judgeBudget = JUDGE_MAX_CALLS_PER_RUN;
+  judgeBudget.reset();
 }
 
 export function sameStoryJudgeCallsUsed(): number {
-  return JUDGE_MAX_CALLS_PER_RUN - judgeBudget;
+  return judgeBudget.used();
+}
+
+/**
+ * Tavan yüzünden sorulamayan soru sayısı. Sıfırdan büyükse kapı, konuyu
+ * REDDETMİŞ değil BAKMAMIŞ demektir; ikisi kayıtlarda ayrışmalı ki bu arıza
+ * bir daha "hakem çok sıkı" diye yanlış teşhis edilmesin.
+ */
+export function sameStoryJudgeSkipped(): number {
+  return judgeBudget.skipped();
 }
 
 interface StoryBrief {
@@ -756,7 +779,10 @@ export async function judgeSameStory(primary: StoryBrief, candidate: StoryBrief)
   const cacheKey = `${primary.title}|${candidate.title}`;
   const cached = judgeCache.get(cacheKey);
   if (cached !== undefined) return cached;
-  if (judgeBudget <= 0) return false;
+  if (!judgeBudget.available()) {
+    judgeBudget.skip();
+    return false;
+  }
 
   let config: ArticleAIConfig;
   try {
@@ -764,7 +790,7 @@ export async function judgeSameStory(primary: StoryBrief, candidate: StoryBrief)
   } catch {
     return false; // sağlayıcı yapılandırılmamışsa kapı kapalı kalır
   }
-  judgeBudget -= 1;
+  judgeBudget.take();
   const user = judgePrompt(primary, candidate);
 
   try {
