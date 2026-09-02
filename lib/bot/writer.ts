@@ -825,6 +825,43 @@ export interface WriteArticleOptions {
   researchBlockedMessage?: string;
 }
 
+/**
+ * Meta uzunlugunu kod tarafinda sinirlar. Modele karakter saydirmak
+ * guvenilmez oldugu icin (talimat 145-160 dese de cikti 166 geliyor) kesme
+ * islemi mekanik yapilir.
+ *
+ * `preferred` arama sonucunda gorunen uzunluk, `gate` makalenin hayatta kalma
+ * siniri. 2026-09-02'de 181 karakterlik meta yuzunden bitmis bir makale cope
+ * gitti: eski kod odak kelimeyi koruyamayinca taslaga hic dokunmuyor ve
+ * kapinin modele geri gondermesini bekliyordu, ama OpenAI'de deneme hakki 2 ve
+ * denemeler bitince QUALITY_BLOCKED makaleyi imha ediyor. Odak kelimeyi
+ * koruyan 180'lik bir meta, silinmis bir makaleden her kosulda iyidir.
+ */
+export function capMetaLength(
+  meta: string,
+  keyword: string,
+  { preferred = 165, gate = 180, min = 110 } = {},
+): string {
+  if (meta.length <= preferred) return meta;
+  const needle = keyword.toLocaleLowerCase("tr-TR");
+  const cutAt = (limit: number) => {
+    const cut = meta.slice(0, limit);
+    const boundary = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("? "), cut.lastIndexOf("! "));
+    const space = cut.lastIndexOf(" ");
+    return (boundary > 100 ? cut.slice(0, boundary + 1) : cut.slice(0, space > 0 ? space : limit)).trim();
+  };
+  const usable = (value: string) =>
+    value.length >= min && value.toLocaleLowerCase("tr-TR").includes(needle);
+
+  const nice = cutAt(preferred);
+  if (usable(nice)) return nice;
+  if (meta.length > gate) {
+    const survivable = cutAt(gate);
+    if (usable(survivable)) return survivable;
+  }
+  return meta;
+}
+
 export async function writeArticle(
   topic: Topic,
   targetWords = 650,
@@ -974,15 +1011,9 @@ export async function writeArticle(
    * DOKUNMUYORUZ — kelimeyi kaybetmek uzunluktan daha kötü, kapı devreye
    * girip modele geri göndersin.
    */
-  const SEO_META_MAX = 165;
   const trimMeta = (candidate: ArticleDraft): ArticleDraft => {
-    if (candidate.meta.length <= SEO_META_MAX) return candidate;
-    const cut = candidate.meta.slice(0, SEO_META_MAX);
-    const boundary = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("? "), cut.lastIndexOf("! "));
-    const trimmed = (boundary > 100 ? cut.slice(0, boundary + 1) : cut.slice(0, cut.lastIndexOf(" "))).trim();
-    const keeps = trimmed.toLocaleLowerCase("tr-TR")
-      .includes(candidate.keyword.toLocaleLowerCase("tr-TR"));
-    return keeps && trimmed.length >= 110 ? { ...candidate, meta: trimmed } : candidate;
+    const meta = capMetaLength(candidate.meta, candidate.keyword);
+    return meta === candidate.meta ? candidate : { ...candidate, meta };
   };
 
   const MAX_ATTEMPTS = resolveArticleAIConfig().provider === "deepseek" ? 4 : 2;
