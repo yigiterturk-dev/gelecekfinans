@@ -22,12 +22,25 @@ export function resolveArticleAIBudgetConfig(
   env: Record<string, string | undefined> = process.env,
 ): ArticleAIBudgetConfig {
   return {
-    dailyWriterCallLimit: boundedInteger(env.ARTICLE_DAILY_WRITER_CALL_LIMIT, 10, 1, 50),
+    /**
+     * Günlük yazar çağrısı tavanı.
+     *
+     * ÖLÇÜM (2026-09-02): tavan 10'ken gün ortasında 10/10 doluydu — hakem
+     * kapısı düzeltilip konular serbest kalınca ilk çarpılacak duvar buydu.
+     * Program koşum başına 2 makale hedefiyle 3 haber + 3 rehber koşumu
+     * çalıştırıyor: en iyi ihtimalle 12 çağrı, bir kalite reddi olan koşumda
+     * daha fazla. 10 bu programın ALTINDA kalıyordu.
+     *
+     * Yazar çağrısı ~$0,026 (gpt-5). 16 çağrı ≈ $0,42/gün ≈ $12,6/ay —
+     * $50-75 bütçenin beşte biri. Darboğaz para değil, kapıdan geçen konu.
+     */
+    dailyWriterCallLimit: boundedInteger(env.ARTICLE_DAILY_WRITER_CALL_LIMIT, 16, 1, 50),
     // Koşu başına 1 iken TEK bir kalite reddi bütün koşumu "bütçe doldu"
     // hatasıyla bitiriyordu: elenen konu yerine yenisi denenemiyordu. 2 ile
-    // koşum ikinci bir konuya şans veriyor, günlük tavan yine harcamayı
-    // sınırlıyor (varsayılan 10).
-    maxWriterCallsPerRun: boundedInteger(env.ARTICLE_MAX_WRITER_CALLS_PER_RUN, 2, 1, 10),
+    // koşum ikinci bir konuya şans veriyordu ama koşumun HEDEFİ de 2 makale:
+    // ilk konu reddedilirse ikinci makale için çağrı kalmıyordu. 3, hedefi
+    // bir redde rağmen tutturmaya yetiyor; günlük tavan harcamayı sınırlıyor.
+    maxWriterCallsPerRun: boundedInteger(env.ARTICLE_MAX_WRITER_CALLS_PER_RUN, 3, 1, 10),
     // 2400 token, 800 kelimelik TÜRKÇE makale JSON'ına yetmiyordu: canlı
     // kayıtta "Unterminated string in JSON at position 7764" ile taslak
     // ortadan kesildi. Türkçe token başına daha az kelime taşır ve claims/faq
