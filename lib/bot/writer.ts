@@ -734,6 +734,7 @@ const judgeBudget = new CallBudget(JUDGE_MAX_CALLS_PER_RUN);
 
 export function resetSameStoryJudgeBudget(): void {
   judgeBudget.reset();
+  judgeFailures = 0;
 }
 
 export function sameStoryJudgeCallsUsed(): number {
@@ -747,6 +748,18 @@ export function sameStoryJudgeCallsUsed(): number {
  */
 export function sameStoryJudgeSkipped(): number {
   return judgeBudget.skipped();
+}
+
+/**
+ * Hakem çağrısının HATAYLA (kota, ağ, bozuk çıktı) sonuçlandığı soru sayısı.
+ * Atlanan sorularla aynı sebepten ayrı tutuluyor: hata da "aynı olay değil"e
+ * çöküyor ve kayıtta gerçek retten ayırt edilemiyordu. Sıfırdan büyükse
+ * kapının o koşumdaki kararları sağlayıcı arızasını yansıtıyor olabilir.
+ */
+let judgeFailures = 0;
+
+export function sameStoryJudgeFailures(): number {
+  return judgeFailures;
 }
 
 interface StoryBrief {
@@ -788,6 +801,7 @@ export async function judgeSameStory(primary: StoryBrief, candidate: StoryBrief)
   try {
     config = resolveArticleAIConfig();
   } catch {
+    judgeFailures += 1;
     return false; // sağlayıcı yapılandırılmamışsa kapı kapalı kalır
   }
   judgeBudget.take();
@@ -803,7 +817,7 @@ export async function judgeSameStory(primary: StoryBrief, candidate: StoryBrief)
         messages: [{ role: "user", content: user }],
         output_config: { format: zodOutputFormat(SameStorySchema) },
       });
-      if (!response.parsed_output) return false;
+      if (!response.parsed_output) { judgeFailures += 1; return false; }
       verdict = response.parsed_output;
     } else if (config.provider === "deepseek") {
       verdict = await deepseekJson<SameStoryVerdict>({
@@ -826,14 +840,16 @@ export async function judgeSameStory(primary: StoryBrief, candidate: StoryBrief)
         text: { format: zodTextFormat(SameStorySchema, "gelecekfinans_same_story") },
       });
       recordUsage("judge", config.verifierModel, response.usage);
-      if (!response.output_parsed) return false;
+      if (!response.output_parsed) { judgeFailures += 1; return false; }
       verdict = response.output_parsed;
     }
     const result = verdict.sameEvent === true;
     judgeCache.set(cacheKey, result);
     return result;
   } catch {
-    // Kota, ağ hatası, bozuk çıktı: hepsi "doğrulanmadı" demektir.
+    // Kota, ağ hatası, bozuk çıktı: hepsi "doğrulanmadı" demektir. Ama bu bir
+    // KARAR değil ARIZA; sayaca yazılıyor ki kayıtta gerçek retten ayrılsın.
+    judgeFailures += 1;
     return false;
   }
 }

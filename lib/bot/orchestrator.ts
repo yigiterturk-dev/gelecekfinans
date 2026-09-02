@@ -7,7 +7,7 @@ import { autoLink } from "@/lib/bot/linker";
 import { ensureExternalLink } from "@/lib/bot/external-link";
 import { getArticleImageResult } from "@/lib/bot/images";
 import { getTopics } from "@/lib/bot/topics";
-import { extractEntities, judgeSameStory, resetSameStoryJudgeBudget, resolveArticleAIConfig, sameStoryJudgeSkipped, writeArticle } from "@/lib/bot/writer";
+import { extractEntities, judgeSameStory, resetSameStoryJudgeBudget, resolveArticleAIConfig, sameStoryJudgeFailures, sameStoryJudgeSkipped, writeArticle } from "@/lib/bot/writer";
 import { resetUsageLedger, usageSummary } from "@/lib/bot/usage";
 import { recordEntities } from "@/lib/bot/entities";
 import {
@@ -221,6 +221,7 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
           verdicts,
           resolved: confirmed.size > 0,
           skippedByBudget: sameStoryJudgeSkipped(),
+          judgeFailures: sameStoryJudgeFailures(),
         });
       }
       if (!packet || packet.status !== "VERIFIED" || packet.independentSourceCount < 2) {

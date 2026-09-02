@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { CallBudget } from "../lib/bot/call-budget";
-import { sameStoryJudgeCallsUsed, sameStoryJudgeSkipped } from "../lib/bot/writer";
+import { sameStoryJudgeCallsUsed, sameStoryJudgeFailures, sameStoryJudgeSkipped } from "../lib/bot/writer";
 
 test("tavan dolunca çağrı hakkı verilmez", () => {
   const budget = new CallBudget(2);
@@ -36,6 +36,15 @@ test("hakem sayaçları koşum başında sıfırdan başlar", () => {
   // Ağ çağrısı YOK: yalnızca modül düzeyindeki sayaçların ilk hâli okunuyor.
   assert.equal(sameStoryJudgeCallsUsed(), 0);
   assert.equal(sameStoryJudgeSkipped(), 0);
+  assert.equal(sameStoryJudgeFailures(), 0);
+});
+
+test("hakemin üç sonucu ayrı sayaçlarda tutulur", () => {
+  // Kapının konuyu REDDETMESİ, tavan yüzünden BAKMAMASI ve sağlayıcı
+  // ARIZASI kayıtta aynı görünürse darboğaz yine yanlış teşhis edilir.
+  // Üç sayacın ayrı olması bu teşhisi mümkün kılan şey.
+  assert.notEqual(sameStoryJudgeSkipped, sameStoryJudgeFailures);
+  assert.equal(typeof sameStoryJudgeFailures(), "number");
 });
 
 test("varsayılan hakem tavanı gerçek koşumu karşılar", () => {
