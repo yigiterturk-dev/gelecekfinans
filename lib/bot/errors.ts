@@ -122,28 +122,61 @@ export function isProviderRequestConfigurationError(error: unknown): boolean {
  * Mesaj biçimi bilerek korunuyor (`VERIFICATION_BLOCKED: ... | onarım turu
  * tutmadı`) — panel ve `engel-analiz.ts` bu metne bakıyor.
  */
-export class VerificationBlockedError extends Error {
+export interface BlockedDraftPayload {
+  title: string;
+  meta: string;
+  keyword: string;
+  content: string;
+  aiExtras: unknown;
+  category: string;
+  source: string;
+  wordCount: number;
+  objections: string[];
+}
+
+/**
+ * Bitmiş ama yayına çıkamayan makalelerin ortak taşıyıcısı.
+ *
+ * Kural: yazar çağrısının parası ödenmiş bir metin SİLİNMEZ. Kapı ne olursa
+ * olsun (doğrulayıcı ya da kalite), metin `DRAFT` olarak kaydedilir ve panelde
+ * insan onayı bekler. Silme yalnızca metnin esasında sorun varsa olur —
+ * kanıtsız iddia, intihal, kaynaklarda olmayan rakam.
+ */
+export abstract class BlockedDraftError extends Error {
+  abstract readonly code: string;
+
+  constructor(message: string, readonly draft: BlockedDraftPayload) {
+    super(message);
+  }
+}
+
+export class VerificationBlockedError extends BlockedDraftError {
   readonly code = "VERIFICATION_BLOCKED";
 
-  constructor(
-    message: string,
-    readonly draft: {
-      title: string;
-      meta: string;
-      keyword: string;
-      content: string;
-      aiExtras: unknown;
-      category: string;
-      source: string;
-      wordCount: number;
-      objections: string[];
-    },
-  ) {
-    super(message);
+  constructor(message: string, draft: BlockedDraftPayload) {
+    super(message, draft);
     this.name = "VerificationBlockedError";
+  }
+}
+
+/**
+ * Kalite kapısında YALNIZCA kozmetik sorun kaldığında atılır (uzunluk, odak
+ * kelimenin yerleşimi). 2 Eylül 2026'ya kadar bu durumda düz `Error` atılıyor
+ * ve bitmiş makale imha ediliyordu; canlı örnek 181 karakterlik meta.
+ */
+export class QualityBlockedError extends BlockedDraftError {
+  readonly code = "QUALITY_BLOCKED";
+
+  constructor(message: string, draft: BlockedDraftPayload) {
+    super(message, draft);
+    this.name = "QualityBlockedError";
   }
 }
 
 export function isVerificationBlockedError(error: unknown): error is VerificationBlockedError {
   return error instanceof VerificationBlockedError;
+}
+
+export function isBlockedDraftError(error: unknown): error is BlockedDraftError {
+  return error instanceof BlockedDraftError;
 }

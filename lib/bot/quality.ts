@@ -6,6 +6,12 @@ export interface QualityReport {
   score: number;
   wordCount: number;
   issues: string[];
+  /**
+   * `issues` içinden mekanik olarak düzeltilebilir, metnin doğruluğuyla
+   * ilgisi olmayanlar (uzunluklar, odak kelimenin yerleşimi). Yalnızca bunlar
+   * kaldıysa makale silinmez, `DRAFT` olarak incelemeye alınır.
+   */
+  cosmeticIssues: string[];
 }
 
 const FORBIDDEN_PATTERNS: Array<[RegExp, string]> = [
@@ -197,6 +203,16 @@ export function validateDraft(
   preset: QualityPreset = NEWS_QUALITY_PRESET,
 ): QualityReport {
   const issues: string[] = [];
+  /**
+   * Kozmetik sorunlar da `issues` içine girer (kapı davranışı değişmiyor),
+   * ayrıca burada işaretlenir ki yazar tarafı "bu makale silinmeli mi yoksa
+   * insana mı gitmeli" ayrımını yapabilsin.
+   */
+  const cosmeticIssues: string[] = [];
+  const cosmetic = (issue: string) => {
+    issues.push(issue);
+    cosmeticIssues.push(issue);
+  };
   const wordCount = countDraftWords(draft);
   const evidenceIds = new Set(packet.evidence.map((item) => item.id));
   const evidenceText = packet.evidence
@@ -215,13 +231,13 @@ export function validateDraft(
       if (hit) issues.push(`${label}: "${hit[0]}"`);
     }
   }
-  if (draft.title.length < 35 || draft.title.length > 85) issues.push(`Başlık uzunluğu uygun değil: ${draft.title.length}`);
+  if (draft.title.length < 35 || draft.title.length > 85) cosmetic(`Başlık uzunluğu uygun değil: ${draft.title.length}`);
   // Alt sınır 2026-08-31'de 120 -> 110 indirildi. Kayıtlarda tamamlanmış
   // makalelerin çöpe gitme sebebi 115/118/119 karakterlik metalardı: arama
   // sonucunda meta zaten ~155 karakterde kesildiği için 118 ile 120 arasında
   // okur açısından hiçbir fark yok, ama kapı makalenin tamamını atıyordu.
   // Üst sınır aynı kalır; uzun meta gerçekten kırpılır.
-  if (draft.meta.length < 110 || draft.meta.length > 180) issues.push(`Meta uzunluğu uygun değil: ${draft.meta.length}`);
+  if (draft.meta.length < 110 || draft.meta.length > 180) cosmetic(`Meta uzunluğu uygun değil: ${draft.meta.length}`);
   if (wordCount < preset.minWords) {
     issues.push(`Metin fazla kısa: ${wordCount} kelime (${preset.label} alt sınırı ${preset.minWords})`);
   }
@@ -229,10 +245,10 @@ export function validateDraft(
     issues.push(`Metin gereksiz uzun: ${wordCount} kelime (${preset.label} üst sınırı ${preset.maxWords})`);
   }
   if (!draft.lede.toLocaleLowerCase("tr-TR").includes(draft.keyword.toLocaleLowerCase("tr-TR"))) {
-    issues.push("Odak anahtar kelime giriş paragrafında yok");
+    cosmetic("Odak anahtar kelime giriş paragrafında yok");
   }
   if (!draft.meta.toLocaleLowerCase("tr-TR").includes(draft.keyword.toLocaleLowerCase("tr-TR"))) {
-    issues.push("Odak anahtar kelime metada yok");
+    cosmetic("Odak anahtar kelime metada yok");
   }
   /**
    * "Keyword: EPDK düzenleme" gibi etiket ekleri.
@@ -244,7 +260,7 @@ export function validateDraft(
    * modele kelimeyi cümlenin içine yedirmesi söylenir.
    */
   if (/\b(keyword|anahtar kelime|odak kelime)\s*[:=]/i.test(draft.meta)) {
-    issues.push("Metada etiket eki var (ör. \"Keyword: ...\"); kelime cümlenin içinde doğal geçmeli");
+    cosmetic("Metada etiket eki var (ör. \"Keyword: ...\"); kelime cümlenin içinde doğal geçmeli");
   }
 
   if (preset.requireEvidence) {
@@ -276,6 +292,7 @@ export function validateDraft(
     score: Math.max(0, 100 - issues.length * 12),
     wordCount,
     issues,
+    cosmeticIssues,
   };
 }
 

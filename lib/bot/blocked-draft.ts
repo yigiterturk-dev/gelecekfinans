@@ -2,7 +2,7 @@ import { prisma } from "@/lib/db";
 import { asJson } from "@/lib/prisma-json";
 import { analyzeSeo } from "@/lib/seo";
 import { slugify } from "@/lib/slug";
-import type { VerificationBlockedError } from "./errors";
+import type { BlockedDraftError } from "./errors";
 
 /**
  * Doğrulayıcının reddettiği BİTMİŞ makaleyi kurtarma.
@@ -24,7 +24,7 @@ import type { VerificationBlockedError } from "./errors";
  * ya da `/api/bot/image-repair` sonradan tamamlıyor.
  */
 export async function saveBlockedDraft(
-  error: VerificationBlockedError,
+  error: BlockedDraftError,
   context: {
     trigger: string;
     track: "NEWS" | "GUIDE" | "ENTITY";

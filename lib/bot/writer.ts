@@ -36,6 +36,7 @@ import {
   isOpenAIQuotaError,
   isProviderRequestConfigurationError,
   OpenAIQuotaError,
+  QualityBlockedError,
 } from "./errors";
 
 export type ArticleAIProvider = "anthropic" | "openai" | "deepseek";
@@ -1042,6 +1043,38 @@ export async function writeArticle(
   }
 
   if (!quality.passed) {
+    /**
+     * Kozmetik sorun makaleyi ÖLDÜRMEZ.
+     *
+     * 2 Eylül 2026'ya kadar buradaki düz `throw` bitmiş bir makaleyi imha
+     * ediyordu; canlı örnek 181 karakterlik meta (kapı sınırı 180). Yazar
+     * çağrısının parası ödenmiş, metin tamam, sorun yalnızca bir uzunluk ya da
+     * kelimenin yerleşimi. Doğrulayıcı tarafında bu politika zaten var
+     * (`VerificationBlockedError`), kalite kapısı son istisnaydı.
+     *
+     * İntihal kapısı YİNE de çalışır: incelemeye giden metin de kopya olmamalı.
+     */
+    const onlyCosmetic = quality.issues.length > 0
+      && quality.issues.every((issue) => quality.cosmeticIssues.includes(issue));
+    if (onlyCosmetic) {
+      const rescuedContent = renderDraftHtml(draft, packet);
+      if (checkPlagiarism(plagiarismInput(draft, rescuedContent)).passed) {
+        throw new QualityBlockedError(
+          `QUALITY_BLOCKED: ${quality.issues.join("; ")} | kozmetik, incelemeye alındı`,
+          {
+            title: draft.title,
+            meta: draft.meta,
+            keyword: draft.keyword,
+            content: rescuedContent,
+            aiExtras: { summary: draft.summary, impact: draft.impact, faq: draft.faq },
+            category: topic.category,
+            source: packet.evidence.map((item) => item.source).join(", "),
+            wordCount: quality.wordCount,
+            objections: quality.issues,
+          },
+        );
+      }
+    }
     throw new Error(`QUALITY_BLOCKED: ${quality.issues.join("; ")}`);
   }
   if (!plagiarism || !plagiarism.passed) {

@@ -157,3 +157,42 @@ test("kanıt kimlikleri okura giden metinden sökülür", () => {
   // Normal metne dokunulmaz.
   assert.equal(stripEvidenceMarkers("Enflasyon yüzde 3,58 arttı."), "Enflasyon yüzde 3,58 arttı.");
 });
+
+// ── Kozmetik / esasa dair ayrımı ────────────────────────────────────────────
+// 2 Eylül 2026: 181 karakterlik meta yüzünden bitmiş bir makale imha edildi.
+// Kozmetik sorunlar makaleyi öldürmemeli, incelemeye göndermeli.
+
+test("uzunluk ve kelime yerleşimi kozmetik olarak işaretlenir", () => {
+  const draft = validDraft();
+  draft.meta = `${draft.meta} Ek cümle kapı sınırını aşacak kadar uzatıyor bu metayı burada.`;
+  const report = validateDraft(draft, packet);
+  assert.equal(report.passed, false);
+  assert.match(report.issues.join(" "), /Meta uzunluğu/);
+  assert.deepEqual(report.issues, report.cosmeticIssues,
+    "yalnızca kozmetik sorun varken listeler ayrışmamalı");
+});
+
+test("kaynakta olmayan rakam kozmetik SAYILMAZ", () => {
+  const draft = validDraft();
+  draft.claims[0] = { text: "Politika faizi yüzde 55 oldu.", kind: "FACT", evidenceIds: ["ev-yok"] };
+  const report = validateDraft(draft, packet);
+  assert.equal(report.passed, false);
+  assert.equal(report.cosmeticIssues.length, 0,
+    "esasa dair sorun kozmetik listeye girmemeli");
+});
+
+test("kozmetik ve esasa dair sorun birlikteyse makale kurtarılamaz", () => {
+  const draft = validDraft();
+  draft.meta = `${draft.meta} Ek cümle kapı sınırını aşacak kadar uzatıyor bu metayı burada.`;
+  draft.claims[0] = { text: "Politika faizi yüzde 55 oldu.", kind: "FACT", evidenceIds: ["ev-1"] };
+  const report = validateDraft(draft, packet);
+  const yalnizcaKozmetik = report.issues.length > 0
+    && report.issues.every((issue) => report.cosmeticIssues.includes(issue));
+  assert.equal(yalnizcaKozmetik, false);
+});
+
+test("temiz taslakta kozmetik liste boştur", () => {
+  const report = validateDraft(validDraft(), packet);
+  assert.equal(report.passed, true);
+  assert.equal(report.cosmeticIssues.length, 0);
+});

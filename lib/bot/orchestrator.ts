@@ -13,7 +13,7 @@ import { recordEntities } from "@/lib/bot/entities";
 import {
   classifyRisk, decidePublication, scoreSource,
 } from "@/lib/bot/autonomy";
-import { AIBudgetLimitError, AIProviderFatalError, isVerificationBlockedError } from "@/lib/bot/errors";
+import { AIBudgetLimitError, AIProviderFatalError, isBlockedDraftError } from "@/lib/bot/errors";
 import { saveBlockedDraft } from "@/lib/bot/blocked-draft";
 import {
   MIN_EVIDENCE_MATERIAL_CHARS,
@@ -426,7 +426,7 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
        * kaydediyoruz (yayına ÇIKMAZ, panelde onay bekler). Kurtarma hatası
        * koşumu düşürmez; akışın şartı değil.
        */
-      if (isVerificationBlockedError(error)) {
+      if (isBlockedDraftError(error)) {
         try {
           const rescued = await saveBlockedDraft(error, {
             trigger: options.trigger,
@@ -435,8 +435,10 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
           });
           if (rescued) {
             await logEvent(run.id, "decision",
-              "Doğrulayıcı itiraz etti; makale silinmedi, incelemeye alındı", {
-              title: topic.title, objections: error.draft.objections,
+              error.code === "QUALITY_BLOCKED"
+                ? "Kalite kapısında yalnızca kozmetik sorun kaldı; makale silinmedi, incelemeye alındı"
+                : "Doğrulayıcı itiraz etti; makale silinmedi, incelemeye alındı", {
+              title: topic.title, code: error.code, objections: error.draft.objections,
             }, rescued.id, "warning");
           }
         } catch (rescueError) {
