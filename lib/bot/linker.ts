@@ -60,7 +60,7 @@ export async function autoLink(
   // Also inject contextual internal links by matching keywords in content
   const internalLinksAdded = countInternalLinks(html);
   if (internalLinksAdded < 2 && pool.length > 0) {
-    html = injectKeywordLinks(html, pool, currentSlug, 3 - internalLinksAdded);
+    html = injectInternalLinks(html, pool, currentSlug, 3 - internalLinksAdded);
   }
 
   // Yayının ilk günlerinde bağlantı verilecek eski makale olmayabilir. Bu
@@ -82,22 +82,111 @@ function countInternalLinks(html: string): number {
   return (html.match(/href=["']\/[^"']*["']/gi) || []).length;
 }
 
-function injectKeywordLinks(
+/**
+ * ── ÇAPA METNİ SEÇİMİ ───────────────────────────────────────────────────────
+ *
+ * CANLI ARIZA (4 Eylül 2026): eski kural `title.split(...).filter(w =>
+ * w.length > 4)` idi ve "nasıl" 5 harf olduğu için geçiyordu. Yayındaki
+ * "Enflasyon nedir nasıl hesaplanır" makalesinin GİRİŞ CÜMLESİNDE, "nasıl"
+ * kelimesi iki ayrı ve konuyla ilgisiz makaleye bağlanmıştı:
+ *   "Enflasyon nedir <a href="/birikim-nasil-degerlendirilir">nasıl</a> …"
+ *
+ * Alakasız çapa metni iki yönlü zarar verir: okur tıkladığında beklediği
+ * sayfayı bulamaz, arama motoru da çapa metnini hedef sayfanın konusu sanar.
+ * Bağlantının değeri ÇAPA METNİNDEDİR; anlamsız çapa, bağlantıyı değersiz
+ * kılmakla kalmaz, hedef sayfayı yanlış konuyla ilişkilendirir.
+ *
+ * Yeni kural, önem sırasıyla:
+ *   1. Makalenin tam anahtar kelime öbeği (en iyi çapa: hedefin konusu).
+ *   2. Başlıktan çıkarılan 2-3 kelimelik öbekler; en az biri jenerik olmayan.
+ *   3. Tek kelime yalnızca 7+ harfse ve jenerik değilse.
+ */
+const GENERIC_ANCHOR_WORDS = new Set([
+  // soru ve yönerge kalıpları
+  "nasıl", "nedir", "neden", "hangi", "kimdir", "kaçtır", "mıdır", "nerede",
+  "yapılır", "hesaplanır", "değerlendirilir", "başlanır", "alınır", "olur",
+  "oldu", "belli", "açıklandı", "gerekenler", "gerekir", "dikkat", "edilmesi",
+  // içerik pazarlaması dolgusu
+  "kapsamlı", "kalıcı", "temel", "güncel", "detaylı", "eksiksiz", "adımlar",
+  "adım", "kurallar", "yollar", "rehber", "rehberi", "haritası", "ipuçları",
+  "önemli", "bilinmesi", "hakkında", "üzerine", "için", "ile", "olarak",
+  "sonrası", "öncesi", "arasında", "birlikte", "şunlar", "işte",
+  // Çok kelimeli bir kavramdan koparılmış parçalar tek başına çapa olamaz:
+  // "doğal gaz" -> "doğal", "çalışma prensipleri" -> "çalışma".
+  "doğal", "çalışma", "prensipleri", "süreci", "süreç", "tanım", "yöntem",
+  "türleri", "çeşitleri", "örnekleri", "listesi", "tablosu", "durumu",
+]);
+
+const MIN_SINGLE_WORD_ANCHOR = 7;
+
+export function isGenericAnchor(word: string): boolean {
+  return GENERIC_ANCHOR_WORDS.has(word.toLocaleLowerCase("tr-TR"));
+}
+
+/** Bir makaleye bağlanırken kullanılabilecek çapa metinleri, önem sırasıyla. */
+export function linkableTerms(article: { title: string; keyword?: string | null }): string[] {
+  const terms: string[] = [];
+  const seen = new Set<string>();
+  const push = (value: string) => {
+    const trimmed = value.trim();
+    const key = trimmed.toLocaleLowerCase("tr-TR");
+    if (!trimmed || seen.has(key)) return;
+    seen.add(key);
+    terms.push(trimmed);
+  };
+
+  if (article.keyword && article.keyword.trim().length >= 6) push(article.keyword);
+
+  const words = article.title
+    .split(/[\s:,;.!?—–-]+/)
+    .map((word) => word.trim())
+    .filter(Boolean);
+
+  // 3 ve 2 kelimelik öbekler: en az biri anlamlı olmalı, hepsi jenerikse atla.
+  for (const size of [3, 2]) {
+    for (let index = 0; index + size <= words.length; index++) {
+      const phrase = words.slice(index, index + size);
+      if (phrase.every(isGenericAnchor)) continue;
+      if (!phrase.some((word) => !isGenericAnchor(word) && word.length >= 5)) continue;
+      push(phrase.join(" "));
+    }
+  }
+
+  for (const word of words) {
+    if (word.length >= MIN_SINGLE_WORD_ANCHOR && !isGenericAnchor(word)) push(word);
+  }
+
+  return terms;
+}
+
+/**
+ * Giriş paragrafı (lede) otomatik bağlantıdan MUAFTIR.
+ *
+ * 4 Eylül 2026: bağlantı, makalenin kendi odak anahtar kelimesinin ortasına
+ * giriyordu — "<a …>Enflasyon</a> nedir nasıl hesaplanır". Öbek bölününce SEO
+ * çözümlemesi kelimeyi bulamıyor ve makale kendi hedef sorgusunda zayıflıyor.
+ * Lede, okurun ve arama motorunun konuyu belirlediği yerdir; oraya başka bir
+ * sayfaya çıkan çapa koymak hem odağı hem bağlantıyı değersizleştirir.
+ */
+function ledeEndIndex(html: string): number {
+  const end = html.indexOf("</p>");
+  return end < 0 ? 0 : end + 4;
+}
+
+export function injectInternalLinks(
   html: string,
   articles: LinkableArticle[],
   currentSlug: string,
   maxLinks: number
 ): string {
   let added = 0;
+  const ledeEnd = ledeEndIndex(html);
 
   for (const article of articles) {
     if (added >= maxLinks) break;
     if (article.slug === currentSlug) continue;
 
-    const terms = [
-      article.keyword,
-      ...article.title.split(/[\s:,—–-]+/).filter(w => w.length > 4),
-    ].filter(Boolean) as string[];
+    const terms = linkableTerms(article);
 
     for (const term of terms) {
       if (added >= maxLinks) break;
@@ -109,6 +198,7 @@ function injectKeywordLinks(
       );
       const match = html.match(regex);
       if (match && match.index !== undefined) {
+        if (match.index < ledeEnd) continue;
         const before = html.slice(0, match.index);
         const after = html.slice(match.index + match[0].length);
         // Don't link inside headings
