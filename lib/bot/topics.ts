@@ -137,6 +137,17 @@ const CATEGORY_SIGNALS: Record<TopicCategory, string[]> = {
     "genel müdür", "yönetim kurulu başkanı", "üst yöneticisi", "ceo",
     "katılım bankası", "neobank", "faktoring", "leasing", "sigorta şirketi",
     "kripto borsası", "lisans başvurusu", "spk onayı", "bddk onayı",
+    // ── Sözlük boşlukları (3 Eylül 2026 havuz ölçümünde tespit) ───────────
+    // Aşağıdakiler haftalık TCMB/TÜİK/Ticaret Bakanlığı bültenlerinin ANA
+    // kelimeleri ve hiçbiri listede yoktu. "Merkez Bankası rezervleri" haberi
+    // yalnızca "merkez bankası" geçtiği için havuza girebiliyordu; ikinci
+    // yayıncı "Rezervler belli oldu" dediğinde eşleşecek hiçbir sinyal yoktu.
+    "rezerv", "brüt rezerv", "net rezerv", "mevduat", "tahvil", "hazine",
+    "borçlanma", "iç borç", "dış borç", "bütçe açığı", "faiz dışı fazla",
+    "kira", "konut", "konut satış", "emlak", "asgari geçim", "maaş",
+    "emekli maaş", "zam oranı", "sepet kur", "swap", "risk primi", "cds",
+    "perakende satış", "tüketici güven", "reel sektör", "pmi", "imalat pmi",
+    "gümrük", "serbest bölge", "yatırım teşvik", "kamu bankası",
   ],
 };
 
@@ -169,9 +180,95 @@ function normalizeForMatching(value: string): string {
     .trim()} `;
 }
 
+/**
+ * ── TÜRKÇE EK TOLERANSI ─────────────────────────────────────────────────────
+ *
+ * ÖLÇÜM (3 Eylül 2026, 20 feed canlı çekildi): 473 haberin yalnızca 121'i
+ * (%26) havuza giriyordu. Eksik olan sözlük değil, EŞLEME biçimiydi: burada
+ * tam kelime aranıyordu ve Türkçe eklemeli bir dil. "ihracat" sözlükte vardı,
+ * gelen başlık "ihracatımız"/"ihracatta"/"ihracatla" diyordu; "enflasyon"
+ * vardı, başlık "enflasyonu" diyordu. Eşleşmeyen haber havuza HİÇ girmiyor —
+ * ne konu olabiliyor ne de İKİNCİ KAYNAK sayılabiliyor. 7 günde "ikinci
+ * bağımsız yayıncı bulunamadı" diyerek ölen 168 konunun kökü buydu.
+ *
+ * Tam kelime kuralı kendisi bir düzeltmeydi (`text.includes("kur")` kuraklığı
+ * döviz haberi sanıyordu), o yüzden geri alınmıyor; ek toleransı KOŞULLU:
+ *
+ *   • Kök 4 harften kısaysa ek yok. "kur", "pay", "eth", "btc", "fed", "ecb"
+ *     tam kelime kalır — kuraklık/paylaşım tuzağı geri gelmez.
+ *   • Ek yalnızca Türkçe küçük harflerden ve en fazla 8 karakter olabilir.
+ *   • Kökle çakışan gerçek kelimeler (`FALSE_FRIENDS`) açıkça elenir:
+ *     "altın" + "da" = "altında" aynı zamanda "alt"ın bulunma hâlidir ve
+ *     finans başlıklarında ("baskı altında", "5'in altında") çok daha sık
+ *     geçer; "tüfe" + "k" = tüfek.
+ *
+ * Kategori ETİKETİ zaten yalnızca bir vekil ölçüt (bkz. `eligibleCandidates`:
+ * kategori eşitliği aranmıyor). Bu yüzden yanlış kova ucuz, düşen haber pahalı.
+ */
+const SUFFIXABLE_MIN_STEM = 4;
+const MAX_SUFFIX_LENGTH = 8;
+
+const FALSE_FRIENDS: Record<string, string[]> = {
+  tüfe: ["tüfek", "tüfeği", "tüfekle", "tüfekler", "tüfeğin"],
+  gelir: ["gelirken", "gelirse", "gelirdi", "gelirim"],
+  kredi: ["kredibilite", "kredibilitesi"],
+  teklif: ["teklifsiz"],
+};
+
+/**
+ * "altın" kökü Türkçede "alt"ın bulunma hâliyle BİREBİR çakışır: "altında"
+ * hem "baskı altında" hem "altındaki düşüş" olabilir. Koşulsuz elemek gerçek
+ * altın haberini düşürüyordu ("Altındaki sert düşüşün nedeni belli oldu"),
+ * koşulsuz kabul etmek "yüzde 5'in altında"yı altın haberi yapıyordu.
+ * Ayırt edici sinyal ÖNCEKİ kelimedir: sayı ya da "baskı/kontrol" gibi bir
+ * ad geliyorsa bu "alt"tır.
+ */
+const ALT_LOCATIVE_FORMS = ["altında", "altındaki", "altından"];
+const ALT_LOCATIVE_HEADS = [
+  "baskı", "kontrol", "gözetim", "denetim", "çatı", "koruma", "tehdit",
+  "yönetim", "etki", "sınır", "soruşturma", "gölge", "risk", "şüphe",
+];
+
+function isAltLocative(normalizedText: string, matchedWord: string): boolean {
+  if (!ALT_LOCATIVE_FORMS.includes(matchedWord)) return false;
+  const index = normalizedText.indexOf(` ${matchedWord} `);
+  if (index < 0) return false;
+  const previous = normalizedText.slice(0, index).trim().split(" ").at(-1) ?? "";
+  return /\d/.test(previous) || ALT_LOCATIVE_HEADS.includes(previous);
+}
+
+const phrasePatterns = new Map<string, RegExp>();
+
+function phrasePattern(phrase: string): RegExp | null {
+  const cached = phrasePatterns.get(phrase);
+  if (cached) return cached;
+  const normalized = normalizeForMatching(phrase).trim();
+  if (!normalized) return null;
+  const escaped = normalized.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  // Ek yalnızca öbeğin SON kelimesine gelir: "merkez bankasının".
+  const stem = normalized.split(" ").at(-1) ?? "";
+  const suffix = stem.length >= SUFFIXABLE_MIN_STEM
+    ? `[a-zçğıöşü]{0,${MAX_SUFFIX_LENGTH}}`
+    : "";
+  const pattern = new RegExp(` ${escaped}${suffix}(?= )`, "u");
+  phrasePatterns.set(phrase, pattern);
+  return pattern;
+}
+
 function includesPhrase(normalizedText: string, phrase: string): boolean {
-  const normalizedPhrase = normalizeForMatching(phrase).trim();
-  return normalizedPhrase.length > 0 && normalizedText.includes(` ${normalizedPhrase} `);
+  const pattern = phrasePattern(phrase);
+  if (!pattern) return false;
+  const match = normalizedText.match(pattern);
+  if (!match) return false;
+  const matchedWord = match[0].trim().split(" ").at(-1) ?? "";
+  const stem = normalizeForMatching(phrase).trim().split(" ").at(-1) ?? "";
+  if (FALSE_FRIENDS[stem]?.includes(matchedWord) || (stem === "altın" && isAltLocative(normalizedText, matchedWord))) {
+    // Yanlış arkadaş TEK eşleşme olabilir ama metinde gerçek biçim de
+    // geçiyor olabilir ("altında kalan gram altın"). Kalanı da tarayalım.
+    const rest = normalizedText.replace(new RegExp(` ${matchedWord}(?= )`, "gu"), " ");
+    return rest === normalizedText ? false : includesPhrase(rest, phrase);
+  }
+  return true;
 }
 
 function matchingSignals(normalizedText: string, signals: string[]): string[] {

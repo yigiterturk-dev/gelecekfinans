@@ -19,7 +19,9 @@
     "content:legacy:archive-published": "tsx scripts/archive-legacy-bot-articles.ts --apply --published-only",
     "content:legacy:restore": "tsx scripts/archive-legacy-bot-articles.ts --restore",
     "migrate:json": "npx tsx scripts/migrate-json-to-db.ts",
-    "create:admin": "npx tsx scripts/create-admin.ts"
+    "create:admin": "npx tsx scripts/create-admin.ts",
+    "measure:pool": "tsx scripts/measure-topic-pool.ts",
+    "measure:corroboration": "tsx scripts/measure-corroboration.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",

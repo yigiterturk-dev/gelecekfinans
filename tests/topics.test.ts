@@ -65,3 +65,59 @@ test("finans dışı haber hâlâ reddedilir", () => {
   const sonuc = classifyTopicText("Metro istasyonunda kaza: 3 yaralı");
   assert.equal(sonuc.category, null);
 });
+
+/**
+ * ── TÜRKÇE EKLERİ ───────────────────────────────────────────────────────────
+ * ÖLÇÜM (3 Eylül 2026, 20 feed canlı): 473 haberin yalnızca 121'i (%26)
+ * havuza giriyordu, 352'si eleniyordu. Sebep sözlük eksikliği değil, EŞLEME
+ * biçimiydi: `includesPhrase` tam kelime arıyordu ve Türkçe eklemeli bir dil.
+ * "ihracat" sözlükte vardı ama gelen başlık "ihracatımız", "ihracatta",
+ * "ihracatla" yazıyordu; "enflasyon" vardı, başlık "enflasyonu" diyordu.
+ * Havuza giremeyen haber ne konu olabiliyor NE DE ikinci kaynak sayılabiliyor —
+ * "İkinci bağımsız yayıncı bulunamadı" ile ölen 168 konunun kökü buydu.
+ */
+test("Türkçe ekli biçimler sözlükle eşleşir", () => {
+  const ekliBaşlıklar: Array<[string, string]> = [
+    ["Ticaret Bakanı Bolat: Ocak-ağustos dönemi ihracatımız Cumhuriyet tarihimizin en yükseği oldu", "ekonomi"],
+    ["Savunma ve havacılık sanayisi ihracattaki gücünü artırıyor", "ekonomi"],
+    ["Yıllık kira enflasyonu son 46 ayın en düşük seviyesine indi", "ekonomi"],
+    ["Merkez Bankası'nın rezervleri açıklandı", "ekonomi"],
+    ["Borsada güne yükselişle başlandı", "borsa"],
+    ["Konut kredisi faizlerinde son durum", "ekonomi"],
+  ];
+  for (const [başlık, beklenen] of ekliBaşlıklar) {
+    assert.equal(classifyTopicText(başlık).category, beklenen, `eşleşmedi: ${başlık}`);
+  }
+});
+
+/**
+ * Ek toleransı kapıyı körleştirmemeli. Eski `text.includes("kur")` hatasının
+ * geri gelmediğini ve ek alan köklerin yanlış arkadaşlarının hâlâ elendiğini
+ * bu test sabitler.
+ */
+test("ek toleransı yanlış arkadaşları içeri almaz", () => {
+  const elenmeli = [
+    "Kuraklığın vurduğu Avrupa'da nehir yatağı patlatıldı",
+    "Hasankeyf Tüneli girişinde feci kaza: 12 yaralı",
+    "Yeni tüfek ihalesinde son teklif verildi",
+    "Milli Dayanışma Kanunu'nun teklif desteği ve kapsamı",
+  ];
+  for (const başlık of elenmeli) {
+    assert.equal(classifyTopicText(başlık).category, null, `elenmeliydi: ${başlık}`);
+  }
+});
+
+/**
+ * "Baskı altında", "yüzde 5'in altında" gibi kalıplar altın haberi DEĞİLDİR;
+ * "altın" kökü Türkçede "alt"ın bulunma hâliyle birebir çakışır.
+ */
+test("altın kökü, alt ekli biçimleriyle karışmaz", () => {
+  // "alt"ın bulunma hâli: önünde sayı ya da "baskı/kontrol" gibi bir ad var.
+  assert.notEqual(classifyTopicText("Şirket hisseleri baskı altında kaldı").category, "altin");
+  assert.notEqual(classifyTopicText("Enflasyon yüzde 5in altında kaldı").category, "altin");
+  // Gerçek altın haberi: aynı ek, ama önünde o sinyal yok. Koşulsuz eleme
+  // bunu da düşürüyordu ("Altındaki sert düşüşün nedeni belli oldu").
+  assert.equal(classifyTopicText("Altındaki sert düşüşün nedeni belli oldu").category, "altin");
+  assert.equal(classifyTopicText("Gram altın rekor tazeledi").category, "altin");
+  assert.equal(classifyTopicText("Altının onsu yeniden yükselişte").category, "altin");
+});

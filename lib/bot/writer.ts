@@ -766,6 +766,8 @@ interface StoryBrief {
   title: string;
   summary: string;
   source: string;
+  /** RSS yayın zamanı (ms). Hakem gün farkına bakabilsin diye verilir. */
+  pubDate?: number;
 }
 
 const JUDGE_SYSTEM = [
@@ -776,15 +778,36 @@ const JUDGE_SYSTEM = [
   "Emin değilsen sameEvent false yaz. reason alanına tek cümlelik gerekçe yaz.",
 ].join("\n");
 
+/**
+ * Hakemin kendi ölçütü için ihtiyaç duyduğu bilgi verilmeliydi.
+ *
+ * `JUDGE_SYSTEM` "farklı gün ... AYNI OLAY DEĞİLDİR" diyor ve "emin değilsen
+ * false" ile bitiyor — ama prompt'ta TARİH YOKTU. Model, kararını dayandırması
+ * söylenen bir ölçütü göremeyince kural gereği "emin değilim" tarafına, yani
+ * false'a düşüyordu. 7 günlük kayıtta 228 adaydan yalnızca 15'i "aynı olay"
+ * onayı aldı. Tarih eklemek kapıyı GEVŞETMEZ: aynı gün olduğunu görmek onayı
+ * kolaylaştırdığı kadar, farklı gün olduğunu görmek reddi de sağlamlaştırır.
+ */
+function judgeDate(value?: number): string {
+  if (!value) return "bilinmiyor";
+  return new Date(value).toLocaleString("tr-TR", { timeZone: "Europe/Istanbul", dateStyle: "medium", timeStyle: "short" });
+}
+
 function judgePrompt(primary: StoryBrief, candidate: StoryBrief): string {
+  const hours = primary.pubDate && candidate.pubDate
+    ? Math.round(Math.abs(primary.pubDate - candidate.pubDate) / 3_600_000)
+    : null;
   return [
     `HABER A (${primary.source})`,
+    `Yayın zamanı: ${judgeDate(primary.pubDate)}`,
     `Başlık: ${primary.title}`,
     `Özet: ${primary.summary.slice(0, 600)}`,
     "",
     `HABER B (${candidate.source})`,
+    `Yayın zamanı: ${judgeDate(candidate.pubDate)}`,
     `Başlık: ${candidate.title}`,
     `Özet: ${candidate.summary.slice(0, 600)}`,
+    ...(hours === null ? [] : ["", `İki haber arasında ${hours} saat var.`]),
   ].join("\n");
 }
 
