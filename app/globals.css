@@ -1910,6 +1910,18 @@ input:focus-visible,
   overflow: hidden;
   padding: 8px;
 }
+/* Satır içi mini sparkline: panel kabuğu (zemin/çerçeve/dolgu/üst boşluk)
+   80x24'lük alanda çizimi eziyordu — 8px dolgu genişliğin %20'sini yiyor,
+   18px üst boşluk grafiği satırdan aşağı kaydırıyordu. */
+.spark-wrap--bare {
+  margin: 0;
+  padding: 0;
+  max-width: none;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
+}
 .spark-svg { display: block; width: 100%; height: 100%; }
 .spark-empty {
   display: flex;

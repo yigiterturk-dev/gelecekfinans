@@ -2,7 +2,7 @@ import { prisma } from "@/lib/db";
 import { asJson } from "@/lib/prisma-json";
 import { slugify } from "@/lib/slug";
 import { analyzeSeo } from "@/lib/seo";
-import { isDuplicate } from "@/lib/duplicate";
+import { findSourceRepeat, isDuplicate } from "@/lib/duplicate";
 import { autoLink } from "@/lib/bot/linker";
 import { ensureExternalLink } from "@/lib/bot/external-link";
 import { getArticleImageResult } from "@/lib/bot/images";
@@ -179,6 +179,29 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
     if (added >= count) break;
     try {
       /**
+       * ── Kaynak kimliği tekrarı (hakemden ve bütçeden ÖNCE) ──────────────
+       * 2-3 Eylül'de aynı haberturk haberi iki kez yazıldı: akşam "gün
+       * düşüşle kapandı", ertesi sabah "satıcılı kapanış". Başlık eşiği
+       * (3 ortak kelime) tutmadı çünkü ortak yalnızca "borsa/istanbulda"ydı.
+       * Kaynak URL'i ve kanıt kimlikleri ise birebir aynıydı — tekrarı en
+       * ucuz ve yanlış pozitifsiz yakalayan sinyal budur.
+       */
+      const earlyRepeat = findSourceRepeat(
+        { sourceUrl: topic.sourceUrl, evidencePacket: topic.evidencePacket },
+        recent,
+      );
+      if (earlyRepeat) {
+        duplicatesSkipped++;
+        await logEvent(run.id, "duplicate", "Aynı kaynaktan daha önce haber yazılmış", {
+          title: topic.title,
+          matchId: earlyRepeat.matchId,
+          matchTitle: earlyRepeat.matchTitle,
+          reason: earlyRepeat.reason,
+          key: earlyRepeat.key,
+        });
+        continue;
+      }
+      /**
        * Başlık benzerliği tutmadığı için doğrulanmamış konularda son bir şans:
        * aynı olayı farklı manşetle veriyor olabilecek adaylar hakeme sorulur.
        * Çağrı burada yapılır, konu havuzu hazırlanırken değil — yazılmayacak
@@ -251,6 +274,21 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
           requiredCharacters: MIN_EVIDENCE_MATERIAL_CHARS,
           independentSourceCount: packet.independentSourceCount,
         }, undefined, "warning");
+        continue;
+      }
+
+      // Hakem paketi zenginleştirmiş olabilir: yeni gelen kanıtlar arşivdeki
+      // bir haberle örtüşüyorsa yazar çağrısı yapılmadan burada durulur.
+      const packetRepeat = findSourceRepeat({ sourceUrl: topic.sourceUrl, evidencePacket: packet }, recent);
+      if (packetRepeat) {
+        duplicatesSkipped++;
+        await logEvent(run.id, "duplicate", "Aynı kaynaktan daha önce haber yazılmış", {
+          title: topic.title,
+          matchId: packetRepeat.matchId,
+          matchTitle: packetRepeat.matchTitle,
+          reason: packetRepeat.reason,
+          key: packetRepeat.key,
+        });
         continue;
       }
 

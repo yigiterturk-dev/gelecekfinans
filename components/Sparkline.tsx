@@ -8,9 +8,11 @@ interface Props {
   width?: number;
   height?: number;
   label?: string;
+  /** Satır içi mini kullanım: çerçeve/dolgu/zemin yok (MarketMini gibi 80x24 alanlar). */
+  bare?: boolean;
 }
 
-export default function Sparkline({ data, up = true, width = 320, height = 72, label }: Props) {
+export default function Sparkline({ data, up = true, width = 320, height = 72, label, bare = false }: Props) {
   const stroke = up ? "var(--up)" : "var(--dn)";
   const gradId = `spark-${up ? "up" : "dn"}`;
   let path = "";
@@ -29,7 +31,7 @@ export default function Sparkline({ data, up = true, width = 320, height = 72, l
     area = `${path} L${width},${height} L0,${height} Z`;
   }
   return (
-    <div className="spark-wrap" style={{ aspectRatio: `${width} / ${height}` }}>
+    <div className={bare ? "spark-wrap spark-wrap--bare" : "spark-wrap"} style={{ aspectRatio: `${width} / ${height}` }}>
       {path ? (
         <svg
           viewBox={`0 0 ${width} ${height}`}

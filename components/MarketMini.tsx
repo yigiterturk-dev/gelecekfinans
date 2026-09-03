@@ -179,7 +179,7 @@ export default function MarketMini() {
             </span>
             <div style={{ width: 80, height: 24, display: "flex", alignItems: "center", justifyContent: "center" }}>
               {loaded && r.sparkline && r.sparkline.length > 1 ? (
-                <Sparkline data={r.sparkline} up={(r.pct ?? 0) >= 0} width={80} height={24} />
+                <Sparkline data={r.sparkline} up={(r.pct ?? 0) >= 0} width={80} height={24} bare />
               ) : (
                 <div style={{ fontFamily: mono, fontSize: 8, color: "var(--muted)", opacity: 0.4 }}>Yükleniyor...</div>
               )}

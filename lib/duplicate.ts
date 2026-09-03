@@ -93,3 +93,79 @@ export function isDuplicate(
   }
   return { duplicate: false, score: 0 };
 }
+
+// ── Kaynak kimliği tekrarı ─────────────────────────────────────────────────
+// Başlık benzerliği aynı olayı her zaman yakalamıyor: "…gün düşüşle kapandı"
+// ile "…satıcılı kapanış" yalnızca 2 anlamlı kelime paylaşır ve eşik 3'tür.
+// Ama ikisi de AYNI kaynak haberden yazılmıştı (aynı haberturk URL'i, aynı 3
+// kanıt kimliği). Kaynak kimliği kesin sinyaldir: yanlış pozitifi yoktur ve
+// yazar bütçesi harcanmadan önce bakılabilir.
+
+export function normalizeSourceUrl(url?: string | null): string {
+  if (!url) return "";
+  const raw = url.trim();
+  if (!raw) return "";
+  try {
+    const parsed = new URL(raw);
+    const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
+    const path = parsed.pathname.replace(/\/+$/, "").toLowerCase();
+    return host + path;
+  } catch {
+    return raw.toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/[?#].*$/, "").replace(/\/+$/, "");
+  }
+}
+
+// "ev-1-publisher:haberturk-borsa-gunu-dususle-tamamladi" → kanıt kimliğinin
+// sıradan bağımsız hâli. Aynı kanıt farklı sırada gelirse de eşleşsin.
+function evidenceKey(id?: string | null): string {
+  if (!id) return "";
+  return id.trim().toLowerCase().replace(/^ev-\d+-/, "");
+}
+
+type AutomationMetaLike = {
+  sourceUrl?: string | null;
+  evidencePacket?: { evidence?: Array<{ id?: string | null; sourceUrl?: string | null }> | null } | null;
+} | null | undefined;
+
+/** Bir makalenin/konunun kaynak parmak izleri: normalize URL'ler + kanıt kimlikleri. */
+export function sourceFingerprints(meta: AutomationMetaLike): { primary: string; keys: Set<string> } {
+  const keys = new Set<string>();
+  const primary = normalizeSourceUrl(meta?.sourceUrl);
+  if (primary) keys.add(primary);
+  for (const evidence of meta?.evidencePacket?.evidence || []) {
+    const url = normalizeSourceUrl(evidence?.sourceUrl);
+    if (url) keys.add(url);
+    const key = evidenceKey(evidence?.id);
+    if (key) keys.add(key);
+  }
+  return { primary, keys };
+}
+
+/**
+ * Aday konu/makale, arşivdeki bir haberle AYNI kaynaktan mı yazılıyor?
+ * Tekrar sayılma kuralı:
+ *   • birincil kaynak URL'i daha önce kullanılmışsa (kesin), VEYA
+ *   • 2+ kanıt kimliği/kanıt URL'i örtüşüyorsa (aynı olay kümesi).
+ */
+export function findSourceRepeat(
+  candidate: AutomationMetaLike,
+  existingArticles: { id: string; title: string; automationMeta?: unknown }[],
+): { matchId: string; matchTitle: string; reason: "primary-url" | "evidence-overlap"; key: string } | null {
+  const candidateFp = sourceFingerprints(candidate);
+  if (!candidateFp.keys.size) return null;
+  for (const existing of existingArticles) {
+    const existingFp = sourceFingerprints(existing.automationMeta as AutomationMetaLike);
+    if (!existingFp.keys.size) continue;
+    if (candidateFp.primary && existingFp.keys.has(candidateFp.primary)) {
+      return { matchId: existing.id, matchTitle: existing.title, reason: "primary-url", key: candidateFp.primary };
+    }
+    if (existingFp.primary && candidateFp.keys.has(existingFp.primary)) {
+      return { matchId: existing.id, matchTitle: existing.title, reason: "primary-url", key: existingFp.primary };
+    }
+    const shared = [...candidateFp.keys].filter((key) => existingFp.keys.has(key));
+    if (shared.length >= 2) {
+      return { matchId: existing.id, matchTitle: existing.title, reason: "evidence-overlap", key: shared.slice(0, 3).join(" | ") };
+    }
+  }
+  return null;
+}
