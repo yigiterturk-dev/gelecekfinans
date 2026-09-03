@@ -3,6 +3,8 @@ import { asJson } from "@/lib/prisma-json";
 import { analyzeSeo } from "@/lib/seo";
 import { slugify } from "@/lib/slug";
 import { getArticleImageResult } from "./images";
+import { autoLink } from "./linker";
+import { ensureExternalLink } from "./external-link";
 import type { BlockedDraftError } from "./errors";
 
 /**
@@ -72,9 +74,35 @@ export async function saveBlockedDraft(
     ),
   });
 
+  /**
+   * ── KURTARILAN TASLAK DA BAĞLANTILANIR ─────────────────────────────────
+   *
+   * ÖLÇÜM (3 Eylül 2026, son 25 bot makalesi): kurtarılmış taslaklarda
+   * ORTALAMA 0,5 bağlantı vardı, normal makalelerde 5,0. Sıfır bağlantılı
+   * üç makale de SEO'da en düşük skorlulardı (66, 74, 82; normal ortalama
+   * ~92) ve üçü de panelden onaylanıp YAYINA ÇIKMIŞTI.
+   *
+   * Sebep: iki yayın yolu var, biri bağlantı katmanını hiç çağırmıyordu.
+   * `orchestrator` ve `guide-orchestrator` yazdıkları metni `autoLink` +
+   * `ensureExternalLink` içinden geçiriyor; kurtarma yolu doğrudan
+   * `draft.content`'i kaydediyordu. Taslak "yayımlanmayacak" varsayımıyla
+   * yazılmıştı ama kurtarmanın bütün amacı panelden onaylanabilmesi.
+   *
+   * İçerik DEĞİŞMİYOR, yalnızca zaten var olan bağlantı katmanı uygulanıyor:
+   * iç bağlantılar arşivdeki gerçek makalelere, tek dış bağlantı kategoriye
+   * uygun resmî kuruma (nofollow). SEO skoru da bağlantılı sürümden ölçülür,
+   * yoksa panelde yanıltıcı düşük bir skor görünüyordu.
+   */
+  const linkedContent = ensureExternalLink(
+    await autoLink(draft.content, draft.category, slug),
+    draft.category,
+    draft.keyword,
+    undefined,
+  );
+
   const seo = analyzeSeo({
     title: draft.title, meta: draft.meta, keyword: draft.keyword,
-    content: draft.content, slug, imageUrl: image.url,
+    content: linkedContent, slug, imageUrl: image.url,
   });
 
   const created = await prisma.article.create({
@@ -84,7 +112,7 @@ export async function saveBlockedDraft(
       meta: draft.meta,
       keyword: draft.keyword || null,
       category: draft.category,
-      content: draft.content,
+      content: linkedContent,
       ...(draft.aiExtras ? { aiExtras: asJson(draft.aiExtras as object) } : {}),
       imageUrl: image.url,
       source: draft.source,

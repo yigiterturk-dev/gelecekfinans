@@ -23,7 +23,8 @@
     "measure:pool": "tsx scripts/measure-topic-pool.ts",
     "measure:corroboration": "tsx scripts/measure-corroboration.ts",
     "measure:extraction": "tsx scripts/measure-extraction.ts",
-    "measure:pipeline": "tsx scripts/measure-pipeline.ts"
+    "measure:pipeline": "tsx scripts/measure-pipeline.ts",
+    "fix:links": "tsx scripts/backfill-links.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",
