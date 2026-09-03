@@ -1,7 +1,7 @@
 import Image from "next/image";
 import { publicImageUrl } from "@/lib/image-url";
 import { getAllArticles } from "@/lib/articles";
-import { HeroCard, StripCard, MedCard, RankedCard, CATS, Ago } from "@/components/ArticleCard";
+import { HeroCard, StripCard, MedCard, RankedCard, CATS, catColor, Ago } from "@/components/ArticleCard";
 import Newsletter from "@/components/Newsletter";
 import MarketMini from "@/components/MarketMini";
 import MoversRail from "@/components/MoversRail";
@@ -163,7 +163,7 @@ export default async function HomePage() {
                       />
                     </div>
                   )}
-                  <span style={{ fontFamily: "var(--mono)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: (CATS[a.category]?.c) || "var(--accent)" }}>
+                  <span style={{ fontFamily: "var(--mono)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: CATS[a.category] ? catColor(a.category, CATS[a.category].c) : "var(--accent)" }}>
                     {(CATS[a.category]?.l) || a.category.toUpperCase()}
                   </span>
                   <span

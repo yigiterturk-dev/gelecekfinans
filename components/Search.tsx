@@ -94,7 +94,7 @@ export default function Search() {
                   : <div className="search-result-img" style={{ borderRadius: 6 }} />
                 }
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  {cat && <span className="search-result-cat" style={{ color: cat.c }}>{cat.l}</span>}
+                  {cat && <span className="search-result-cat" style={{ color: `var(--cat-${a.category}, ${cat.c})` }}>{cat.l}</span>}
                   <p className="search-result-title">{a.title}</p>
                 </div>
               </div>

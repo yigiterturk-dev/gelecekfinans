@@ -64,6 +64,28 @@
   --ground:   #ffffff;
   --ground2:  #f8fafc;
   --rule:     #e2e8f0;
+
+  /* ── TERS PANEL ─────────────────────────────────────────────────────────
+     Sayfanın aksine KOYU duran yüzeyler: bülten kutusu, koyu düğmeler,
+     atlama bağlantısı. Bunlar zemin için `--ink`i kullanıyordu ve `--ink`
+     KOYU TEMADA BEYAZA DÖNÜYOR (#f9fafb). Yazı rengi ise #fff olarak
+     sabitlenmişti; sonuç beyaz zeminde beyaz yazı — telefonu karanlık modda
+     olan okur bültene yazdığı e-postayı göremiyordu (4 Eylül 2026).
+     Bu iki değişken tema ile BİRLİKTE döner, ikisi ayrı düşmez. */
+  --invert:     #14161a;
+  --invert-ink: #f3f3f5;
+
+  /* ── KATEGORİ RENKLERİ ───────────────────────────────────────────────────
+     Rozet ve etiket renkleri bileşenlerde sabit hex olarak duruyordu ve
+     yalnızca AÇIK zemin için seçilmişti. Koyu temada kontrast 2,34:1'e
+     düşüyordu (WCAG AA küçük metin için 4,5 ister). Aşağıdaki değişkenler
+     tema ile birlikte döner; bileşen `var(--cat-x, <hex>)` kullanır, yani
+     bilinmeyen kategoride eski davranış korunur. */
+  --cat-kripto:  #d97706;
+  --cat-borsa:   #16a34a;
+  --cat-doviz:   #2563eb;
+  --cat-altin:   #b45309;
+  --cat-ekonomi: #475569;
 }
 
 html.dark {
@@ -98,6 +120,18 @@ html.dark {
 
   --ground:   #0b0f19;
   --ground2:  #111827;
+
+  /* Koyu temada "ters panel" = sayfadan bir kademe YÜKSELTİLMİŞ yüzey.
+     Sayfa zaten koyu olduğu için ters çevirmek beyaz kutu üretirdi. */
+  --invert:     #1f2937;   /* Gray 800 */
+  --invert-ink: #f9fafb;   /* Gray 50 */
+
+  /* Koyu zeminde okunacak kadar aydınlatılmış kategori renkleri. */
+  --cat-kripto:  #fbbf24;
+  --cat-borsa:   #4ade80;
+  --cat-doviz:   #7dabf8;
+  --cat-altin:   #fcd34d;
+  --cat-ekonomi: #a3b2c7;
   --rule:     #1f2937;
 
   --shadow-sm: 0 1px 3px rgba(0,0,0,.3);
@@ -148,8 +182,8 @@ input:focus-visible,
   left: -9999px;
   top: 0;
   z-index: 300;
-  background: var(--ink);
-  color: #fff;
+  background: var(--invert);
+  color: var(--invert-ink);
   padding: 10px 18px;
   border-radius: 0 0 var(--radius) 0;
   font-family: var(--sans);
@@ -1245,9 +1279,9 @@ input:focus-visible,
   position: relative;
   background:
     radial-gradient(120% 140% at 100% 0%, oklch(from var(--accent) l c h / .06), transparent 55%),
-    var(--ink);
-  color: #f3f3f5;
-  border: 1px solid var(--ink);
+    var(--invert);
+  color: var(--invert-ink);
+  border: 1px solid var(--invert);
   padding: 40px 36px;
   border-radius: 12px;
   overflow: hidden;
@@ -1301,7 +1335,11 @@ input:focus-visible,
   background: rgba(255,255,255,.06);
   border: 1px solid rgba(255,255,255,.16);
   border-radius: var(--radius);
-  color: #fff;
+  /* Sabit #fff değil: panel rengiyle birlikte döner. Ayrıca tarayıcının
+     kendi form varsayılanlarını (özellikle mobil koyu modda) devre dışı
+     bırakmak için color-scheme açıkça bildirilir. */
+  color: var(--invert-ink);
+  color-scheme: dark;
   font-size: 14px;
   font-family: var(--sans);
   outline: none;
@@ -1672,8 +1710,8 @@ input:focus-visible,
   font-family: var(--mono);
   font-size: 12px;
   padding: 8px 20px;
-  background: var(--ink);
-  color: #fff;
+  background: var(--invert);
+  color: var(--invert-ink);
   border: none;
   border-radius: var(--radius);
   cursor: pointer;
@@ -2779,11 +2817,11 @@ html.dark {
 .adm-btn-primary:hover { background: var(--accent2); border-color: var(--accent2); color: #fff; }
 .adm-btn-primary:disabled { opacity: .6; cursor: wait; }
 .adm-btn-dark {
-  background: var(--ink);
-  color: #fff;
-  border-color: var(--ink);
+  background: var(--invert);
+  color: var(--invert-ink);
+  border-color: var(--invert);
 }
-.adm-btn-dark:hover { background: var(--ink2); border-color: var(--ink2); color: #fff; }
+.adm-btn-dark:hover { background: var(--ink2); border-color: var(--ink2); color: var(--invert-ink); }
 
 /* ── CARDS ── */
 .adm-card {

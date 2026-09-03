@@ -11,9 +11,20 @@ export const CATS: Record<string, {l:string;c:string}> = {
   ekonomi:{l:"EKONOMİ",c:"#475569"},
 };
 
+/**
+ * Kategori rengi CSS değişkeninden okunur, bileşene gömülü hex'ten değil.
+ * Gömülü renkler yalnızca açık zemin için seçilmişti ve koyu temada rozetin
+ * kontrastı 2,34:1'e düşüyordu (WCAG AA küçük metin için 4,5 ister).
+ * Değişken bulunamazsa eski hex devreye girer; bilinmeyen kategori bozulmaz.
+ */
+export function catColor(cat: string, fallback: string): string {
+  return CATS[cat] ? `var(--cat-${cat}, ${fallback})` : fallback;
+}
+
 function Badge({cat}:{cat:string}){
   const c=CATS[cat]??{l:cat.toUpperCase(),c:"#6b6b78"};
-  return <span className="badge" style={{background:`color-mix(in oklab, ${c.c} 20%, transparent)`,color:c.c}}>{c.l}</span>;
+  const color=catColor(cat,c.c);
+  return <span className="badge" style={{background:`color-mix(in oklab, ${color} 20%, transparent)`,color}}>{c.l}</span>;
 }
 export function Ago(d:string){
   const s=(Date.now()-new Date(d).getTime())/1000;
@@ -112,7 +123,7 @@ export function RankedCard({article,index,last=false}:{article:Article;index:num
     >
       <span className="ranked-n" style={{flexShrink:0,width:26,fontFamily:"var(--mono)",fontSize:22,fontWeight:700,lineHeight:1,color:"var(--accent)",opacity:.35,fontVariantNumeric:"tabular-nums"}}>{index+1}</span>
       <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",gap:5}}>
-        {c&&<span style={{fontFamily:"var(--mono)",fontSize:10,fontWeight:600,letterSpacing:".08em",textTransform:"uppercase",color:c.c}}>{c.l}</span>}
+        {c&&<span style={{fontFamily:"var(--mono)",fontSize:10,fontWeight:600,letterSpacing:".08em",textTransform:"uppercase",color:catColor(article.category,c.c)}}>{c.l}</span>}
         <p className="ranked-row-title" style={{margin:0,lineHeight:1.45}}>{article.title}</p>
         <p className="ranked-row-meta" style={{margin:0}}>{Ago(article.created_at)} <ViewCount n={article.views}/></p>
       </div>
