@@ -185,3 +185,48 @@ test("kategori filtresi kalkınca alakasız haber yine de doğrulamaz", () => {
   assert.equal(packet.status, "INSUFFICIENT");
   assert.equal(packet.independentSourceCount, 1);
 });
+
+/**
+ * ── GÖVDE <article> İÇİNDE OLMAYAN SAYFALAR ─────────────────────────────────
+ *
+ * ÖLÇÜM (3 Eylül 2026, 80 canlı haber sayfası): sayfaların yalnızca %46'sından
+ * kanıt metni çıkabiliyordu. En yetkili iki kaynak TAMAMEN başarısızdı —
+ * aa.com.tr 0/8, trthaber.com 0/8 — kripto şeridinin iki yayıncısı da 0/4.
+ * 7 günde 29 konu "Kanıt metni kısa" diyerek bu yüzden öldü.
+ *
+ * Sebep: çıkarıcının iki stratejisi vardı ve ikisi de AA'da tutmuyor.
+ * JSON-LD `articleBody` yalnızca 175 karakterlik spot metni taşıyor (eşik 180),
+ * gövde ise `<article>` etiketinde değil sınıf adıyla verilmiş bir `div` içinde.
+ * Üçüncü strateji: sayfadaki en yoğun ardışık paragraf kümesini bul.
+ */
+test("gövde <article> dışındaysa en yoğun paragraf kümesinden çıkarılır", () => {
+  const paragraf = (index: number) =>
+    `<p>Bu ${index}. gövde paragrafıdır ve haber metninin anlamlı bir bölümünü taşır, uzunluğu eşiğin üzerindedir.</p>`;
+  const html = `
+    <html><body>
+      <nav><p>Anasayfa</p><p>Ekonomi</p></nav>
+      <script type="application/ld+json">{"@type":"NewsArticle","articleBody":"Kısa spot metni."}</script>
+      <div class="prose max-w-none text-[17px]">
+        ${[1, 2, 3, 4, 5].map(paragraf).join("")}
+      </div>
+      <footer><p>Telif hakkı saklıdır, tüm hakları ajansa aittir ve izinsiz kullanılamaz.</p></footer>
+    </body></html>`;
+  const extracted = extractArticleTextFromHtml(html);
+  assert.ok(extracted, "gövde çıkarılamadı");
+  assert.match(extracted.content, /1\. gövde paragrafıdır/);
+  assert.match(extracted.content, /5\. gövde paragrafıdır/);
+  assert.doesNotMatch(extracted.content, /Telif hakkı saklıdır/);
+  assert.doesNotMatch(extracted.content, /Anasayfa/);
+});
+
+/** Menü ve bağlantı listelerinden ibaret sayfa gövde SAYILMAZ. */
+test("dağınık menü paragrafları gövde sanılmaz", () => {
+  const html = `
+    <html><body>
+      <nav><p>Anasayfa</p></nav>
+      <div><p>Ekonomi</p></div>
+      <div><p>Spor</p></div>
+      <footer><p>İletişim</p></footer>
+    </body></html>`;
+  assert.equal(extractArticleTextFromHtml(html), null);
+});
