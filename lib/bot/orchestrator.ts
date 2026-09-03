@@ -7,6 +7,9 @@ import { autoLink } from "@/lib/bot/linker";
 import { ensureExternalLink } from "@/lib/bot/external-link";
 import { getArticleImageResult } from "@/lib/bot/images";
 import { getTopics } from "@/lib/bot/topics";
+import { notifyGoogleUrlUpdated } from "@/lib/bot/indexing";
+
+const SITE_URL = process.env.SITE_URL || "https://gelecekfinans.com";
 import { extractEntities, judgeSameStory, resetSameStoryJudgeBudget, resolveArticleAIConfig, sameStoryJudgeFailures, sameStoryJudgeSkipped, writeArticle } from "@/lib/bot/writer";
 import { resetUsageLedger, usageSummary } from "@/lib/bot/usage";
 import { recordEntities } from "@/lib/bot/entities";
@@ -419,6 +422,24 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
         decision: publication.decision, risk: risk.level, sourceScore: source.score,
         seoScore: seo.score, imageStrategy: image.strategy,
       }, created.id);
+
+      /**
+       * Yayımlanan adres Google'a bildirilir. Sitemap tek başına yetmiyor:
+       * 3 Eylül taramasında 52 adresin 23'ü hâlâ "URL is unknown to Google"du
+       * ve en iyi sıralayan sayfa Google'ın kaydında 404'te takılıydı.
+       * Hata bilerek yutulur — makale zaten kaydedildi, bildirim tutmadı diye
+       * yayın geri alınmaz; sonuç kayda düşer ki kurulum eksikse görünsün.
+       */
+      if (publication.decision === "AUTO_PUBLISH") {
+        const ping = await notifyGoogleUrlUpdated(`${SITE_URL}/${slug}`);
+        if (!ping.ok) {
+          await logEvent(run.id, "indexing", "Google dizin bildirimi gönderilemedi", {
+            slug, reason: ping.reason, detail: ping.detail,
+          }, created.id, "warning");
+        } else {
+          await logEvent(run.id, "indexing", "Google'a dizin bildirimi gönderildi", { slug }, created.id);
+        }
+      }
 
       // Varlık çıkarımı: haberin yan ürünü olarak şirket/kişi/kurum kaydı.
       // Neden burada: elimizde HEM doğrulanmış kanıt paketi HEM de kaydedilmiş
