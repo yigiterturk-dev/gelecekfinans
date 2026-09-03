@@ -1326,7 +1326,13 @@ function entityInstructions(targetWords: number, context: {
     kisi
       ? `Başlık "${context.name} kimdir?" sorusunu içersin.`
       : `Başlık "${context.name}" adını ve "nedir" ya da "sahibi kim" kalıbını içersin.`,
-    "İlk bölüm doğrudan cevabı versin: okur ilk paragrafta kim/ne olduğunu öğrensin.",
+    // Talimat "ilk bölüm doğrudan cevabı versin" diyordu ama fazla yumuşaktı:
+    // canlı Midas sayfası "Egem Eraslan'ın liderliği, … hızlandırmakta" diye
+    // açtı — kelime ledede geçiyor, cevap yok. Kalıp artık birebir dayatılıyor
+    // ve kalite kapısı (requireDefinitionLede) bunu deterministik ölçüyor.
+    `GİRİŞ CÜMLESİ KALIBI (zorunlu): lede tam olarak "${context.name}, …" diye başlasın; adın hemen ardından VİRGÜL gelsin ve cümle ${kisi ? "kişinin kim olduğunu" : "kurumun ne olduğunu"} kanıta dayanarak tanımlayıp bitsin.`,
+    `Örnek biçim: "${context.name}, <kanıtta geçen unvan/rol>dır." — "${context.name}'ın …" gibi iyelik ekiyle veya "Şirketin kurucusu ${context.name}, …" gibi ters kurulumla BAŞLAMA.`,
+    "İlk cümle bir değerlendirme, süreç ya da etki anlatımı olamaz; yalnızca kim/ne olduğunun cevabıdır. Değerlendirme ikinci cümleden itibaren gelsin.",
     "Sonraki bölümler kanıtın izin verdiği kadarıyla: geçmiş, bugünkü konum, öne çıkan gelişmeler, sektördeki yeri.",
     "Her bölüm başlığı okurun gerçekten sorduğu bir soru olsun; 'Giriş', 'Sonuç' gibi boş başlık kullanma.",
     "Her paragraf tek başına okunduğunda anlaşılır olsun.",

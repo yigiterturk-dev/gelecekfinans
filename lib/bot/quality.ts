@@ -139,6 +139,21 @@ export interface QualityPreset {
    * bağımsız hem de uydurmaya kapalı olur.
    */
   forbidSpecificFigures: boolean;
+  /**
+   * Künye ledesi doğrudan TANIM cümlesiyle mi başlamalı?
+   *
+   * "X kimdir" sorgusunda Google (ve okur) ilk cümlede cevabı arar. Canlı
+   * örnek: Midas/Egem Eraslan sayfası "Egem Eraslan'ın liderliği, Midas'ın
+   * … evrilme sürecini hızlandırmakta" diye açıyordu — kelime ledede geçiyor
+   * ama CEVAP yok, özne "liderlik". Sayfa buna rağmen 12-29. sıradaydı;
+   * doğrudan tanımla açmak bu şeritteki en ucuz sıralama hamlesi.
+   *
+   * Kural Türkçe'de deterministik olarak ölçülebilir: tanım cümlesi adı
+   * yalın hâlde kullanır ve virgülle devam eder ("Egem Eraslan, Midas'ın
+   * kurucusudur."). İyelik eki aldıysa ("Egem Eraslan'ın …") cümle artık
+   * varlığı değil, onun bir özelliğini anlatıyordur.
+   */
+  requireDefinitionLede?: boolean;
 }
 
 export const NEWS_QUALITY_PRESET: QualityPreset = {
@@ -179,6 +194,7 @@ export const ENTITY_QUALITY_PRESET: QualityPreset = {
   label: "varlık",
   requireEvidence: true,
   forbidSpecificFigures: false,
+  requireDefinitionLede: true,
 };
 
 /**
@@ -196,6 +212,26 @@ const SPECIFIC_FIGURE_PATTERNS: Array<[RegExp, string]> = [
   [/\b\d{4,}\b/, "Rehberde dört haneli veya daha büyük sayı yazılamaz"],
   [/\b\d+\s?(?:tl|lira|dolar|euro|avro|usd|try|bin|milyon|milyar)\b/i, "Rehberde para tutarı yazılamaz"],
 ];
+
+/**
+ * Lede doğrudan tanımla mı açıyor?
+ *
+ * Kabul: "Egem Eraslan, Midas'ın kurucusu ve CEO'sudur." (ad yalın + virgül)
+ * Ret  : "Egem Eraslan'ın liderliği, …"  (iyelik eki — özne artık ad değil)
+ * Ret  : "Midas'ın kurucusu Egem Eraslan, …" (ad cümlenin başında değil)
+ */
+export function ledeOpensWithDefinition(lede: string, name: string): boolean {
+  const trimmedName = name.trim();
+  if (!trimmedName) return true;
+  const text = lede.trim().replace(/^[«"'“]+/, "");
+  const lower = text.toLocaleLowerCase("tr-TR");
+  const lowerName = trimmedName.toLocaleLowerCase("tr-TR");
+  if (!lower.startsWith(lowerName)) return false;
+  // Addan hemen sonra gelen karakter virgül olmalı: ek almışsa ("'ın", "'nin")
+  // cümle varlığı değil onun bir özelliğini tanımlıyordur.
+  const rest = text.slice(trimmedName.length).trimStart();
+  return rest.startsWith(",");
+}
 
 export function validateDraft(
   draft: ArticleDraft,
@@ -249,6 +285,9 @@ export function validateDraft(
   }
   if (!draft.meta.toLocaleLowerCase("tr-TR").includes(draft.keyword.toLocaleLowerCase("tr-TR"))) {
     cosmetic("Odak anahtar kelime metada yok");
+  }
+  if (preset.requireDefinitionLede && !ledeOpensWithDefinition(draft.lede, draft.keyword)) {
+    cosmetic("Künye girişi tanım cümlesiyle başlamıyor (\"<Ad>, …dır.\" bekleniyor)");
   }
   /**
    * "Keyword: EPDK düzenleme" gibi etiket ekleri.

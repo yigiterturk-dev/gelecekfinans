@@ -6,6 +6,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import { absoluteImageUrl, imageObjectLd, publicImageUrl } from "@/lib/image-url";
+import { parseProfileSubject, profileAboutLd } from "@/lib/entity-profile";
 import { CATS, MedCard } from "@/components/ArticleCard";
 import ReadingProgress from "@/components/ReadingProgress";
 import ShareButtons from "@/components/ShareButtons";
@@ -49,6 +50,10 @@ export default async function ArticlePage({params}:{params:Promise<{slug:string}
   // Structured data — görsel düğümü mutlak URL ve bilinen boyutlarla üretilir;
   // Google zengin sonuçlar için ImageObject'te width/height bekliyor.
   const imageLd=imageObjectLd(a.imageUrl,BASE,a.title,`${url}#primaryimage`);
+  // "X kimdir" künyelerinde sayfanın HAKKINDA olduğu varlık makinece
+  // okunabilir olmalı; sitenin tek gerçek sıralaması bu şeritten geliyor.
+  const profileSubject = parseProfileSubject(a.title);
+  const aboutLd = profileSubject ? profileAboutLd(profileSubject, { url, description: a.meta }) : null;
   const ld={
     "@context":"https://schema.org","@type":"NewsArticle","@id":`${url}#article`,headline:a.title,
     description:a.meta,datePublished:a.created_at,dateModified:a.updatedAt||a.created_at,keywords:a.keyword,
@@ -57,6 +62,7 @@ export default async function ArticlePage({params}:{params:Promise<{slug:string}
     author:{"@type":"Organization","@id":`${BASE}/#organization`,name:"GelecekFinans Haber Merkezi",url:`${BASE}/hakkimizda`},
     publisher:{"@type":"NewsMediaOrganization","@id":`${BASE}/#organization`,name:"GelecekFinans",url:BASE,logo:{"@type":"ImageObject",url:`${BASE}/icon.svg`,width:512,height:512}},
     isAccessibleForFree:!a.premium,
+    ...(aboutLd&&{about:aboutLd}),
     ...(imageLd&&{image:imageLd}),
     ...(a.premium&&{
       hasPart:{"@type":"WebPageElement",isAccessibleForFree:false,cssSelector:".article-prose"},
