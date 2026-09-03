@@ -34,6 +34,21 @@ export const RSS_FEEDS = [
   "https://www.indyturk.com/rss.xml",
   "https://www.dunya.com/rss/sirketler.xml",
   "https://www.trthaber.com/sondakika.rss",
+  // ── 2026-09-03'te canlı ölçülüp EKLENENLER ────────────────────────────
+  // Neden: 40 konunun 8'inin havuzda hiç eşi yoktu, yani "iki bağımsız
+  // yayıncı" şartı besleme darlığından sağlanamıyordu. Aşağıdaki altı
+  // yayıncının hepsi ölçüm anında taze item veriyordu (en yenisi <5 saat).
+  // Not: hurriyet ve milliyet 31 Ağustos ölçümünde ölü/bayat diye
+  // ÇIKARILMIŞTI, şimdi ikisi de çalışıyor — feed'ler geri gelebiliyor,
+  // liste periyodik ölçülmeli.
+  "https://www.hurriyet.com.tr/rss/ekonomi",
+  "https://www.milliyet.com.tr/rss/rssnew/ekonomirss.xml",
+  "https://www.cnnturk.com/feed/rss/ekonomi/news",
+  "https://www.ekonomist.com.tr/rss",
+  "https://www.star.com.tr/rss/ekonomi.xml",
+  "https://www.yeniasir.com.tr/rss/ekonomi.xml",
+  // Mevcut yayıncının ikinci kategorisi: yeni yayıncı saymaz ama kapsamı artırır.
+  "https://www.sozcu.com.tr/feeds-rss-category-finans",
   // Kripto
   //
   // btchaber.com ve coin-turk.com 2026-09-02'de listeden CIKARILDI: ikisi de
