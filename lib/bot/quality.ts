@@ -84,6 +84,102 @@ function numbersIn(value: string, includeSafeRounding = false): Set<string> {
   return output;
 }
 
+/**
+ * ── Bileşik Türkçe büyüklük yazımı ─────────────────────────────────────────
+ *
+ * CANLI ARIZA (3 Eylül 2026, koşu cmtlpfilu0000i804lebplv7k): TCMB rezerv
+ * haberi ARKA ARKAYA İKİ KEZ "Kaynaklarda bulunmayan rakamlar: 3.1, 71.1,
+ * 2.9, 117.1" ile bloklandı ve koşu tek makaleyle kapandı.
+ *
+ * Model uydurmamıştı. Türk finans basını ve resmî bültenler sayıyı
+ * "117 milyar 100 milyon dolar" diye yazar; okunabilir haber metni ise
+ * "117,1 milyar dolar" der. `numbersIn` bileşik yazımı iki AYRI sayı olarak
+ * (117 ve 100) topladığı için doğru yazılmış makaleyi kaynaksız sayıyordu.
+ * Bu, TCMB rezerv/TÜİK/ihracat gibi bülten haberlerinin TAMAMINDA tekrarlar.
+ *
+ * Çözüm: kanıt metnindeki bileşik ifadeler açılır ve BAŞ BİRİMİN ondalığı
+ * (117,1) ile mutlak değeri (117.100.000.000; "4 bin 500" için 4500) desteklenen
+ * sayılar kümesine eklenir. Kapı körleşmez: yalnızca kaynakta GERÇEKTEN yazan
+ * bir büyüklüğün ikinci yazımı serbest kalır, model hâlâ yeni sayı icat edemez.
+ */
+const MAGNITUDES: Record<string, number> = {
+  trilyon: 1e12,
+  milyar: 1e9,
+  milyon: 1e6,
+  bin: 1e3,
+};
+
+interface MagnitudeTerm {
+  value: number;
+  unit: number;
+  start: number;
+  end: number;
+}
+
+function magnitudeTerms(value: string): MagnitudeTerm[] {
+  const pattern = /(\d+(?:[. ]\d+)*(?:,\d+)?)\s*(trilyon|milyar|milyon|bin)?/giu;
+  const terms: MagnitudeTerm[] = [];
+  for (const match of value.matchAll(pattern)) {
+    const numeric = Number(normalizeNumber(match[1]));
+    if (!Number.isFinite(numeric)) continue;
+    const word = match[2]?.toLocaleLowerCase("tr-TR");
+    terms.push({
+      value: numeric,
+      unit: word ? MAGNITUDES[word] : 1,
+      start: match.index,
+      end: match.index + match[0].length,
+    });
+  }
+  return terms;
+}
+
+/** Kayan nokta artığını ("117.10000000000001") sayı kümesine sokmaz. */
+function cleanNumber(value: number): string {
+  return String(Number(value.toFixed(6)));
+}
+
+function compositeNumbers(value: string): Set<string> {
+  const output = new Set<string>();
+  const terms = magnitudeTerms(value);
+  for (let index = 0; index < terms.length; index++) {
+    const head = terms[index];
+    // Zincir yalnızca birimli bir baştan başlar: "2026 3 milyar" gibi rastgele
+    // komşulukların birleşmesini engeller.
+    if (head.unit <= 1) continue;
+    let total = head.value * head.unit;
+    let previous = head;
+    for (let next = index + 1; next < terms.length; next++) {
+      const term = terms[next];
+      // Terimler arasında boşluktan başka bir şey varsa bu tek bir büyüklük
+      // değildir ("100 milyon dolar, altın rezervi 71 milyar").
+      if (!/^\s*$/.test(value.slice(previous.end, term.start))) break;
+      if (term.unit >= previous.unit) break;
+      // Birimsiz kuyruk yalnızca "bin"den sonra anlamlıdır ("4 bin 500").
+      // Aksi hâlde "10 milyar 2026 yılında" birleşirdi.
+      if (term.unit === 1 && previous.unit !== MAGNITUDES.bin) break;
+      if (term.value >= previous.unit / term.unit) break;
+      total += term.value * term.unit;
+      output.add(cleanNumber(total));
+      output.add(cleanNumber(total / head.unit));
+      previous = term;
+    }
+  }
+  return output;
+}
+
+/**
+ * Kanıt tarafının kabul ettiği sayılar: ham eşleşmeler + güvenli yuvarlama +
+ * bileşik büyüklüklerin ondalık/mutlak karşılıkları.
+ */
+function supportedNumbersIn(value: string): Set<string> {
+  const output = numbersIn(value, true);
+  for (const composite of compositeNumbers(value)) {
+    output.add(composite);
+    if (composite.includes(".")) output.add(String(Math.trunc(Number(composite))));
+  }
+  return output;
+}
+
 function paragraphKey(value: string): string {
   return value
     .toLocaleLowerCase("tr-TR")
@@ -254,7 +350,7 @@ export function validateDraft(
   const evidenceText = packet.evidence
     .map((item) => `${item.title} ${item.summary} ${item.content || ""}`)
     .join(" ");
-  const supportedNumbers = numbersIn(evidenceText, true);
+  const supportedNumbers = supportedNumbersIn(evidenceText);
   const draftText = textParts(draft).join(" ");
 
   if (preset.requireEvidence

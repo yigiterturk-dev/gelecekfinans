@@ -95,6 +95,61 @@ test("noktalı kaynak ondalıklarını Türkçe yazımla eşleştirir", () => {
   assert.equal(report.passed, true, report.issues.join("; "));
 });
 
+/**
+ * Canlı arıza (3 Eylül 2026, koşu cmtlpfilu0000i804lebplv7k): TCMB rezerv
+ * haberi iki kez "Kaynaklarda bulunmayan rakamlar: 3.1, 71.1, 2.9, 117.1"
+ * ile bloklandı. Model uydurmamıştı — kaynak "117 milyar 100 milyon dolar"
+ * yazıyor, model bunu doğru şekilde "117,1 milyar dolar" olarak aktarıyordu.
+ * Kapı bileşik yazımı iki ayrı sayı (117 ve 100) olarak görüyordu.
+ */
+test("bileşik Türkçe büyüklük yazımını ondalık karşılığıyla eşleştirir", () => {
+  const formattedPacket: EvidencePacket = {
+    ...packet,
+    evidence: packet.evidence.map((item) => ({
+      ...item,
+      content:
+        "Brüt döviz rezervi 117 milyar 100 milyon dolar, altın rezervi 71 milyar 100 milyon dolar oldu. "
+        + "Toplam rezerv 3 milyar 100 milyon dolar artarak 188 milyar 200 milyon dolara yükseldi; "
+        + "net rezerv 2 milyar 900 milyon dolar arttı.",
+    })),
+  };
+  const draft = validDraft();
+  draft.impact = "Toplam rezerv 3,1 milyar dolar artışla 188,2 milyar dolara çıktı; "
+    + "döviz 117,1 milyar dolar, altın 71,1 milyar dolar, net rezerv artışı 2,9 milyar dolar oldu.";
+  const report = validateDraft(draft, formattedPacket);
+  assert.equal(report.passed, true, report.issues.join("; "));
+});
+
+test("bin ile yazılan bileşik mutlak değeri de kabul eder", () => {
+  const formattedPacket: EvidencePacket = {
+    ...packet,
+    evidence: packet.evidence.map((item) => ({
+      ...item,
+      content: "Ons altın 4 bin 500 dolar sınırına dayandı.",
+    })),
+  };
+  const draft = validDraft();
+  draft.impact = "Ons altın 4.500 dolar sınırına dayandı.";
+  const report = validateDraft(draft, formattedPacket);
+  assert.equal(report.passed, true, report.issues.join("; "));
+});
+
+/** Bileşik açılım kapıyı körleştirmemeli: gerçekten uydurma sayı hâlâ durur. */
+test("bileşik açılım gerçekten kaynaksız rakamı geçirmez", () => {
+  const formattedPacket: EvidencePacket = {
+    ...packet,
+    evidence: packet.evidence.map((item) => ({
+      ...item,
+      content: "Brüt döviz rezervi 117 milyar 100 milyon dolar oldu.",
+    })),
+  };
+  const draft = validDraft();
+  draft.impact = "Brüt döviz rezervi 254,6 milyar dolar oldu.";
+  const report = validateDraft(draft, formattedPacket);
+  assert.equal(report.passed, false);
+  assert.match(report.issues.join(" "), /254\.6/);
+});
+
 test("HTML modelden değil güvenli renderer'dan ve kayıtlı kaynaklardan gelir", () => {
   const html = renderDraftHtml(validDraft(), packet);
   assert.match(html, /<h2>Kaynaklar<\/h2>/);

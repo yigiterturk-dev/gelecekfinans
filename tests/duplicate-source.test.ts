@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { findSourceRepeat, normalizeSourceUrl } from "../lib/duplicate";
+import { findSourceRepeat, isDuplicate, normalizeSourceUrl } from "../lib/duplicate";
 
 const HABERTURK = "https://www.haberturk.com/borsa-gunu-dususle-tamamladi-3909836-ekonomi";
 
@@ -79,4 +79,41 @@ test("tek ortak kanıt tekrar saymaz (takip haberi serbest)", () => {
 test("kaynak bilgisi olmayan makaleler eşleşmez", () => {
   assert.equal(findSourceRepeat({}, [yesterdayClose]), null);
   assert.equal(findSourceRepeat({ sourceUrl: HABERTURK }, [{ id: "x", title: "y", automationMeta: null }]), null);
+});
+
+/**
+ * 3 Eylül 2026, koşu cmtlpfilu0000i804lebplv7k: aynı TCMB rezerv haberi
+ * AYNI koşuda iki kez yazara gönderildi (farklı yayıncı, farklı URL, aynı
+ * olay) ve dört gpt-5 çağrısı sıfır makale için harcandı. Başlık kapısı bu
+ * çifti zaten yakalıyor; sorun karşılaştırma listesinde YALNIZCA yayındaki
+ * makalelerin olmasıydı. Orchestrator artık koşu içinde yazara gönderilmiş
+ * konuları da listeye katıyor — bu test o listenin işini yaptığını sabitler.
+ */
+test("koşu içinde yazılmış konu, aynı olayın ikinci başlığını durdurur", () => {
+  const attemptedInRun = [{
+    id: "run-attempt-1",
+    title: "Merkez Bankası rezervleri 188,2 milyar dolar oldu",
+    content: "TCMB haftalık para ve banka istatistikleri açıklandı.",
+  }];
+  const verdict = isDuplicate(
+    "Merkez Bankası rezervleri belli oldu",
+    "TCMB rezervleri açıklandı.",
+    attemptedInRun,
+  );
+  assert.equal(verdict.duplicate, true);
+  assert.equal(verdict.matchId, "run-attempt-1");
+});
+
+test("koşu içi liste alakasız konuyu bloklamaz", () => {
+  const attemptedInRun = [{
+    id: "run-attempt-1",
+    title: "Merkez Bankası rezervleri 188,2 milyar dolar oldu",
+    content: "TCMB haftalık para ve banka istatistikleri açıklandı.",
+  }];
+  const verdict = isDuplicate(
+    "Bakan Bolat açıkladı: İhracat ağustos ayında rekor kırdı",
+    "Ticaret Bakanlığı ağustos dış ticaret verilerini paylaştı.",
+    attemptedInRun,
+  );
+  assert.equal(verdict.duplicate, false);
 });

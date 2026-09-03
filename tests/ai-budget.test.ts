@@ -4,8 +4,8 @@ import { resolveArticleAIBudgetConfig, startOfIstanbulDay } from "../lib/bot/ai-
 
 test("AI bütçesi güvenli üretim varsayılanlarını kullanır", () => {
   assert.deepEqual(resolveArticleAIBudgetConfig({}), {
-    dailyWriterCallLimit: 16,
-    maxWriterCallsPerRun: 3,
+    dailyWriterCallLimit: 24,
+    maxWriterCallsPerRun: 6,
     writerMaxOutputTokens: 5000,
     verifierMaxOutputTokens: 800,
     evidencePromptCharacterLimit: 14000,
@@ -35,16 +35,20 @@ test("günlük bütçe İstanbul gece yarısında sıfırlanır", () => {
 
 test("günlük tavan cron programının altında kalmaz", () => {
   // Program: 3 haber + 3 rehber koşumu, koşum başına 2 makale hedefi.
-  // Tavan 10'ken gün ortasında doluyordu; hedef en az 12 çağrı istiyor.
+  // 3 Eylül 2026'dan beri tavan GERÇEK model çağrısını sayıyor: kalite reddinde
+  // çalışan onarım turu da bütçeden düşülüyor. Bu yüzden hedef, makale başına
+  // 1 değil ORTALAMA 1,5 çağrı üzerinden hesaplanır.
   const { dailyWriterCallLimit, maxWriterCallsPerRun } = resolveArticleAIBudgetConfig({});
   const koşum = 6;
   const hedefMakale = 2;
+  const makaleBaşınaÇağrı = 1.5;
+  const gerekenGünlük = Math.ceil(koşum * hedefMakale * makaleBaşınaÇağrı);
   assert.ok(
-    dailyWriterCallLimit >= koşum * hedefMakale,
-    `günlük tavan (${dailyWriterCallLimit}) programın gerektirdiği ${koşum * hedefMakale} çağrının altında`,
+    dailyWriterCallLimit >= gerekenGünlük,
+    `günlük tavan (${dailyWriterCallLimit}) programın gerektirdiği ${gerekenGünlük} çağrının altında`,
   );
   assert.ok(
-    maxWriterCallsPerRun > hedefMakale,
-    "koşum tavanı hedefe eşitse tek bir kalite reddi ikinci makaleyi imkânsız kılar",
+    maxWriterCallsPerRun >= Math.ceil(hedefMakale * makaleBaşınaÇağrı) + 1,
+    "koşum tavanı, onarım turlarıyla birlikte hedefi bir redde rağmen tutturmalı",
   );
 });

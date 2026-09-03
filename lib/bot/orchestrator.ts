@@ -166,6 +166,17 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
   let duplicatesSkipped = 0;
   let imageFallbacks = 0;
   let writerCalls = 0;
+  /**
+   * ── AYNI HİKÂYE, İKİ BAŞLIK ────────────────────────────────────────────
+   * 3 Eylül 2026 koşusunda "Merkez Bankası rezervleri 188,2 milyar dolar oldu"
+   * ve "Merkez Bankası rezervleri belli oldu" AYNI koşuda ayrı ayrı yazıldı:
+   * farklı yayıncı, farklı URL, aynı olay. `isDuplicate` yalnızca YAYINDAKİ
+   * makalelere bakıyordu; ikisi de yayına çıkmadığı için karşılaştırma hiç
+   * yapılmadı ve dört gpt-5 çağrısı sıfır makale için harcandı.
+   * Bu liste, koşu içinde yazara GÖNDERİLMİŞ konuları da karşılaştırmaya sokar.
+   */
+  const attemptedInRun: { id: string; title: string; content: string }[] = [];
+  const writerStageCalls = () => usageSummary().byStage.writer?.calls ?? 0;
   let dailyWriterCalls = await prisma.automationEvent.count({
     where: {
       stage: "writer_call_reserved",
@@ -295,7 +306,7 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
         continue;
       }
 
-      if (isDuplicate(topic.title, topic.summary, recent).duplicate) {
+      if (isDuplicate(topic.title, topic.summary, [...recent, ...attemptedInRun]).duplicate) {
         duplicatesSkipped++;
         await logEvent(run.id, "duplicate", "Benzer başlık atlandı", { title: topic.title });
         continue;
@@ -335,7 +346,38 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
       });
       writerCalls++;
       dailyWriterCalls++;
-      const article = await writeArticle(verifiedTopic, targetWords);
+      attemptedInRun.push({ id: `run-attempt-${writerCalls}`, title: topic.title, content: topic.summary });
+      /**
+       * ── BÜTÇE SAYACI GERÇEK ÇAĞRIYI SAYAR ──────────────────────────────
+       * Sayaç konu başına 1 artıyordu ama `writeArticle` kalite reddinde bir
+       * ONARIM TURU daha çalıştırıyor (`MAX_ATTEMPTS`). 3 Eylül koşusunda
+       * maliyet defteri 6 gpt-5 yazar çağrısı gösterirken sayaç 3'te kaldı:
+       * "koşu başına 3 çağrı" tavanı pratikte 6 çağrıya, günlük 16 tavanı 32'ye
+       * izin veriyordu. Onarım turları burada defterden okunup düşülüyor ki
+       * tavan gerçek parayı sınırlasın.
+       */
+      const article = await (async () => {
+        const callsBefore = writerStageCalls();
+        try {
+          return await writeArticle(verifiedTopic, targetWords);
+        } finally {
+          const repairCalls = Math.max(0, writerStageCalls() - callsBefore - 1);
+          for (let repair = 0; repair < repairCalls; repair++) {
+            writerCalls++;
+            dailyWriterCalls++;
+            await logEvent(run.id, "writer_call_reserved", "Onarım turu yazar çağrısı bütçeden düşüldü", {
+              title: topic.title,
+              provider: aiConfig.provider,
+              model: aiConfig.writerModel,
+              repair: true,
+              runCall: writerCalls,
+              dailyCall: dailyWriterCalls,
+              maxWriterCallsPerRun: aiBudget.maxWriterCallsPerRun,
+              dailyWriterCallLimit: aiBudget.dailyWriterCallLimit,
+            });
+          }
+        }
+      })();
       const plagiarism = checkPlagiarism({
         candidate: article.content,
         evidencePacket: packet,

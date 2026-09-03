@@ -81,6 +81,7 @@ export async function runGuidePipeline(options: GuidePipelineOptions) {
   let dailyWriterCalls = await prisma.automationEvent.count({
     where: { stage: "writer_call_reserved", createdAt: { gte: startOfIstanbulDay() } },
   });
+  const writerStageCalls = () => usageSummary().byStage.writer?.calls ?? 0;
 
   let added = 0;
   let autoPublished = 0;
@@ -159,9 +160,27 @@ export async function runGuidePipeline(options: GuidePipelineOptions) {
       });
       dailyWriterCalls++;
 
-      const article = isEntity
-        ? await writeEntityArticle(topic as EntityTopic, Math.min(targetWords, 1000))
-        : await writeGuideArticle(topic, targetWords);
+      /**
+       * Haber şeridiyle aynı sayım düzeltmesi: kalite reddinde çalışan onarım
+       * turu ayrı bir ücretli çağrıdır ve günlük tavandan düşmelidir. Bkz.
+       * `orchestrator.ts` içindeki aynı blok.
+       */
+      const article = await (async () => {
+        const callsBefore = writerStageCalls();
+        try {
+          return isEntity
+            ? await writeEntityArticle(topic as EntityTopic, Math.min(targetWords, 1000))
+            : await writeGuideArticle(topic, targetWords);
+        } finally {
+          const repairCalls = Math.max(0, writerStageCalls() - callsBefore - 1);
+          for (let repair = 0; repair < repairCalls; repair++) {
+            dailyWriterCalls++;
+            await logEvent(run.id, "writer_call_reserved", "Onarım turu yazar çağrısı bütçeden düşüldü", {
+              keyword: keyword.term, repair: true, dailyCall: dailyWriterCalls,
+            });
+          }
+        }
+      })();
       const slug = slugify(article.title);
       if (await prisma.article.findUnique({ where: { slug }, select: { id: true } })) {
         await markKeywordFailed(keyword.id, "Aynı slug zaten var");
