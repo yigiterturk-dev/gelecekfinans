@@ -13,7 +13,7 @@ import { resetUsageLedger, usageSummary } from "@/lib/bot/usage";
 import { buildGuideTopic } from "@/lib/bot/evergreen";
 import { buildEntityTopic, type EntityTopic } from "@/lib/bot/entity-topic";
 import {
-  markKeywordFailed, markKeywordInProgress, markKeywordPublished, pickKeywords,
+  markKeywordFailed, markKeywordInProgress, markKeywordInReview, markKeywordPublished, pickKeywords,
 } from "@/lib/bot/keywords";
 import { resolveArticleAIBudgetConfig, startOfIstanbulDay } from "@/lib/bot/ai-budget";
 import { AIProviderFatalError } from "@/lib/bot/errors";
@@ -127,6 +127,31 @@ export async function runGuidePipeline(options: GuidePipelineOptions) {
        * arşivindeki doğrulanmış haberlerden gelir ve kanıt kapısı zorunlu
        * çalışır. Aynı kuyruk, aynı bütçe, farklı malzeme.
        */
+      /**
+       * Yazar çağrısından ÖNCE: bu kelimede zaten makale var mı?
+       *
+       * Kurtarma yolundaki işaretleme boşluğu yüzünden kuyrukta, yayımlanmış
+       * makalesi olan kelimeler birikti. Kelime bir kez ürününü verdiyse
+       * yeniden yazmak hem para harcar hem de aynı anahtar kelimede iki sayfa
+       * bırakır (arama motorunda birbirlerini yerler).
+       */
+      const existingArticle = await prisma.article.findFirst({
+        where: { keywordId: keyword.id, status: { in: ["PUBLISHED", "DRAFT"] } },
+        select: { id: true, status: true, title: true },
+        orderBy: { createdAt: "desc" },
+      });
+      if (existingArticle) {
+        if (existingArticle.status === "PUBLISHED") {
+          await markKeywordPublished(keyword.id, existingArticle.id);
+        } else {
+          await markKeywordInReview(keyword.id, existingArticle.id, "önceki taslak hâlâ incelemede");
+        }
+        await logEvent(run.id, "duplicate", "Kelimenin makalesi zaten var; yazar çağrısı yapılmadı", {
+          keyword: keyword.term, articleStatus: existingArticle.status, title: existingArticle.title,
+        });
+        continue;
+      }
+
       const topic = isEntity
         ? await buildEntityTopic(keyword)
         : await buildGuideTopic(keyword, {
@@ -291,6 +316,11 @@ export async function runGuidePipeline(options: GuidePipelineOptions) {
           });
           if (rescued) {
             reviewQueued++;
+            // Taslak inceleme bekliyor: kelime kuyruğa DÖNMEMELİ, yoksa bot
+            // aynı rehberi her koşuda baştan yazar (bkz. markKeywordInReview).
+            await markKeywordInReview(
+              keyword.id, rescued.id, (error.draft.objections || []).join("; ") || "doğrulayıcı itirazı",
+            );
             await logEvent(run.id, "decision",
               "Doğrulayıcı itiraz etti; makale silinmedi, incelemeye alındı", {
               keyword: keyword.term, objections: error.draft.objections,

@@ -128,6 +128,31 @@ export async function markKeywordPublished(id: string, articleId: string): Promi
 }
 
 /**
+ * ── İNCELEMEDEKİ TASLAK KUYRUĞA GERİ DÖNMEZ ────────────────────────────────
+ *
+ * CANLI ARIZA (3 Eylül 2026, koşu cmtlye9m20000l804g9h7u13k): "enflasyon nedir
+ * nasıl hesaplanır" rehberi 2 Eylül'de yazıldı, doğrulayıcı itiraz etti,
+ * taslağa kurtarıldı ve panelden onaylanıp YAYINA çıktı. Ama kurtarma yolu
+ * kelimeyi işaretlemiyordu: `markKeywordFailed` onu QUEUED'a geri koyuyordu.
+ * Bot 3 Eylül'de aynı rehberi BAŞTAN yazdı — hem ikinci bir ücretli çağrı
+ * harcandı hem de ortaya aynı anahtar kelimede birbirini yiyen iki makale
+ * çıktı (yeni taslak kendi selefine iç bağlantı bile veriyordu).
+ *
+ * İnceleme bekleyen taslağı olan kelime PAUSED olur: kuyruktan çıkar ama
+ * panel sayacında görünür ve `lastError` neden beklediğini söyler.
+ */
+export async function markKeywordInReview(
+  id: string,
+  articleId: string,
+  reason: string,
+): Promise<void> {
+  await prisma.keyword.update({
+    where: { id },
+    data: { status: "PAUSED", articleId, lastError: `İncelemede: ${reason}`.slice(0, 500) },
+  });
+}
+
+/**
  * Başarısız denemede kelime kuyruğa geri döner; deneme hakkı bittiyse FAILED
  * olur. FAILED kelime sessizce kaybolmaz — admin panelinde neden başarısız
  * olduğu `lastError` alanında durur, elle düzeltilip kuyruğa alınabilir.
