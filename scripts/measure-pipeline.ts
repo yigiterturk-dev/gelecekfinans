@@ -16,6 +16,7 @@ async function main() {
 
   for (const topic of topics) {
     const packet = topic.evidencePacket;
+    if (!packet) { dead++; continue; }
     const material = evidenceMaterialCharacterCount(packet);
     if (packet.status === "VERIFIED" && packet.independentSourceCount >= 2) {
       if (material >= MIN_EVIDENCE_MATERIAL_CHARS) { verified++; ready.push(`${material} kr · ${topic.title}`); }
