@@ -8,11 +8,27 @@ import MoversRail from "@/components/MoversRail";
 import AdSlot from "@/components/AdSlot";
 import Link from "next/link";
 import type { Metadata } from "next";
+import { HOME_TITLE } from "@/lib/brand";
 export const revalidate = 300;
 
 export const metadata: Metadata = {
-  title: "Finans ve Ekonomi Haberleri",
-  description: "Borsa, döviz, altın, kripto para ve ekonomi gündemini doğrulanmış kaynaklar, canlı piyasa verileri ve ücretsiz hesaplama araçlarıyla takip edin.",
+  /**
+   * MARKA ADI BAŞLIKTA OLMAK ZORUNDA.
+   *
+   * Buradaki başlık uzun süre "Finans ve Ekonomi Haberleri" idi ve marka hiç
+   * geçmiyordu. Sebep belgelenmiş bir Next tuzağı: `title.template`
+   * (`app/layout.tsx`'te `%s | GelecekFinans`) YALNIZCA ALT segmentlere
+   * uygulanır, aynı segmentteki `page.tsx`'e uygulanmaz. Yani makale ve
+   * kategori sayfaları markayı taşırken, markayı en çok taşıması gereken tek
+   * sayfa — anasayfa — onu kaybediyordu.
+   *
+   * Sonuç ölçüldü: Google'da "gelecekfinans" arandığında site hiç çıkmıyordu,
+   * GSC'deki 256 sorgunun hiçbiri marka sorgusu değildi ve anasayfa 0 gösterim
+   * alıyordu (indeksli olmasına rağmen). `absolute` ile şablondan bağımsız,
+   * marka önde bir başlık veriliyor.
+   */
+  title: { absolute: HOME_TITLE },
+  description: "GelecekFinans; borsa, döviz, altın, kripto para ve ekonomi gündemini doğrulanmış kaynaklar, canlı piyasa verileri ve ücretsiz hesaplama araçlarıyla takip etmenizi sağlar.",
   alternates: { canonical: "https://gelecekfinans.com" },
 };
 
@@ -83,7 +99,11 @@ export default async function HomePage() {
           border: 0,
         }}
       >
-        Finans ve Ekonomi Haberleri
+        {/* Marka adı H1'de de geçmeli: görünür logo "Gelecek Finans" yazıyor,
+            şema "GelecekFinans" diyor, alan adı gelecekfinans.com — Google bu
+            üçünü kendiliğinden birleştirmiyor. Şema tarafındaki
+            `alternateName` ile birlikte üç yazım da aynı varlığa bağlanıyor. */}
+        {HOME_TITLE}
       </h1>
 
       {/* ── HABER LİDER (CNBC/Reuters tarzı): sayfanın üstünü HABER yönetir.

@@ -11,6 +11,7 @@ import PageTracker from "@/components/PageTracker";
 import { Analytics } from "@vercel/analytics/react";
 import { getSettings } from "@/lib/settings";
 import CookieConsent from "@/components/CookieConsent";
+import { BRAND, BRAND_ALIASES, HOME_TITLE, TITLE_TEMPLATE } from "@/lib/brand";
 
 const BASE = "https://gelecekfinans.com";
 
@@ -45,7 +46,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const gscCode = settings.searchConsoleVerification?.trim();
 
   return {
-    title: { default: "GelecekFinans — Finans & Ekonomi Haberleri", template: "%s | GelecekFinans" },
+    title: { default: HOME_TITLE, template: TITLE_TEMPLATE },
     description: "Borsa, döviz, kripto para, altın ve ekonomi alanında güncel haberler ve analizler.",
     // İkonlar dosya tabanlı convention ile sunulur: app/icon.svg (favicon) ve
     // app/apple-icon.tsx (apple touch). Next bunları otomatik olarak <head>'e
@@ -72,14 +73,14 @@ export async function generateMetadata(): Promise<Metadata> {
     openGraph: {
       type: "website",
       locale: "tr_TR",
-      siteName: "GelecekFinans",
-      title: "GelecekFinans — Finans & Ekonomi Haberleri",
+      siteName: BRAND,
+      title: HOME_TITLE,
       description: "Borsa, döviz, kripto para, altın ve ekonomi alanında güncel haberler ve analizler.",
       url: BASE,
     },
     twitter: {
       card: "summary_large_image",
-      title: "GelecekFinans",
+      title: BRAND,
       description: "Borsa, döviz, kripto para, altın ve ekonomi alanında güncel haberler.",
     },
   };
@@ -113,7 +114,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             {
               "@type":"NewsMediaOrganization",
               "@id":`${BASE}/#organization`,
-              name:"GelecekFinans",
+              name:BRAND,
+              /* Marka üç ayrı yazımla dolaşıyor: görünür logo "Gelecek Finans",
+                 şema "GelecekFinans", alan adı "gelecekfinans". Google bunları
+                 kendiliğinden tek varlık saymıyor; alternateName üçünü de aynı
+                 kuruluşa bağlar. Marka sorgusunda çıkmamanın sebeplerinden biri. */
+              alternateName:BRAND_ALIASES,
+              description:"Borsa, döviz, altın, kripto para ve ekonomi haberlerini doğrulanmış kaynaklarla yayımlayan bağımsız Türkçe finans yayını.",
               url:BASE,
               logo:{"@type":"ImageObject",url:`${BASE}/icon.svg`,width:512,height:512},
               foundingDate:"2026",
@@ -125,7 +132,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             {
               "@type":"WebSite",
               "@id":`${BASE}/#website`,
-              name:"GelecekFinans",
+              name:BRAND,
+              alternateName:BRAND_ALIASES.filter((a) => a !== "gelecekfinans.com"),
               url:BASE,
               inLanguage:"tr-TR",
               publisher:{"@id":`${BASE}/#organization`}
