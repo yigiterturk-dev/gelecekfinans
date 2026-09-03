@@ -107,3 +107,4 @@ Please report vulnerabilities privately using [SECURITY.md](SECURITY.md).
 ## License
 
 [MIT](LICENSE)
+
