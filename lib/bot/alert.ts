@@ -51,7 +51,7 @@ export async function sendBotAlert(alert: BotAlert): Promise<boolean> {
   }
 
   try {
-    await new Resend(key).emails.send({
+    const res = await new Resend(key).emails.send({
       from: FROM,
       to: TO,
       subject: `GelecekFinans bot durdu: ${alert.title}`,
@@ -61,6 +61,18 @@ export async function sendBotAlert(alert: BotAlert): Promise<boolean> {
         `<pre style="background:#f4f4f5;padding:12px;border-radius:6px;white-space:pre-wrap">${escapeHtml(summary)}</pre>` +
         `<p>Bot durumu: <a href="https://gelecekfinans.com/sys-k3m8p/bot">yönetim paneli</a></p>`,
     });
+    /**
+     * 🔴 Resend API hatasında EXCEPTION FIRLATMAZ, `{ error }` döndürür.
+     * Bu kontrol olmadan alarm gönderilemese bile fonksiyon `true` dönüyordu —
+     * yani "botun öldüğünü haber veren" güvenlik ağının kendisi sessizce
+     * kopabilirdi ve bunu haber verecek ikinci bir mekanizma yok. Alarmın
+     * başarısızlığı EN AZINDAN loga düşmek zorunda.
+     */
+    const hata = (res as { error?: { message?: string; name?: string } } | null)?.error;
+    if (hata) {
+      console.error(`[bot-alert] Resend reddetti: ${hata.name || ""} ${hata.message || ""}`.trim());
+      return false;
+    }
     return true;
   } catch (error) {
     console.error(`[bot-alert] gönderilemedi: ${(error as Error).message}`);

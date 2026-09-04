@@ -264,14 +264,23 @@ export async function sendOptInConfirmation(email: string, token: string): Promi
   </td></tr></table>
 </body></html>`;
   try {
-    await client.emails.send({
+    const res = await client.emails.send({
       from: FROM,
       to: email,
       subject: "GelecekFinans — Aboneliğinizi onaylayın",
       html,
     });
+    // Resend API hatasında fırlatmaz, `{ error }` döndürür (bkz. sendBatch).
+    // Kontrol edilmezse gönderilemeyen onay maili "gönderildi" sayılır ve
+    // abone neden onay maili almadığını kimse anlamaz.
+    const hata = (res as { error?: { message?: string; name?: string } } | null)?.error;
+    if (hata) {
+      console.error("[mail] onay maili reddedildi:", hata);
+      return false;
+    }
     return true;
-  } catch {
+  } catch (e) {
+    console.error("[mail] onay maili gönderilemedi:", e);
     return false;
   }
 }

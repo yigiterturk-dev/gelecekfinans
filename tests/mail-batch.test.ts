@@ -27,3 +27,17 @@ test("bülten cron'u sonucu kayda düşüyor", () => {
   assert.ok(/automationEvent\.create/.test(cron), "bülten koşumu kayıt bırakmıyor");
   assert.ok(/stage: "newsletter"/.test(cron), "kayıt newsletter aşamasıyla etiketlenmiyor");
 });
+
+test("onay maili ve bot alarmı da error alanını kontrol ediyor", () => {
+  // Üç gönderim noktası da aynı tuzağa düşmüştü; üçü birden korunuyor.
+  const alarm = readFileSync(new URL("../lib/bot/alert.ts", import.meta.url), "utf8");
+  assert.ok(/\.error/.test(alarm), "bot alarmı Resend hatasını kontrol etmiyor");
+  assert.ok(
+    !/await new Resend\(key\)\.emails\.send\(\{[\s\S]*?\}\);\s*return true;/.test(alarm),
+    "alarm gönderimi sonucu kontrol etmeden true dönüyor",
+  );
+  assert.ok(
+    /onay maili reddedildi/.test(kaynak),
+    "abonelik onay maili Resend hatasını kontrol etmiyor",
+  );
+});
