@@ -157,8 +157,33 @@ export async function markKeywordInReview(
  * olur. FAILED kelime sessizce kaybolmaz — admin panelinde neden başarısız
  * olduğu `lastError` alanında durur, elle düzeltilip kuyruğa alınabilir.
  */
+/**
+ * Kelimeyi başarısız işaretler.
+ *
+ * 🔴 YAYINLANMIŞ KELİMEYİ ASLA GERİ ALMAZ. Canlı kayıttan (3 Eylül): "altın
+ * yatırımı nasıl yapılır" makalesi 08:39'da YAYINLANDI ve kelimeye bağlandı,
+ * buna rağmen kelime FAILED + 3 deneme olarak duruyordu. Sebep: orchestrator'ın
+ * `catch` bloğu koşulsuz bu fonksiyonu çağırıyor; makale yayımlandıktan SONRA
+ * herhangi bir adım (olay kaydı, dizin bildirimi) hata verirse kelime
+ * PUBLISHED'dan düşürülüyordu. Sonuç: istatistik yalan söylüyor ve kelime
+ * havuzu gerçekte üretilmiş içeriği "başarısız" sayıyor.
+ *
+ * Koruma çağıran tarafta değil BURADA: hangi yoldan gelinirse gelinsin
+ * yayınlanmış bir kelimenin durumu geri alınamaz. Hata yine de `lastError`
+ * alanına yazılır — bilgi kaybolmasın, sadece durum bozulmasın.
+ */
 export async function markKeywordFailed(id: string, error: string): Promise<void> {
-  const current = await prisma.keyword.findUnique({ where: { id }, select: { attempts: true } });
+  const current = await prisma.keyword.findUnique({
+    where: { id },
+    select: { attempts: true, status: true },
+  });
+  if (current?.status === "PUBLISHED") {
+    await prisma.keyword.update({
+      where: { id },
+      data: { lastError: `(yayın sonrası hata, durum korundu) ${error}`.slice(0, 500) },
+    });
+    return;
+  }
   const exhausted = (current?.attempts ?? 0) >= MAX_KEYWORD_ATTEMPTS;
   await prisma.keyword.update({
     where: { id },
