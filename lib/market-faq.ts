@@ -304,3 +304,26 @@ const ARAC_FAQ: Record<string, FaqItem[]> = {
 export function toolFaq(slug: string): FaqItem[] {
   return ARAC_FAQ[slug] ?? [];
 }
+
+/* -------------------------------------------------------------------------- */
+/* FAİZ                                                                        */
+/* -------------------------------------------------------------------------- */
+
+export const FAIZ_FAQ: FaqItem[] = [
+  {
+    q: "Politika faizi nedir, neden önemlidir?",
+    a: "Politika faizi, Merkez Bankası'nın bankalara bir hafta vadeli repo işlemleriyle fon sağladığı orandır. Ekonomideki tüm faizlerin çıpasıdır: kredi, mevduat ve tahvil faizleri bu oranın etrafında şekillenir. Yükselmesi kredinin pahalanması ve talebin soğuması, düşmesi ise tersi anlamına gelir.",
+  },
+  {
+    q: "Faiz kararları ne zaman açıklanıyor?",
+    a: "Para Politikası Kurulu yılda sekiz kez toplanır ve toplantı takvimi yıl başında ilan edilir. Karar, toplantı günü öğleden sonra Merkez Bankası'nın internet sitesinde duyurulur; kararla birlikte yayımlanan metin gerekçeyi ve sonraki adıma dair sinyali içerir.",
+  },
+  {
+    q: "Faiz koridoru ne demek?",
+    a: "Gecelik borç verme faizi üst bandı, gecelik borçlanma faizi alt bandı oluşturur; politika faizi bu iki oranın arasında yer alır. Koridor, bankalar arası piyasada gecelik faizin hangi aralıkta oluşacağını belirler.",
+  },
+  {
+    q: "Mevduat faizi politika faiziyle aynı mı?",
+    a: "Hayır. Politika faizi bankaların Merkez Bankası'ndan fonlanma maliyetidir; mevduat faizi ise bankaların mudiye ödediği orandır ve bankadan bankaya, vadeye ve tutara göre değişir. Politika faizi yön verir ama birebir belirlemez.",
+  },
+];

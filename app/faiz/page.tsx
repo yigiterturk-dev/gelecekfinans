@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { REFERENCE_RATES, safeRelatedArticles } from "@/lib/market";
+import { fetchPolicyRate } from "@/lib/tcmb-evds";
+import MarketFaq from "@/components/MarketFaq";
+import { FAIZ_FAQ } from "@/lib/market-faq";
 import { MedCard } from "@/components/ArticleCard";
 import AdSlot from "@/components/AdSlot";
 import DepositCalculator from "@/components/calculators/DepositCalculator";
@@ -22,6 +25,12 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function FaizPage() {
+  // Anahtar varsa canlı politika faizi; yoksa null → sabit tabloya düşer.
+  const canli = await fetchPolicyRate();
+  const [yil, ay] = REFERENCE_RATES.asOf.split("-");
+  const AYLAR = ["Ocak","Şubat","Mart","Nisan","Mayıs","Haziran","Temmuz","Ağustos","Eylül","Ekim","Kasım","Aralık"];
+  const donemAdi = `${AYLAR[Number(ay) - 1] ?? ay} ${yil}`;
+
   const related = await safeRelatedArticles("ekonomi");
 
   const jsonLd = {
@@ -52,9 +61,31 @@ export default async function FaizPage() {
       </nav>
       <h1 className="page-header">Faiz Oranları</h1>
       <p className="market-lede">
-        TCMB politika faizi ve güncel referans faiz oranları. Veriler {REFERENCE_RATES.asOf} dönemine ait referans
-        değerlerdir; en güncel oranlar için TCMB duyurularını esas alın.
+        TCMB politika faizi ve referans faiz oranları ile mevduat getirisi hesaplayıcı.
       </p>
+
+      {canli ? (
+        <div className="market-hero">
+          <div className="market-hero-head">
+            <span className="market-flag market-flag-lg" aria-hidden>🏦</span>
+            <div>
+              <h2 className="market-hero-title">TCMB Politika Faizi</h2>
+              <p className="market-hero-sub">Bir hafta vadeli repo ihale faiz oranı</p>
+            </div>
+          </div>
+          <div className="market-headline"><strong>%{canli.value.toLocaleString("tr-TR")}</strong></div>
+          <div className="market-updated">Kaynak: TCMB EVDS · veri tarihi {canli.date}</div>
+        </div>
+      ) : (
+        /* Canlı kaynak bağlı değilken bayatlığı GİZLEMİYORUZ: kullanıcı hangi
+           döneme ait rakama baktığını üstte, gri bir dipnotta değil kutunun
+           içinde görüyor. Yanlış rakamı güncelmiş gibi göstermektense eski
+           olduğunu söylemek yeğdir. */
+        <div className="market-na">
+          Aşağıdaki oranlar <strong>{donemAdi}</strong> dönemine ait referans değerlerdir ve otomatik
+          güncellenmemektedir. Bağlayıcı ve güncel oran için TCMB duyurularını esas alın.
+        </div>
+      )}
 
       <div className="market-grid">
         {REFERENCE_RATES.rates.map((r) => (
@@ -72,6 +103,8 @@ export default async function FaizPage() {
         <h2 className="market-h2">Mevduat Faizi Hesaplayıcı</h2>
         <DepositCalculator />
       </section>
+
+      <MarketFaq items={FAIZ_FAQ} />
 
       <section className="section market-links">
         <h2 className="market-h2">İlgili Sayfalar</h2>
