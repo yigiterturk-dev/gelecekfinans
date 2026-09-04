@@ -1007,30 +1007,8 @@ export async function writeArticle(
    * de verilince temiz. Üç denemeden sonra durulur; sonsuz deneme maliyeti
    * patlatır ve zaten model o konuda takılmış demektir.
    */
-  /**
-   * Kısaltılmış kanıt kimliklerini gerçek kimliklere eşler.
-   *
-   * Kimlikler `ev-3-publisher-ntv-baslik-slug` biçiminde; modeller (özellikle
-   * küçük olanlar) bunu `ev-3` diye kısaltıyor ve kalite kapısı "bilinmeyen
-   * kanıt kimliği" deyip makaleyi düşürüyordu. Kısaltma tek bir gerçek kimliğe
-   * işaret ettiği sürece bu bir hata değil, biçim farkı: sessizce eşliyoruz.
-   * Birden çok kimliğe uyuyorsa VEYA hiçbirine uymuyorsa dokunmuyoruz; kapı o
-   * zaman haklı olarak devreye girsin.
-   */
-  const resolveEvidenceId = (value: string): string => {
-    if (packetIds.has(value)) return value;
-    /**
-     * Kanıt paketi modele `[kimlik]` biçiminde gösteriliyor; modeller köşeli
-     * parantezi kimliğin PARÇASI sanıp `[ev-2-publisher:dunya-...]` diye geri
-     * yazıyor ve kapı "bilinmeyen kanıt kimliği" deyip bitmiş makaleyi çöpe
-     * atıyordu (canlı kayıttan: tek makalede 7 ihlalin tamamı buydu).
-     * Parantez biçim işareti, veri değil: sessizce soyuluyor.
-     */
-    const unwrapped = value.trim().replace(/^\[+/, "").replace(/\]+$/, "").trim();
-    if (packetIds.has(unwrapped)) return unwrapped;
-    const prefixed = [...packetIds].filter((id) => id.startsWith(`${unwrapped}-`));
-    return prefixed.length === 1 ? prefixed[0] : unwrapped;
-  };
+  const resolveEvidenceId = (value: string): string => resolveEvidenceIdWith(value, packetIds);
+
   const normalizeEvidenceIds = (candidate: ArticleDraft): ArticleDraft => ({
     ...candidate,
     claims: candidate.claims.map((claim) => ({
@@ -1515,4 +1493,57 @@ export async function extractEntities(
     // Sessiz düşüş bilinçli: bu çağrı yayının yan ürünü, şartı değil.
     return [];
   }
+}
+
+/**
+ * Kısaltılmış kanıt kimliklerini gerçek kimliklere eşler.
+ *
+ * Kimlikler `ev-3-publisher-ntv-baslik-slug` biçiminde; modeller (özellikle
+ * küçük olanlar) bunu `ev-3` diye kısaltıyor ve kalite kapısı "bilinmeyen
+ * kanıt kimliği" deyip makaleyi düşürüyordu. Kısaltma tek bir gerçek kimliğe
+ * işaret ettiği sürece bu bir hata değil, biçim farkı: sessizce eşliyoruz.
+ * Birden çok kimliğe uyuyorsa VEYA hiçbirine uymuyorsa dokunmuyoruz; kapı o
+ * zaman haklı olarak devreye girsin.
+ */
+export function resolveEvidenceIdWith(value: string, packetIds: Set<string>): string {
+  if (packetIds.has(value)) return value;
+  /**
+   * Kanıt paketi modele `[kimlik]` biçiminde gösteriliyor; modeller köşeli
+   * parantezi kimliğin PARÇASI sanıp `[ev-2-publisher:dunya-...]` diye geri
+   * yazıyor ve kapı "bilinmeyen kanıt kimliği" deyip bitmiş makaleyi çöpe
+   * atıyordu (canlı kayıttan: tek makalede 7 ihlalin tamamı buydu).
+   * Parantez biçim işareti, veri değil: sessizce soyuluyor.
+   */
+  const unwrapped = value.trim().replace(/^\[+/, "").replace(/\]+$/, "").trim();
+  if (packetIds.has(unwrapped)) return unwrapped;
+  const prefixed = [...packetIds].filter((id) => id.startsWith(`${unwrapped}-`));
+  if (prefixed.length === 1) return prefixed[0];
+  /**
+   * SIRA NUMARASINA GERİ ÇEKİLME.
+   *
+   * Canlı kayıt (2026-09-04, varlık şeridi): gerçek kimlik `ark-1-aa`
+   * biçimindeyken model `ark-1-publisher` yazdı — yayıncı anahtarının
+   * yerine "publisher" kelimesini koymuş, çünkü haber şeridindeki
+   * kimlikler `ev-1-publisher:anadolu-ajansi-...` biçiminde ve model bu
+   * kalıbı taklit ediyor. Yukarıdaki ön ek kuralı bunu yakalayamıyor:
+   * `ark-1-aa`, `ark-1-publisher-` ile BAŞLAMIYOR.
+   *
+   * Kimliğin ayırt edici kısmı zaten sıra numarası (`ark-1`, `ev-2`);
+   * kuyruk yalnızca okunabilirlik için var. Bu yüzden son çare olarak
+   * baştaki `<ön ek>-<numara>` alınıp paket içinde onunla başlayan kimlik
+   * aranıyor. TEK eşleşme varsa biçim farkıdır, sessizce düzeltilir;
+   * birden çok ya da sıfır eşleşmede dokunulmaz ve kapı haklı olarak
+   * devreye girer.
+   *
+   * Bu ihlal tüm iddiaları düşürüp bitmiş makaleyi çöpe atıyordu — 4 Eylül
+   * koşumunda tek makalede sekiz ihlalin sekizi de buydu.
+   */
+  const sira = unwrapped.match(/^([a-z]+-\d+)(?=[-:]|$)/i);
+  if (sira) {
+    const siraliEsleme = [...packetIds].filter(
+      (id) => id === sira[1] || id.startsWith(`${sira[1]}-`) || id.startsWith(`${sira[1]}:`),
+    );
+    if (siraliEsleme.length === 1) return siraliEsleme[0];
+  }
+  return unwrapped;
 }
