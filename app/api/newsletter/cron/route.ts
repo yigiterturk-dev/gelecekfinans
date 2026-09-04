@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { sendDailyDigest } from "@/lib/mail";
+import { sendDailyDigest, lastBatchResult } from "@/lib/mail";
 
 export const maxDuration = 60;
 
@@ -24,12 +24,38 @@ export async function GET(req: NextRequest) {
     }),
   ]);
 
+  /**
+   * ⚠️ Bu koşum 4 Eylül'e kadar HİÇBİR kayıt bırakmıyordu: bülten gidiyor mu,
+   * kaç kişiye gidiyor, hata mı alıyor — dışarıdan görmenin yolu yoktu.
+   * Aynı gün üç ayrı "sessiz ray" bulunduktan sonra buraya da kayıt kondu.
+   * Kayıt yazımı gönderimi etkilemez; hatası yutulur.
+   */
+  const kaydet = async (message: string, metadata: object, level = "info") => {
+    try {
+      await prisma.automationEvent.create({ data: { stage: "newsletter", level, message, metadata } });
+    } catch (e) {
+      console.error("[newsletter] olay kaydı yazılamadı:", e);
+    }
+  };
+
   if (subscribers.length === 0 || articles.length === 0) {
+    const reason = articles.length === 0 ? "yayınlanmış yeni makale yok" : "onaylı abone yok";
+    await kaydet(`Bülten atlandı: ${reason}`, {
+      subscribers: subscribers.length,
+      articles: articles.length,
+    });
     return NextResponse.json({ sent: 0, reason: articles.length === 0 ? "no articles" : "no subscribers" });
   }
 
   const emails = subscribers.map((s) => s.email);
   const sent = await sendDailyDigest(emails, articles);
+  const { failed, reasons } = lastBatchResult;
 
-  return NextResponse.json({ sent, recipients: emails.length, articles: articles.length });
+  await kaydet(
+    failed > 0 ? `Bülten kısmen gönderildi: ${sent} başarılı, ${failed} başarısız` : `Bülten gönderildi: ${sent} alıcı`,
+    { sent, failed, reasons, recipients: emails.length, articles: articles.length },
+    failed > 0 ? "warning" : "info",
+  );
+
+  return NextResponse.json({ sent, failed, recipients: emails.length, articles: articles.length });
 }

@@ -92,6 +92,16 @@ function digestHtml(
 </html>`;
 }
 
+/** Son gönderimin sonucu — çağıran taraf kayda düşebilsin diye. */
+export interface BatchResult {
+  sent: number;
+  failed: number;
+  /** İlk birkaç hata sebebi; kayda düşmek için (tamamı değil, kısa tutulur). */
+  reasons: string[];
+}
+
+export let lastBatchResult: BatchResult = { sent: 0, failed: 0, reasons: [] };
+
 async function sendBatch(
   recipients: string[],
   subject: string,
@@ -100,9 +110,21 @@ async function sendBatch(
   const client = getResend();
   if (!client || !hasNewsletterSecret()) {
     console.log(`[mail] Mail yapılandırması eksik — ${recipients.length} alıcıya gönderim atlandı.`);
+    lastBatchResult = {
+      sent: 0,
+      failed: recipients.length,
+      reasons: ["mail yapılandırması eksik (RESEND_API_KEY / NEWSLETTER_SECRET)"],
+    };
     return 0;
   }
   let sent = 0;
+  let failed = 0;
+  const reasons: string[] = [];
+  const not = (sebep: string) => {
+    failed++;
+    if (reasons.length < 3 && !reasons.includes(sebep)) reasons.push(sebep);
+  };
+
   const BATCH_SIZE = 50;
   for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
     const batch = recipients.slice(i, i + BATCH_SIZE);
@@ -115,15 +137,30 @@ async function sendBatch(
             subject,
             html: html.replace("{{unsub}}", unsubUrl(email)!),
           })
-          .then(() => {
+          .then((res) => {
+            /**
+             * 🔴 Resend SDK API hatasında EXCEPTION FIRLATMAZ; `{ data, error }`
+             * döndürür. Eski kod `.then()` içinde koşulsuz `sent++` yapıyordu —
+             * yani alan adı doğrulanmamış, kota dolmuş ya da adres reddedilmiş
+             * gönderimler BAŞARILI sayılıyordu. Rapor "gönderildi" derken
+             * kimseye mail gitmemiş olabilirdi.
+             */
+            const hata = (res as { error?: { message?: string; name?: string } } | null)?.error;
+            if (hata) {
+              not(hata.name || hata.message || "bilinmeyen Resend hatası");
+              console.error(`[mail] Resend reddetti (${email}):`, hata);
+              return;
+            }
             sent++;
           })
           .catch((err) => {
+            not((err as Error)?.message?.slice(0, 80) || "istek başarısız");
             console.error(`[mail] send failed for ${email}:`, err);
           })
       )
     );
   }
+  lastBatchResult = { sent, failed, reasons };
   return sent;
 }
 
