@@ -7,6 +7,10 @@ import { analyzeSeo } from "@/lib/seo";
 import { isDuplicate } from "@/lib/duplicate";
 import { autoLink, linkEntitySources, linkGuideCluster } from "@/lib/bot/linker";
 import { ensureExternalLink } from "@/lib/bot/external-link";
+import { notifyGoogleUrlUpdated } from "@/lib/bot/indexing";
+import { notifyIndexNow } from "@/lib/bot/indexnow";
+
+const GUIDE_SITE_URL = process.env.SITE_URL || "https://gelecekfinans.com";
 import { getArticleImageResult } from "@/lib/bot/images";
 import { writeEntityArticle, writeGuideArticle } from "@/lib/bot/writer";
 import { resetUsageLedger, usageSummary } from "@/lib/bot/usage";
@@ -295,6 +299,27 @@ export async function runGuidePipeline(options: GuidePipelineOptions) {
         keyword: keyword.term, seoScore: seo.score, imageStrategy: image.strategy,
         wordCount: article.wordCount, cluster: keyword.cluster,
       }, created.id);
+
+      /**
+       * ⚠️ 2026-09-04'e kadar rehber şeridi arama motorlarına HİÇ bildirim
+       * atmıyordu — bildirim yalnızca haber orchestrator'ında vardı. İndeks
+       * taramasında yayındaki rehberlerin "Discovered - currently not indexed"
+       * çıkmasının bir sebebi bu. Haber şeridiyle aynı davranış: iki bildirim
+       * birbirinden bağımsız, hatası yayını geri almaz, kayda düşer.
+       */
+      if (publish) {
+        const url = `${GUIDE_SITE_URL}/${created.slug}`;
+        const gPing = await notifyGoogleUrlUpdated(url);
+        await logEvent(run.id, "indexing",
+          gPing.ok ? "Google'a dizin bildirimi gönderildi" : "Google dizin bildirimi gönderilemedi",
+          { slug: created.slug, ...(gPing.ok ? {} : { reason: gPing.reason, detail: gPing.detail }) },
+          created.id, gPing.ok ? undefined : "warning");
+        const iPing = await notifyIndexNow([url]);
+        await logEvent(run.id, "indexing",
+          iPing.ok ? "IndexNow bildirimi gönderildi" : "IndexNow bildirimi gönderilemedi",
+          { slug: created.slug, ...(iPing.ok ? {} : { reason: iPing.reason, detail: iPing.detail }) },
+          created.id, iPing.ok ? undefined : "warning");
+      }
     } catch (error) {
       const message = `${keyword.term}: ${(error as Error).message}`;
       errors.push(message);

@@ -8,6 +8,7 @@ import { ensureExternalLink } from "@/lib/bot/external-link";
 import { getArticleImageResult } from "@/lib/bot/images";
 import { getTopics } from "@/lib/bot/topics";
 import { notifyGoogleUrlUpdated } from "@/lib/bot/indexing";
+import { notifyIndexNow } from "@/lib/bot/indexnow";
 
 const SITE_URL = process.env.SITE_URL || "https://gelecekfinans.com";
 import { extractEntities, judgeSameStory, resetSameStoryJudgeBudget, resolveArticleAIConfig, sameStoryJudgeFailures, sameStoryJudgeSkipped, writeArticle } from "@/lib/bot/writer";
@@ -480,6 +481,16 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
           }, created.id, "warning");
         } else {
           await logEvent(run.id, "indexing", "Google'a dizin bildirimi gönderildi", { slug }, created.id);
+        }
+        // Bing/Yandex tarafı: IndexNow. Google'dan bağımsız, hatası da ayrı
+        // kayda düşer — biri tutmadı diye diğeri atlanmaz.
+        const inPing = await notifyIndexNow([`${SITE_URL}/${slug}`]);
+        if (!inPing.ok) {
+          await logEvent(run.id, "indexing", "IndexNow bildirimi gönderilemedi", {
+            slug, reason: inPing.reason, detail: inPing.detail,
+          }, created.id, "warning");
+        } else {
+          await logEvent(run.id, "indexing", "IndexNow bildirimi gönderildi", { slug }, created.id);
         }
       }
 

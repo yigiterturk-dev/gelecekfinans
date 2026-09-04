@@ -9,6 +9,7 @@
  *   npx tsx --env-file=.env.local scripts/indeks-bildir.ts https://gelecekfinans.com/x
  */
 import { notifyGoogleUrlUpdated } from "../lib/bot/indexing";
+import { notifyIndexNow } from "../lib/bot/indexnow";
 
 const SITE_URL = process.env.SITE_URL || "https://gelecekfinans.com";
 
@@ -38,6 +39,7 @@ async function main() {
   }
 
   console.log(`\nbildirilen: ${ok}/${urls.length}`);
+  await indexNowToplu(urls);
   for (const [reason, detail] of failures) {
     if (reason === "api-disabled") {
       console.log("\n⚠️ Web Search Indexing API kapalı. GCP konsolunda aç:");
@@ -51,6 +53,14 @@ async function main() {
       console.log(`\n⚠️ ${reason}: ${detail}`);
     }
   }
+}
+
+
+/** Google tek tek ister; IndexNow tek istekte hepsini alır. */
+async function indexNowToplu(urls: string[]) {
+  const r = await notifyIndexNow(urls);
+  if (r.ok) console.log(`IndexNow: ${r.count} adres bildirildi (Bing/Yandex)`);
+  else console.log(`IndexNow bildirilemedi: ${r.reason}${r.detail ? " — " + r.detail : ""}`);
 }
 
 main();
