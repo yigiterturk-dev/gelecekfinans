@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import { getGold, GOLD_TYPES, tl, pctText, fmtUpdated, safeRelatedArticles } from "@/lib/market";
 import { MedCard } from "@/components/ArticleCard";
 import AdSlot from "@/components/AdSlot";
+import MarketFaq from "@/components/MarketFaq";
+import { goldFaq } from "@/lib/market-faq";
 import GoldCalculator from "@/components/calculators/GoldCalculator";
 
 export const revalidate = 600;
@@ -120,6 +122,8 @@ export default async function AltinDetail({ params }: { params: Promise<{ type: 
           Güncel gelişmeler için <Link href="/kategori/altin">altın haberleri</Link> sayfamızı takip edin.
         </p>
       </section>
+
+      <MarketFaq items={goldFaq(type)} />
 
       <section className="section market-links">
         <h2 className="market-h2">Diğer Altın Türleri</h2>

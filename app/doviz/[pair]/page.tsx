@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import { getFx, getFxHistory, FX_PAIRS, tl, pctText, fmtUpdated, safeRelatedArticles } from "@/lib/market";
 import { MedCard } from "@/components/ArticleCard";
 import AdSlot from "@/components/AdSlot";
+import MarketFaq from "@/components/MarketFaq";
+import { fxFaq } from "@/lib/market-faq";
 import Sparkline from "@/components/Sparkline";
 import CurrencyConverter from "@/components/CurrencyConverter";
 
@@ -127,6 +129,8 @@ export default async function DovizDetail({ params }: { params: Promise<{ pair: 
           <Link href="/kategori/doviz">döviz haberleri</Link> sayfamızı takip edebilirsiniz.
         </p>
       </section>
+
+      <MarketFaq items={fxFaq(pair)} />
 
       <section className="section market-links">
         <h2 className="market-h2">Diğer Döviz Kurları</h2>

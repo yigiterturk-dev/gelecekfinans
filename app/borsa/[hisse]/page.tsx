@@ -5,6 +5,8 @@ import { getStock, BIST_STOCKS, BIST_INDEX_SLUG, tl, pctText, fmtUpdated, safeRe
 import { MedCard } from "@/components/ArticleCard";
 import AdSlot from "@/components/AdSlot";
 import Sparkline from "@/components/Sparkline";
+import MarketFaq from "@/components/MarketFaq";
+import { bistFaq } from "@/lib/market-faq";
 
 export const revalidate = 300;
 const BASE = "https://gelecekfinans.com";
@@ -130,6 +132,8 @@ export default async function HisseDetail({ params }: { params: Promise<{ hisse:
           taşımaz. Güncel gelişmeler için <Link href="/kategori/borsa">borsa haberleri</Link> sayfamızı takip edin.
         </p>
       </section>
+
+      <MarketFaq items={bistFaq(cfg.name, cfg.ticker, cfg.index === true)} />
 
       <section className="section market-links">
         <h2 className="market-h2">Diğer Hisseler</h2>

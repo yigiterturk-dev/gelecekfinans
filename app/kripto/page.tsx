@@ -3,6 +3,8 @@ import Link from "next/link";
 import { getCryptoMarkets, CRYPTO_COINS, tl, pctText, safeRelatedArticles } from "@/lib/market";
 import { MedCard } from "@/components/ArticleCard";
 import AdSlot from "@/components/AdSlot";
+import MarketFaq from "@/components/MarketFaq";
+import { CRYPTO_HUB_FAQ } from "@/lib/market-faq";
 
 export const revalidate = 300;
 const BASE = "https://gelecekfinans.com";
@@ -93,6 +95,8 @@ export default async function KriptoHub() {
       )}
 
       <AdSlot position="inArticle" />
+
+      <MarketFaq items={CRYPTO_HUB_FAQ} />
 
       <section className="section market-links">
         <h2 className="market-h2">İlgili Sayfalar</h2>

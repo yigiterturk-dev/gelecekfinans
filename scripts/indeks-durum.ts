@@ -41,10 +41,16 @@ async function main() {
   const sayac: Record<string, number> = {};
   const disarida: string[] = [];
 
+  // ⚠️ Tek çağrının asılı kalması bütün taramayı öldürüyordu (ölçüldü: hız
+  // kısıtına takılan istek dakikalarca dönmüyor, hata da vermiyor). Her çağrı
+  // kendi süre sınırında; aşarsa o adres HATA sayılır, tarama devam eder.
   async function incele(url: string) {
-    const res = await sc.urlInspection.index.inspect({
-      requestBody: { inspectionUrl: url, siteUrl: process.env.GSC_SITE_URL! },
-    });
+    const res = await Promise.race([
+      sc.urlInspection.index.inspect({
+        requestBody: { inspectionUrl: url, siteUrl: process.env.GSC_SITE_URL! },
+      }),
+      new Promise<never>((_, red) => setTimeout(() => red(new Error("süre aşımı (30 sn)")), 30000)),
+    ]);
     return res.data.inspectionResult?.indexStatusResult;
   }
 

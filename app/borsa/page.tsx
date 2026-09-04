@@ -4,6 +4,8 @@ import { getBistAll, BIST_INDEX_SLUG, tl, pctText, fmtUpdated, safeRelatedArticl
 import { MedCard } from "@/components/ArticleCard";
 import AdSlot from "@/components/AdSlot";
 import Sparkline from "@/components/Sparkline";
+import MarketFaq from "@/components/MarketFaq";
+import { BIST_HUB_FAQ } from "@/lib/market-faq";
 
 export const revalidate = 300;
 const BASE = "https://gelecekfinans.com";
@@ -119,6 +121,8 @@ export default async function BorsaHub() {
       )}
 
       <AdSlot position="inArticle" />
+
+      <MarketFaq items={BIST_HUB_FAQ} />
 
       <section className="section market-links">
         <h2 className="market-h2">İlgili Sayfalar</h2>

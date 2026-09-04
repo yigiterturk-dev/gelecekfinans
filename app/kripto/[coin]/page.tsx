@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import { getCrypto, CRYPTO_COINS, tl, pctText, fmtUpdated, safeRelatedArticles } from "@/lib/market";
 import { MedCard } from "@/components/ArticleCard";
 import AdSlot from "@/components/AdSlot";
+import MarketFaq from "@/components/MarketFaq";
+import { cryptoFaq } from "@/lib/market-faq";
 import Sparkline from "@/components/Sparkline";
 
 export const revalidate = 300;
@@ -125,6 +127,8 @@ export default async function KriptoDetail({ params }: { params: Promise<{ coin:
           <Link href="/kategori/kripto">kripto para haberleri</Link> sayfamızı takip edin.
         </p>
       </section>
+
+      <MarketFaq items={cryptoFaq(cfg.label, cfg.symbol)} />
 
       <section className="section market-links">
         <h2 className="market-h2">Diğer Kripto Paralar</h2>

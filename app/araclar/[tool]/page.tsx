@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import AdSlot from "@/components/AdSlot";
+import MarketFaq from "@/components/MarketFaq";
+import { toolFaq } from "@/lib/market-faq";
 import CurrencyConverter from "@/components/CurrencyConverter";
 import GoldCalculator from "@/components/calculators/GoldCalculator";
 import LoanCalculator from "@/components/calculators/LoanCalculator";
@@ -163,6 +165,8 @@ export default async function ToolPage({ params }: { params: Promise<{ tool: str
       </section>
 
       <AdSlot position="inArticle" />
+
+      <MarketFaq items={toolFaq(tool)} />
 
       <section className="section market-links">
         <h2 className="market-h2">İlgili Sayfalar</h2>

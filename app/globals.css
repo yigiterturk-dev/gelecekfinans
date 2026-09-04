@@ -1850,6 +1850,51 @@ input:focus-visible,
 .market-prose { color: var(--ink2); line-height: 1.7; max-width: 72ch; }
 .market-prose a { color: var(--accent); border-bottom: 1px solid color-mix(in oklab, var(--accent) 35%, transparent); }
 
+/* Canlı veri sayfalarındaki soru-cevap bölümü (bkz. components/MarketFaq.tsx).
+   <details> kullanılıyor: JavaScript'siz açılıp kapanır ve içerik HTML'de her
+   zaman bulunur — kapalı olması Google'ın metni görmesini engellemez. */
+.market-faq-list { display: flex; flex-direction: column; gap: 10px; max-width: 78ch; }
+.market-faq-item {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 0;
+  overflow: hidden;
+}
+.market-faq-q {
+  cursor: pointer;
+  list-style: none;
+  padding: 14px 44px 14px 16px;
+  font-weight: 600;
+  color: var(--ink);
+  position: relative;
+  line-height: 1.45;
+}
+.market-faq-q::-webkit-details-marker { display: none; }
+.market-faq-q::after {
+  content: "+";
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 20px;
+  font-weight: 400;
+  color: var(--ink2);
+  transition: transform .15s ease;
+}
+.market-faq-item[open] .market-faq-q::after { content: "\2212"; }
+.market-faq-q:hover { color: var(--accent); }
+.market-faq-q:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.market-faq-a {
+  margin: 0;
+  padding: 0 16px 16px;
+  color: var(--ink2);
+  line-height: 1.7;
+}
+@media (prefers-reduced-motion: reduce) {
+  .market-faq-q::after { transition: none; }
+}
+
 /* Kart ızgarası */
 .market-grid {
   display: grid;

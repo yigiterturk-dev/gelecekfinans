@@ -3,6 +3,8 @@ import Link from "next/link";
 import { getAllGold, GOLD_TYPES, tl, pctText, fmtUpdated, safeRelatedArticles } from "@/lib/market";
 import { MedCard } from "@/components/ArticleCard";
 import AdSlot from "@/components/AdSlot";
+import MarketFaq from "@/components/MarketFaq";
+import { GOLD_HUB_FAQ } from "@/lib/market-faq";
 import GoldCalculator from "@/components/calculators/GoldCalculator";
 
 export const revalidate = 600;
@@ -85,6 +87,8 @@ export default async function AltinHub() {
         <h2 className="market-h2">Altın Hesaplama</h2>
         <GoldCalculator />
       </section>
+
+      <MarketFaq items={GOLD_HUB_FAQ} />
 
       <section className="section market-links">
         <h2 className="market-h2">İlgili Sayfalar</h2>
