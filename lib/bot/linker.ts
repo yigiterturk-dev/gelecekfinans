@@ -9,6 +9,7 @@ interface LinkableArticle {
 
 const CATEGORY_HUBS: Record<string, Array<{ href: string; label: string }>> = {
   borsa: [
+    { href: "/borsa", label: "BIST 100 ve canlı hisse fiyatları" },
     { href: "/kategori/borsa", label: "borsa haberleri" },
     { href: "/faiz", label: "güncel faiz oranları" },
   ],
@@ -27,6 +28,7 @@ const CATEGORY_HUBS: Record<string, Array<{ href: string; label: string }>> = {
   ekonomi: [
     { href: "/kategori/ekonomi", label: "ekonomi haberleri" },
     { href: "/araclar", label: "finans hesaplama araçları" },
+    { href: "/rehber", label: "finans rehberleri" },
   ],
 };
 

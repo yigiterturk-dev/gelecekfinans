@@ -12,6 +12,7 @@ import ReadingProgress from "@/components/ReadingProgress";
 import ShareButtons from "@/components/ShareButtons";
 import AdSlot from "@/components/AdSlot";
 import { injectInternalLinks } from "@/lib/internal-links";
+import { injectMarketLinks } from "@/lib/market-links";
 import { readingTime } from "@/lib/reading-time";
 import { sanitizeArticleHtml } from "@/lib/sanitize";
 
@@ -95,7 +96,10 @@ export default async function ArticlePage({params}:{params:Promise<{slug:string}
   const bodyHtml = sanitizeArticleHtml(
     gated
       ? buildTeaser(a.content, 200)
-      : injectInternalLinks(a.content, a.slug, allArticles)
+      // Önce makaleler arası bağlantı, sonra canlı veri sayfalarına bağlam
+      // bağlantısı. Sıra önemli: piyasa linki 3 ile sınırlı ve mevcut
+      // bağlantıların metnine dokunmuyor, sonra çalışması güvenli.
+      : injectMarketLinks(injectInternalLinks(a.content, a.slug, allArticles), `/${a.slug}`)
   );
 
   // AI "Özet & Cebine Etkisi" + SSS — yalnızca alanlar varsa ve içerik
