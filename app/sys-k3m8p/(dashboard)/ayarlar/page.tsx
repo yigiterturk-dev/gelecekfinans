@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 export default function SettingsPage() {
   const [settings, setSettings] = useState({
     ga4Id: "", adsenseId: "", searchConsoleVerification: "",
+    adSlotIds: { headerBanner: "", inArticle: "", sidebar: "", afterArticle: "" },
     adSlots: { headerBanner: false, inArticle: false, sidebar: false, afterArticle: false },
     autonomy: { cronEnabled: true, enabled: false, dailyArticleCount: 1, targetWords: 650 },
   });
@@ -61,6 +62,24 @@ export default function SettingsPage() {
           <Toggle label="Makale Altı" checked={settings.adSlots.afterArticle}
             onChange={v => setSettings(s => ({ ...s, adSlots: { ...s.adSlots, afterArticle: v } }))} />
         </div>
+
+        <p className="adm-label" style={{ margin: "16px 0 8px" }}>Reklam Birimi Kimlikleri (data-ad-slot)</p>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <Field label="Header Banner" placeholder="1234567890" value={settings.adSlotIds?.headerBanner ?? ""}
+            onChange={v => setSettings(s => ({ ...s, adSlotIds: { ...s.adSlotIds, headerBanner: v } }))} />
+          <Field label="Makale İçi" placeholder="1234567890" value={settings.adSlotIds?.inArticle ?? ""}
+            onChange={v => setSettings(s => ({ ...s, adSlotIds: { ...s.adSlotIds, inArticle: v } }))} />
+          <Field label="Sidebar" placeholder="1234567890" value={settings.adSlotIds?.sidebar ?? ""}
+            onChange={v => setSettings(s => ({ ...s, adSlotIds: { ...s.adSlotIds, sidebar: v } }))} />
+          <Field label="Makale Altı" placeholder="1234567890" value={settings.adSlotIds?.afterArticle ?? ""}
+            onChange={v => setSettings(s => ({ ...s, adSlotIds: { ...s.adSlotIds, afterArticle: v } }))} />
+        </div>
+        <p className="adm-label" style={{ margin: "10px 0 0", lineHeight: 1.5 }}>
+          Birim kimliği <b>boş bırakılırsa</b> o pozisyon Otomatik Reklam (Auto ads) moduna düşer:
+          yalnızca AdSense betiği yüklenir, yerleşimi Google seçer. Kimlik girilirse manuel yerleşim
+          kullanılır. Kimliği AdSense panelinde <b>Reklamlar → Reklam birimine göre</b> bölümünde
+          oluşturduğunuz birimin <code>data-ad-slot</code> değerinden alırsınız.
+        </p>
       </Section>
 
       <Section title="Otonom Yayın">

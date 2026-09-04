@@ -9,6 +9,7 @@ export async function GET() {
     ga4Id: ga4Id && /^G-[A-Z0-9]+$/i.test(ga4Id) ? ga4Id.toUpperCase() : null,
     adsenseId: normalizeAdsensePublisherId(settings.adsenseId),
     adSlots: settings.adSlots || {},
+    adSlotIds: settings.adSlotIds || {},
   }, {
     headers: { "Cache-Control": "public, max-age=300" },
   });

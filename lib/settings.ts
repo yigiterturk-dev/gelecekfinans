@@ -12,6 +12,22 @@ export interface Settings {
     sidebar?: boolean;
     afterArticle?: boolean;
   };
+  /**
+   * Pozisyon başına AdSense reklam birimi kimliği (data-ad-slot).
+   *
+   * ⚠️ Neden eklendi: AdSlot bileşeni `data-ad-slot=""` basıyordu. Publisher
+   * ID girilse bile AdSense boş birim kimliğiyle display reklamı SUNMAZ —
+   * yani gelir rayı sessizce ölü kalırdı. Kimlik girilmemişse bileşen artık
+   * Otomatik Reklam (Auto ads) moduna düşüyor: yalnızca AdSense betiği
+   * yüklenir, boş <ins> basılmaz. Böylece sadece publisher ID ile de reklam
+   * yayınlanabiliyor, birim kimlikleri girilince manuel yerleşime geçiliyor.
+   */
+  adSlotIds?: {
+    headerBanner?: string;
+    inArticle?: string;
+    sidebar?: string;
+    afterArticle?: string;
+  };
   breakingNewsEnabled?: boolean;
   autonomy?: {
     cronEnabled?: boolean;
@@ -28,6 +44,7 @@ const DEFAULT_SETTINGS: Settings = {
   // admin panelden değiştirilince DB'deki değer bunu ezer.
   searchConsoleVerification: "4aVBJpoKMchlL_iSElublDYdFr8BMugU2qMg3zU32D8",
   adSlots: { headerBanner: false, inArticle: false, sidebar: false, afterArticle: false },
+  adSlotIds: { headerBanner: "", inArticle: "", sidebar: "", afterArticle: "" },
   breakingNewsEnabled: true,
   // enabled=false iken decidePublication her makaleyi REVIEW'a atar ve kimse
   // kuyruğu boşaltmazsa site hiç güncellenmez. Kalite kapıları (RED konu,
@@ -75,6 +92,9 @@ export async function updateSettings(data: Partial<Settings>): Promise<Settings>
         : {}),
     },
     adSlots: { ...current.adSlots, ...data.adSlots },
+    // Birim kimlikleri de iç içe nesne: sığ yayılım tek alan gönderildiğinde
+    // diğerlerini siler, o yüzden adSlots ile aynı biçimde birleştirilir.
+    adSlotIds: { ...current.adSlotIds, ...data.adSlotIds },
   };
   await prisma.siteSettings.upsert({
     where: { id: "singleton" },
