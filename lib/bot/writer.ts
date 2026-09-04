@@ -248,9 +248,23 @@ function articleInstructions(targetWords: number): string {
     // aktarma eğiliminde: kural sayıyla yazılmazsa makale burada ölüyor.
     "Kanıt metnindeki cümleleri KOPYALAMA. Olguları kendi cümlelerinle, kendi cümle kuruluşunla yeniden yaz. Kaynakla 10 kelimeden uzun birebir ortak dizi kalmasın; yalnızca rakamlar, özel adlar ve kurum adları aynı kalabilir.",
     "Yatırım tavsiyesi, teknik analiz, destek/direnç, fiyat hedefi ve gelecek tahmini yazma.",
-    // Kalite kapısı 280 kelimenin altını reddediyor; "civarında" diyen yumuşak
-    // ifade küçük modellerde 270'lere düşüp makaleyi çöpe attırıyordu.
-    `Gövde EN AZ 320, en fazla 800 kelime olmalı; hedef ${Math.max(320, Math.min(targetWords, 800))} kelime. 320 kelimenin altı kabul edilmez; ama doldurmak için tekrar yapma, kanıttaki ayrıntıları aç.`,
+    /**
+     * ⚠️ ÇIPA ETKİSİ (ölçüldü 2026-09-04): istem "EN AZ 320" derken yayındaki
+     * 28 makalenin 20'si 500 kelimenin ALTINDA çıktı, medyan ~350. Model
+     * hedefe değil ALT SINIRA yapışıyor; "hedef 650" cümlesi tek başına
+     * çalışmıyor.
+     *
+     * Bu kısa haberler indeks taramasında "Discovered - currently not
+     * indexed" kutusunda bekleyenlerin çoğunluğuydu — düşük otoriteli bir
+     * mülkte 300 kelimelik haber taranmaya değer bulunmuyor.
+     *
+     * Düzeltme ÇIPADA yapıldı, KAPIDA değil: kalite kapısının alt sınırı
+     * (280) olduğu gibi duruyor. Kapıyı yükseltmek kısa kalan taslağı
+     * reddedip yayını durdururdu; çıpayı yükseltmek yalnızca modelin
+     * hedeflediği uzunluğu değiştiriyor. Etkisi ölçülecek: birkaç günlük
+     * yayının kelime dağılımına bak, gerekirse kapı da ayrıca ele alınır.
+     */
+    `Gövde EN AZ 500, en fazla 800 kelime olmalı; hedef ${Math.max(500, Math.min(targetWords, 800))} kelime. 500 kelimenin altı kabul edilmez; ama doldurmak için tekrar yapma, kanıttaki ayrıntıları ve bağlamı aç: olayın nedeni, önceki gelişmeyle bağı, ilgilileri nasıl etkilediği.`,
     // Kalite kapısı meta için 110-180 aralığını KATI uyguluyor; sınırı birebir
     // söyleyince model 119 gibi bir karakterle takılıyor. Hedefi aralığın
     // ortasında vermek pay bırakıyor.
