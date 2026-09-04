@@ -43,6 +43,8 @@ export default function SiteFooter() {
             <h4>Piyasalar</h4>
             <Link href="/doviz" className="footer-link">Döviz Kurları</Link>
             <Link href="/altin" className="footer-link">Altın Fiyatları</Link>
+            <Link href="/borsa" className="footer-link">Borsa (BIST 100)</Link>
+            <Link href="/rehber" className="footer-link">Finans Rehberleri</Link>
             <Link href="/kripto" className="footer-link">Kripto Fiyatları</Link>
             <Link href="/araclar" className="footer-link">Hesaplama Araçları</Link>
           </div>

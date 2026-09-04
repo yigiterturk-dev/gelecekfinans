@@ -16,9 +16,11 @@ const CATS=[
 const MARKET=[
   {h:"/doviz",l:"Döviz Kurları"},
   {h:"/altin",l:"Altın Fiyatları"},
+  {h:"/borsa",l:"BIST 100"},
   {h:"/kripto",l:"Kripto Fiyatları"},
   {h:"/faiz",l:"Faiz"},
   {h:"/araclar",l:"Araçlar"},
+  {h:"/rehber",l:"Rehberler"},
 ];
 
 export default function Navbar(){

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { FX_PAIRS, GOLD_TYPES, CRYPTO_COINS } from "@/lib/market";
+import { FX_PAIRS, GOLD_TYPES, CRYPTO_COINS, BIST_STOCKS } from "@/lib/market";
 import { absoluteImageUrl } from "@/lib/image-url";
 import type { MetadataRoute } from "next";
 
@@ -46,7 +46,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }));
 
   // Canlı piyasa verisi sayfaları (yüksek arama hacmi)
-  const marketHubs = ["/doviz", "/altin", "/kripto", "/faiz", "/araclar"].map((u) => ({
+  const marketHubs = ["/doviz", "/altin", "/borsa", "/kripto", "/faiz", "/araclar"].map((u) => ({
     url: `${BASE}${u}`,
     changeFrequency: "hourly" as const,
     priority: 0.9,
@@ -66,6 +66,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     changeFrequency: "hourly" as const,
     priority: 0.85,
   }));
+  const bistEntries = Object.keys(BIST_STOCKS).map((h) => ({
+    url: `${BASE}/borsa/${h}`,
+    changeFrequency: "hourly" as const,
+    priority: 0.85,
+  }));
   const toolEntries = TOOL_SLUGS.map((s) => ({
     url: `${BASE}/araclar/${s}`,
     changeFrequency: "weekly" as const,
@@ -75,6 +80,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   return [
     { url: BASE, changeFrequency: "hourly", priority: 1 },
     { url: `${BASE}/arsiv`, changeFrequency: "daily", priority: 0.6 },
+    { url: `${BASE}/rehber`, changeFrequency: "daily", priority: 0.8 },
     { url: `${BASE}/hakkimizda`, changeFrequency: "monthly", priority: 0.3 },
     { url: `${BASE}/yayincilik-ilkeleri`, changeFrequency: "monthly", priority: 0.5 },
     { url: `${BASE}/iletisim`, changeFrequency: "monthly", priority: 0.3 },
@@ -84,6 +90,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...fxEntries,
     ...goldEntries,
     ...cryptoEntries,
+    ...bistEntries,
     ...toolEntries,
     ...catEntries,
     ...articleEntries,

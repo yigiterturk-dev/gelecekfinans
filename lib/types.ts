@@ -22,4 +22,6 @@ export interface Article {
   updatedAt?: string;
   premium?: boolean;
   aiExtras?: ArticleExtras | null;
+  /** Rehber şeridinde küme adı (haberlerde null/undefined). */
+  cluster?: string | null;
 }

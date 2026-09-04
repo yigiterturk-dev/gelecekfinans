@@ -231,6 +231,38 @@ export async function getArticlesByCategory(cat: string): Promise<Article[]> {
 }
 
 /**
+ * Rehber (evergreen) şeridinde yayınlanmış makaleler — en yenisi başta.
+ *
+ * Neden ayrı: rehberler haber akışında kaybolan ama yıllarca arama trafiği
+ * getiren içerikler. `/rehber` toplayıcısı olmadan yalnızca kategori
+ * listelerinde, haberlerin arasında görünüyorlardı; ne okur bir arada
+ * bulabiliyordu ne de tarayıcı küme olarak görebiliyordu.
+ *
+ * `track` kolonu eski kurulumlarda olmayabilir; kolon yoksa boş liste döner
+ * ve sayfa dürüst boş durum gösterir (getAllArticles ile aynı degrade davranışı).
+ */
+export async function getGuides(limit = 100): Promise<Article[]> {
+  let rows: Array<{ slug: string; cluster: string | null }>;
+  try {
+    rows = await prisma.article.findMany({
+      where: { status: "PUBLISHED", track: "GUIDE" },
+      orderBy: { publishedAt: "desc" },
+      take: limit,
+      select: { slug: true, cluster: true },
+    });
+  } catch (err) {
+    console.error("[getGuides] sorgu başarısız:", err);
+    return [];
+  }
+  if (rows.length === 0) return [];
+  const kume = new Map(rows.map((r) => [r.slug, r.cluster]));
+  const all = await getAllArticles();
+  return all
+    .filter((a) => kume.has(a.slug))
+    .map((a) => ({ ...a, cluster: kume.get(a.slug) ?? null }));
+}
+
+/**
  * Premium içerik için ilk ~N kelimelik HTML teaser üretir. HTML etiketlerini
  * kabaca kelime sınırında keser ve açık kalan blok etiketlerini güvenli
  * şekilde sonlandırır (dangerouslySetInnerHTML ile kullanılır).

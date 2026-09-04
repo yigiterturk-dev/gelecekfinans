@@ -513,6 +513,146 @@ export async function safeRelatedArticles(cat: string, limit = 4): Promise<Artic
  * Biçimlendirme yardımcıları
  * ------------------------------------------------------------------------- */
 
+/* ----------------------------------------------------------------------------
+ * BORSA (BIST)
+ *
+ * Neden var: sitenin gösteriminin %90'ı canlı veri sayfalarından geliyor
+ * (döviz/kripto/altın) ama borsa tarafında tek sayfa yoktu — menüde "Borsa"
+ * yalnızca haber kategorisiydi. BIST 100 ve tekil hisse sorguları Türkiye'de
+ * döviz/altın ile aynı ligde arama hacmine sahip; ray zaten duruyordu
+ * (`getYahooCloseSeries` XU100.IS için çalışıyor), eksik olan sayfalardı.
+ *
+ * Kaynak: Yahoo Finance chart ucu (anahtarsız). Fiyat + önceki kapanış meta'dan
+ * gelir; ayrıca aynı çağrıda 1 aylık kapanış serisi de döndüğü için sparkline
+ * için İKİNCİ bir istek atılmaz.
+ *
+ * ⚠️ User-Agent zorunlu (yoksa Yahoo 429 döner) — `getYahooCloseSeries`
+ * yorumunda ölçülmüş, aynı kural burada da geçerli.
+ * ------------------------------------------------------------------------- */
+
+export interface StockQuote {
+  slug: string;
+  symbol: string;   // Yahoo sembolü (THYAO.IS)
+  ticker: string;   // BIST kodu (THYAO)
+  name: string;
+  price: number;
+  prevClose: number | null;
+  changePct: number | null;
+  series: number[] | null;
+  updatedAt: string | null;
+}
+
+export const BIST_INDEX_SLUG = "bist-100";
+
+/**
+ * Sayfası açılan enstrümanlar. Endeks + BIST 30'un işlem hacmi yüksek
+ * isimleri. Liste bilerek kısa tutuldu: her hisse bir sayfa demek ve içeriği
+ * olmayan yüzlerce ince sayfa açmak tarama bütçesini bölerdi.
+ */
+export const BIST_STOCKS: Record<string, { ticker: string; name: string; index?: boolean; about: string }> = {
+  "bist-100": { ticker: "XU100", name: "BIST 100", index: true, about: "Borsa İstanbul'da işlem gören en yüksek piyasa değerli ve likit 100 şirketin ağırlıklı ortalamasını ölçen ana endeks." },
+  thyao: { ticker: "THYAO", name: "Türk Hava Yolları", about: "Türkiye'nin bayrak taşıyıcı havayolu şirketi; BIST 100'ün en yüksek işlem hacimli hisselerinden biri." },
+  asels: { ticker: "ASELS", name: "Aselsan", about: "Savunma sanayii elektroniği üreticisi; ağırlıklı olarak kamu siparişleriyle çalışan teknoloji şirketi." },
+  garan: { ticker: "GARAN", name: "Garanti BBVA", about: "Türkiye'nin en büyük özel bankalarından biri; BBVA çoğunluk hissedarı." },
+  akbnk: { ticker: "AKBNK", name: "Akbank", about: "Sabancı Holding grubunun bankacılık kolu." },
+  isctr: { ticker: "ISCTR", name: "İş Bankası (C)", about: "Türkiye İş Bankası'nın borsada işlem gören C grubu hissesi." },
+  ykbnk: { ticker: "YKBNK", name: "Yapı Kredi", about: "Koç Holding grubunun bankacılık iştiraki." },
+  kchol: { ticker: "KCHOL", name: "Koç Holding", about: "Türkiye'nin en büyük sanayi topluluğu; otomotiv, dayanıklı tüketim, enerji ve finans." },
+  sahol: { ticker: "SAHOL", name: "Sabancı Holding", about: "Bankacılık, enerji, çimento ve perakende alanlarında faaliyet gösteren holding." },
+  bimas: { ticker: "BIMAS", name: "BİM", about: "İndirim marketi zinciri; gıda perakendesinin en büyük halka açık oyuncusu." },
+  tuprs: { ticker: "TUPRS", name: "Tüpraş", about: "Türkiye'nin en büyük petrol rafinericisi; Koç Holding iştiraki." },
+  eregl: { ticker: "EREGL", name: "Ereğli Demir Çelik", about: "Yassı çelik üreticisi; OYAK grubuna bağlı." },
+  froto: { ticker: "FROTO", name: "Ford Otosan", about: "Ford ile Koç Holding ortaklığı; ticari araç üretimi ve ihracatı." },
+  toaso: { ticker: "TOASO", name: "Tofaş", about: "Stellantis ile Koç Holding ortaklığı; binek ve hafif ticari araç üretimi." },
+  sise: { ticker: "SISE", name: "Şişecam", about: "Düz cam, cam ambalaj ve kimyasallar üreticisi." },
+  pgsus: { ticker: "PGSUS", name: "Pegasus", about: "Düşük maliyetli havayolu şirketi." },
+  tcell: { ticker: "TCELL", name: "Turkcell", about: "Türkiye'nin en büyük mobil operatörü." },
+  arclk: { ticker: "ARCLK", name: "Arçelik", about: "Beyaz eşya ve dayanıklı tüketim üreticisi; Koç Holding iştiraki." },
+  sasa: { ticker: "SASA", name: "Sasa Polyester", about: "Polyester elyaf ve polimer üreticisi." },
+  ekgyo: { ticker: "EKGYO", name: "Emlak Konut GYO", about: "Konut geliştirme odaklı gayrimenkul yatırım ortaklığı." },
+};
+
+/** Yahoo chart ucundan tek sembol için fiyat + önceki kapanış + seri. */
+async function getYahooQuote(symbol: string): Promise<{
+  price: number;
+  prevClose: number | null;
+  series: number[] | null;
+  updatedAt: string | null;
+} | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  try {
+    const res = await fetch(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=1mo&interval=1d`,
+      {
+        next: { revalidate: 300 },
+        signal: controller.signal,
+        headers: { Accept: "application/json", "User-Agent": "Mozilla/5.0 (compatible; GelecekFinansBot/1.0)" },
+      },
+    );
+    if (!res.ok) return null;
+    const data = (await res.json()) as {
+      chart?: {
+        result?: Array<{
+          meta?: { regularMarketPrice?: number; chartPreviousClose?: number; regularMarketTime?: number };
+          indicators?: { quote?: Array<{ close?: Array<number | null> }> };
+        }>;
+      };
+    };
+    const r = data.chart?.result?.[0];
+    const price = r?.meta?.regularMarketPrice;
+    if (typeof price !== "number" || !(price > 0)) return null;
+    const closes = (r?.indicators?.quote?.[0]?.close ?? []).filter(
+      (v): v is number => typeof v === "number" && v > 0,
+    );
+    const prev = typeof r?.meta?.chartPreviousClose === "number" ? r.meta.chartPreviousClose : null;
+    const t = r?.meta?.regularMarketTime;
+    return {
+      price,
+      prevClose: prev,
+      series: closes.length > 4 ? closes : null,
+      updatedAt: typeof t === "number" ? new Date(t * 1000).toISOString() : null,
+    };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Tek enstrümanı döner. Bilinmeyen slug veya veri yoksa null. */
+export async function getStock(slug: string): Promise<StockQuote | null> {
+  const cfg = BIST_STOCKS[slug];
+  if (!cfg) return null;
+  const symbol = `${cfg.ticker}.IS`;
+  const q = await getYahooQuote(symbol);
+  if (!q) return null;
+  const changePct =
+    q.prevClose && q.prevClose > 0 ? ((q.price - q.prevClose) / q.prevClose) * 100 : null;
+  return {
+    slug,
+    symbol,
+    ticker: cfg.ticker,
+    name: cfg.name,
+    price: q.price,
+    prevClose: q.prevClose,
+    changePct,
+    series: q.series,
+    updatedAt: q.updatedAt,
+  };
+}
+
+/**
+ * Hub tablosu için tüm enstrümanlar. Tek tek istek atılır ama hepsi PARALEL
+ * ve her biri kendi başına null'a düşebilir: bir sembol cevap vermezse tablo
+ * eksik satırla değil, o satır olmadan render edilir.
+ */
+export async function getBistAll(): Promise<StockQuote[]> {
+  const slugs = Object.keys(BIST_STOCKS);
+  const rows = await Promise.all(slugs.map((s) => getStock(s)));
+  return rows.filter((r): r is StockQuote => r !== null);
+}
+
 export function tl(n: number, frac = 2): string {
   return n.toLocaleString("tr-TR", { minimumFractionDigits: frac, maximumFractionDigits: frac });
 }
