@@ -1,0 +1,6 @@
+# Nocturn — çok projeli veritabanı yedeği ve bekçisi.
+# Projeler: /opt/nocturn-yedek/projeler/*.env (yeni proje = tek dosya eklemek)
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+15 3 * * * root /opt/nocturn-yedek/nocturn-yedek.sh
+30 9 * * * root /opt/nocturn-yedek/nocturn-yedek-bekci.sh
