@@ -318,3 +318,20 @@ enum EntityStatus {
   /// Elle veya otomatik olarak dışlandı (çok jenerik, alakasız).
   IGNORED
 }
+
+/// Paylaşılan hız freni sayacı.
+///
+/// NEDEN: lib/rate-limit.ts sayacı SÜREÇ BELLEĞİNDE tutuyor ve site Vercel'de
+/// çalışıyor. Her instance kendi sayacını tuttuğu için "dakikada 5 abonelik"
+/// pratikte instance sayısı kadar katlanıyordu — yani sınır, tam yük altında
+/// (asıl gerektiği anda) gevşiyordu. Halka açık uçlarda bu doğrudan para
+/// demek: her abonelik denemesi Resend'e bir e-posta gönderimi.
+model RateLimit {
+  key       String   @id
+  hits      Int      @default(0)
+  resetAt   DateTime
+  updatedAt DateTime @updatedAt
+
+  @@index([resetAt])
+  @@map("rate_limits")
+}

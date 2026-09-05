@@ -3,13 +3,19 @@ import { prisma } from "@/lib/db";
 import { sanitizePreferences, signOptInToken, hasNewsletterSecret } from "@/lib/newsletter";
 import { mailEnabled, sendOptInConfirmation } from "@/lib/mail";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { hizFreniPaylasimli } from "@/lib/rate-limit-store";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export async function POST(req: NextRequest) {
   // Rate limit: IP başına dakikada 5 abonelik denemesi.
   const ip = clientIp(req);
-  const rl = rateLimit(`newsletter:${ip}`, { limit: 5, windowMs: 60_000 });
+  // Sayac VERITABANINDA: Vercel'de her instance kendi bellegini tutar,
+  // dolayisiyla surec-ici sayac sinirlari instance sayisi kadar gevsetirdi.
+  // DB erisilemezse surec-ici sayaca duser (fail-open, bilincli).
+  const rl = await hizFreniPaylasimli(`newsletter:${ip}`, 5, 60_000, () =>
+    rateLimit(`newsletter:${ip}`, { limit: 5, windowMs: 60_000 })
+  );
   if (!rl.ok) {
     return NextResponse.json(
       { error: "Çok fazla deneme. Lütfen biraz sonra tekrar deneyin." },

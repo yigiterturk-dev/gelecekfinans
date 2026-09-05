@@ -10,6 +10,19 @@ function getResend(): Resend | null {
 }
 
 /** Mail sağlayıcısı veya imza anahtarı yoksa gönderim fail-closed davranır. */
+/**
+ * E-posta adresini loga YAZMADAN teşhis edilebilir kılar.
+ *
+ * Hata logu üretimde saklanıyor ve alıcı adresi kişisel veridir; bir gönderim
+ * hatasını anlamak için adresin TAMAMI gerekmez. Alan adı ve ilk harf, hangi
+ * müşteride sorun olduğunu bulmaya yeter.
+ */
+function maskeliAdres(adres: string): string {
+  const [ad, alan] = String(adres).split("@");
+  if (!alan) return "***";
+  return `${(ad ?? "").slice(0, 1)}***@${alan}`;
+}
+
 export function mailEnabled(): boolean {
   return !!process.env.RESEND_API_KEY && hasNewsletterSecret();
 }
@@ -148,14 +161,14 @@ async function sendBatch(
             const hata = (res as { error?: { message?: string; name?: string } } | null)?.error;
             if (hata) {
               not(hata.name || hata.message || "bilinmeyen Resend hatası");
-              console.error(`[mail] Resend reddetti (${email}):`, hata);
+              console.error(`[mail] Resend reddetti (${maskeliAdres(email)}):`, hata);
               return;
             }
             sent++;
           })
           .catch((err) => {
             not((err as Error)?.message?.slice(0, 80) || "istek başarısız");
-            console.error(`[mail] send failed for ${email}:`, err);
+            console.error(`[mail] send failed for ${maskeliAdres(email)}:`, err);
           })
       )
     );
