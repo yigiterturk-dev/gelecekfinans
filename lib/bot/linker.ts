@@ -1,4 +1,10 @@
 import { prisma } from "@/lib/db";
+import {
+  isContentWord,
+  isDistinctiveWord,
+  MIN_SINGLE_WORD_ANCHOR,
+  turkceSinirliDesen,
+} from "@/lib/anchor-words";
 
 interface LinkableArticle {
   slug: string;
@@ -137,102 +143,13 @@ export function relevanceScore(
   return score;
 }
 
-/**
- * ── ÇAPA METNİ SEÇİMİ ───────────────────────────────────────────────────────
- *
- * CANLI ARIZA (4 Eylül 2026): eski kural `title.split(...).filter(w =>
- * w.length > 4)` idi ve "nasıl" 5 harf olduğu için geçiyordu. Yayındaki
- * "Enflasyon nedir nasıl hesaplanır" makalesinin GİRİŞ CÜMLESİNDE, "nasıl"
- * kelimesi iki ayrı ve konuyla ilgisiz makaleye bağlanmıştı:
- *   "Enflasyon nedir <a href="/birikim-nasil-degerlendirilir">nasıl</a> …"
- *
- * Alakasız çapa metni iki yönlü zarar verir: okur tıkladığında beklediği
- * sayfayı bulamaz, arama motoru da çapa metnini hedef sayfanın konusu sanar.
- * Bağlantının değeri ÇAPA METNİNDEDİR; anlamsız çapa, bağlantıyı değersiz
- * kılmakla kalmaz, hedef sayfayı yanlış konuyla ilişkilendirir.
- *
- * Yeni kural, önem sırasıyla:
- *   1. Makalenin tam anahtar kelime öbeği (en iyi çapa: hedefin konusu).
- *   2. Başlıktan çıkarılan 2-3 kelimelik öbekler; en az biri jenerik olmayan.
- *   3. Tek kelime yalnızca 7+ harfse ve jenerik değilse.
- */
-const GENERIC_ANCHOR_WORDS = new Set([
-  // soru ve yönerge kalıpları
-  "nasıl", "nedir", "neden", "hangi", "kimdir", "kaçtır", "mıdır", "nerede",
-  "yapılır", "hesaplanır", "değerlendirilir", "başlanır", "alınır", "olur",
-  "oldu", "belli", "açıklandı", "gerekenler", "gerekir", "dikkat", "edilmesi",
-  // içerik pazarlaması dolgusu
-  "kapsamlı", "kalıcı", "temel", "güncel", "detaylı", "eksiksiz", "adımlar",
-  "adım", "kurallar", "yollar", "rehber", "rehberi", "haritası", "ipuçları",
-  "önemli", "bilinmesi", "hakkında", "üzerine", "için", "ile", "olarak",
-  "sonrası", "öncesi", "arasında", "birlikte", "şunlar", "işte",
-  // Çok kelimeli bir kavramdan koparılmış parçalar tek başına çapa olamaz:
-  // "doğal gaz" -> "doğal", "çalışma prensipleri" -> "çalışma".
-  "doğal", "çalışma", "prensipleri", "süreci", "süreç", "tanım", "yöntem",
-  "türleri", "çeşitleri", "örnekleri", "listesi", "tablosu", "durumu",
-  // Yardımcı fiil öbeğinin isim yarısı ("devam edecek", "dikkat çekti") tek
-  // başına konu adlandırmaz; 5 Eylül 2026 arızasında "devam" 5 harf olduğu
-  // için içerik kelimesi sayılmıştı.
-  "devam", "kapsamında", "konusunda", "durumunda", "yönünde", "sonucunda",
-]);
-
-const MIN_SINGLE_WORD_ANCHOR = 7;
-
-/**
- * KAPALI SINIF KELİMELER (bağlaç, zarf, edat, belirteç).
- *
- * Bu küme jenerik kelime listesi gibi büyümez — Türkçede sayısı sabittir.
- * Hiçbiri bir sayfanın KONUSU olamaz, dolayısıyla hiçbiri çapa metni olamaz.
- * 5 Eylül 2026 arızasında "yalnızca" tek kelime eşiğini (7 harf) geçtiği için
- * çapa olmuş ve DASK haberini altcoin haberine bağlamıştı.
- */
-const FUNCTION_WORDS = new Set([
-  "yalnızca", "sadece", "ayrıca", "özellikle", "böylece", "ancak", "fakat",
-  "ama", "çünkü", "dolayısıyla", "nitekim", "hatta", "yine", "yeniden",
-  "ardından", "sonra", "önce", "şimdi", "artık", "henüz", "halen", "hâlen",
-  "kadar", "beri", "göre", "rağmen", "karşın", "üzere", "üzerinden", "itibaren",
-  "tarafından", "boyunca", "gibi", "yaklaşık", "toplam", "tüm", "bütün", "her",
-  "bazı", "birçok", "çeşitli", "diğer", "aynı", "kendi", "böyle", "şöyle",
-  "daha", "çok", "az", "en", "hem", "veya", "ya", "ise", "ki", "de", "da",
-  "hızla", "birden", "giderek", "ağırlıklı", "büyük", "küçük", "yeni", "eski",
-]);
-
-/**
- * ÇEKİMLİ FİİL BİÇİMLERİ yapısal olarak elenir.
- *
- * "edecek", "sattı", "kaldı", "geriledi", "yükseldi" — hepsi bir OLAYI anlatır,
- * bir KONUYU adlandırmaz. Liste tutmak yerine eki tanımak gerekir; yoksa her
- * yeni haber fiili aynı arızayı tekrar üretir (5 Eylül 2026: "devam edecek"
- * çapası e-ihracat haberine bağlanmıştı).
- */
-const FINITE_VERB_SUFFIX =
-  /(ecek|acak|ıyor|iyor|uyor|üyor|mış|miş|muş|müş|dı|di|du|dü|tı|ti|tu|tü|mekte|makta|meye|maya)$/;
-
-export function isFiniteVerbForm(word: string): boolean {
-  const lower = word.toLocaleLowerCase("tr-TR");
-  // Özel ad (Bitcoin, Gültepe) ya da kısaltma fiil sayılmaz.
-  if (/^[A-ZÇĞİÖŞÜ]/.test(word) && word.length > 1) return false;
-  return FINITE_VERB_SUFFIX.test(lower);
-}
-
-export function isGenericAnchor(word: string): boolean {
-  const lower = word.toLocaleLowerCase("tr-TR");
-  return GENERIC_ANCHOR_WORDS.has(lower) || FUNCTION_WORDS.has(lower);
-}
-
-/**
- * İÇERİK KELİMESİ: hedef sayfanın konusunu taşıyabilecek kelime.
- *
- * Çapa metninde en az bir tanesi olmak ZORUNDA. Bu kural aynı zamanda konu
- * alakasını da sağlar: makale hedefin konu kelimesini gerçekten geçmiyorsa
- * eşleşme olmaz, bağlantı hiç kurulmaz ve kategori/veri merkezine düşülür.
- */
-export function isContentWord(word: string): boolean {
-  if (word.length < 5) return false;
-  if (isGenericAnchor(word)) return false;
-  if (isFiniteVerbForm(word)) return false;
-  return true;
-}
+export {
+  isGenericAnchor,
+  isFiniteVerbForm,
+  isContentWord,
+  isDistinctiveWord,
+  MIN_SINGLE_WORD_ANCHOR,
+} from "@/lib/anchor-words";
 
 /** Bir makaleye bağlanırken kullanılabilecek çapa metinleri, önem sırasıyla. */
 export function linkableTerms(article: { title: string; keyword?: string | null }): string[] {
@@ -257,13 +174,19 @@ export function linkableTerms(article: { title: string; keyword?: string | null 
   for (const size of [3, 2]) {
     for (let index = 0; index + size <= words.length; index++) {
       const phrase = words.slice(index, index + size);
-      if (!phrase.some(isContentWord)) continue;
+      if (!phrase.some((word) => isDistinctiveWord(word, article.keyword))) continue;
       push(phrase.join(" "));
     }
   }
 
+  // TEK KELİME çapa yalnızca hedefin ANAHTAR KELİMESİNDEN gelebilir. Başlıktan
+  // koparılan tek kelime (sıfat, zarf, ay adı) hedefin konusunu söylemez;
+  // "sınırlı" çapası DASK haberini TCMB enflasyon haberine bağlamıştı.
   for (const word of words) {
-    if (word.length >= MIN_SINGLE_WORD_ANCHOR && isContentWord(word)) push(word);
+    if (word.length < MIN_SINGLE_WORD_ANCHOR) continue;
+    if (!isContentWord(word)) continue;
+    if (!article.keyword?.toLocaleLowerCase("tr-TR").includes(word.toLocaleLowerCase("tr-TR"))) continue;
+    push(word);
   }
 
   return terms;
@@ -309,10 +232,9 @@ export function injectInternalLinks(
       if (added >= maxLinks) break;
       const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       // Only match text NOT already inside an <a> tag
-      const regex = new RegExp(
-        `(?<![/"'>])\\b(${escaped})\\b(?![^<]*<\\/a>)`,
-        "i"
-      );
+      // Sınır Türkçe-güvenli olmalı: `\\b` ASCII'ye bakar, "sigortası" gibi ekle
+      // biten çapalar hiç eşleşmez ve üretici jenerik ASCII kelimelere düşer.
+      const regex = turkceSinirliDesen(escaped, "(?![^<]*<\\/a>)");
       const match = html.match(regex);
       if (match && match.index !== undefined) {
         if (match.index < ledeEnd) continue;

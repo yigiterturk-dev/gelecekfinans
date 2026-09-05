@@ -139,3 +139,84 @@ test("alakasız aday varken yer tutucu kategori merkezine bağlanır", async () 
   ];
   assert.equal(pickPlaceholderTarget(html, pool, new Set()), null);
 });
+
+/**
+ * Render tarafındaki İKİNCİ üretici de aynı kapıdan geçmeli. 5 Eylül 2026'da
+ * bot tarafı düzeltildi ama `lib/internal-links.ts` gözden kaçmıştı: canlı
+ * makale sayfası kendi süzgeçsiz bağlantısını (`k.length > 3`) ekliyordu, yani
+ * kayıtlı içerik temizlense bile okunan sayfa bozuk kalıyordu.
+ */
+test("render tarafı üretici de içerik kelimesi olmayan çapayı kurmaz", async () => {
+  const { injectInternalLinks: renderInject } = await import("../lib/internal-links");
+  const html =
+    "<p>Zorunlu deprem sigortası poliçesi konut satışında devredilemeyecek.</p>" +
+    "<p>Yeni hak sahibi bildirim yaptıktan sonra deprem sigortası süreci devam edecek.</p>";
+  const out = renderInject(html, "dask", [
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    { slug: "ihracat", title: "e-ihracat", keyword: "devam edecek" } as any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    { slug: "deprem-sigortasi", title: "Deprem sigortası", keyword: "deprem sigortası" } as any,
+  ]);
+  assert.doesNotMatch(out, /href="\/ihracat"/, `fiil çapası kuruldu: ${out}`);
+  assert.match(out, /href="\/deprem-sigortasi"/, "konuyla ilgili bağlantı hiç kurulmadı");
+});
+
+/**
+ * `\b` ASCII sınırıdır: "deprem sigortası" çapası `\b...\b` ile HİÇ eşleşmez,
+ * çünkü sondaki "ı" kelime karakteri sayılmaz. Sonuç sessiz bir sapmaydı —
+ * üretici Türkçe ekle biten (anlamlı) çapaları atlayıp ASCII ile biten jenerik
+ * kelimelere düşüyordu. Çapa kalitesizliğinin nedenlerinden biri bu sınırdı.
+ */
+test("Türkçe ekle biten çapa da eşleşir", async () => {
+  const { injectInternalLinks: renderInject } = await import("../lib/internal-links");
+  const html =
+    "<p>Giriş paragrafı burada durur ve konuyu tanıtır.</p>" +
+    "<p>Yeni hak sahibi için deprem sigortası yükümlülüğü sürüyor.</p>";
+  const out = renderInject(html, "dask", [
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    { slug: "deprem-sigortasi", title: "Deprem sigortası", keyword: "deprem sigortası" } as any,
+  ]);
+  assert.match(out, /<a href="\/deprem-sigortasi"[^>]*>deprem sigortası<\/a>/, out);
+});
+
+test("çapa bir kelimenin ORTASINDA eşleşmez", async () => {
+  const { injectInternalLinks: renderInject } = await import("../lib/internal-links");
+  const html =
+    "<p>Giriş paragrafı burada durur.</p>" +
+    "<p>Altınlar ve altıncı madde ayrı konulardır.</p>";
+  const out = renderInject(html, "x", [
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    { slug: "altin", title: "Altın", keyword: "altın" } as any,
+  ]);
+  assert.doesNotMatch(out, /<a href="\/altin"/, `kelime ortasına link girdi: ${out}`);
+});
+
+/**
+ * ÜÇÜNCÜ TUR (5 Eylül 2026): yapısal süzgeç "yalnızca"yı eledi ama SIFAT
+ * geçiyordu — yazı yeniden üretildiğinde DASK haberi "sınırlı" çapasıyla bir
+ * TCMB enflasyon haberine bağlandı ("…ağustosta sınırlı yükseldi" başlığından).
+ * Ders: tek kelimelik çapa yalnızca hedefin ANAHTAR KELİMESİNDEN gelebilir;
+ * başlıktan koparılan sıfat/zarf/ay adı hedefin konusunu söylemez.
+ */
+test("başlıktan koparılan sıfat tek kelimelik çapa olamaz", () => {
+  const terms = linkableTerms({
+    title: "TCMB enflasyonun ana eğilimi ağustosta sınırlı yükseldi",
+    keyword: null,
+  });
+  for (const bad of ["sınırlı", "ağustosta", "ağustosta sınırlı", "yükseldi"]) {
+    assert.ok(!terms.includes(bad), `kötü çapa üretildi: ${bad} (${terms.join(", ")})`);
+  }
+  assert.ok(
+    terms.some((t) => t.toLocaleLowerCase("tr-TR").includes("enflasyon")),
+    terms.join(", "),
+  );
+});
+
+test("anahtar kelimede geçen tek kelime çapa olabilir", () => {
+  const terms = linkableTerms({
+    title: "Zorunlu deprem sigortası poliçesi devri değişiyor",
+    keyword: "zorunlu deprem sigortası",
+  });
+  assert.equal(terms[0], "zorunlu deprem sigortası");
+  assert.ok(terms.includes("sigortası"), terms.join(", "));
+});
