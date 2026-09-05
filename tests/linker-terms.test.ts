@@ -73,3 +73,69 @@ test("otomatik iç bağlantı giriş paragrafına dokunmaz", () => {
   assert.doesNotMatch(outputLede, /<a\s/, `giriş paragrafına bağlantı girdi: ${outputLede}`);
   assert.match(output, /<a href="\/borsaya-nasil-baslanir"/, "gövdeye bağlantı hiç girmedi");
 });
+
+/**
+ * CANLI ARIZA (5 Eylül 2026): "Konut satışında DASK devri bitiyor" taslağında
+ * iki iç bağlantının çapası da FİİL/BAĞLAÇ çıkmıştı:
+ *   "…<a href="/japon-remixpoint-tum-altcoinleri-satti…">yalnızca</a>…"
+ *   "…<a href="/tim-baskani-gultepe-e-ihracat-hizla-buyumeye-devam-edecek">devam edecek</a>…"
+ * İkisi de DASK ile ilgisiz makalelere çıkıyordu. 4 Eylül'deki jenerik-kelime
+ * listesi bunları yakalamıyor: "yalnızca" 8 harf (tek kelime eşiğini geçiyor),
+ * "devam" 5 harf ve listede değil.
+ *
+ * Kök neden liste eksikliği DEĞİL, kuralın yanlış yerde durması: çapa metni
+ * hedefin KONUSUNU söylemek zorunda. Kapalı sınıf kelimeler (bağlaç/zarf) ve
+ * çekimli fiiller hiçbir sayfanın konusu olamaz — bu yüzden yapısal olarak
+ * elenirler. Bunun ikinci faydası konu alakası: makale hedefin konu
+ * kelimesini gerçekten geçmiyorsa bağlantı hiç kurulmaz.
+ */
+test("bağlaç/zarf ve çekimli fiil çapa metni olamaz", () => {
+  const terms = linkableTerms({
+    title: "Japon Remixpoint tüm altcoinleri sattı portföyde yalnızca Bitcoin kaldı",
+    keyword: null,
+  });
+  for (const bad of ["yalnızca", "tüm", "sattı", "kaldı"]) {
+    assert.ok(!terms.includes(bad), `kötü çapa üretildi: ${bad} (${terms.join(", ")})`);
+  }
+  assert.ok(
+    terms.some((t) => t.toLocaleLowerCase("tr-TR").includes("altcoin") || t.includes("Remixpoint")),
+    terms.join(", "),
+  );
+});
+
+test("yardımcı fiil öbeği çapa metni olamaz", () => {
+  const terms = linkableTerms({
+    title: "TİM Başkanı Gültepe: e-ihracat hızla büyümeye devam edecek",
+    keyword: null,
+  });
+  for (const bad of ["devam edecek", "büyümeye devam edecek", "hızla büyümeye", "edecek", "büyümeye"]) {
+    assert.ok(!terms.includes(bad), `kötü çapa üretildi: ${bad} (${terms.join(", ")})`);
+  }
+});
+
+test("konusu geçmeyen makaleye iç bağlantı kurulmaz", () => {
+  const html =
+    "<p>Zorunlu deprem sigortası poliçesinin devri konut satışında sona eriyor.</p>" +
+    "<p>Yeni hak sahibi, poliçeyi kendi adına yeniden düzenletmek zorunda kalacak ve bu süreç devam edecek.</p>";
+  const output = injectInternalLinks(html, [
+    { slug: "japon-remixpoint-tum-altcoinleri-satti", title: "Japon Remixpoint tüm altcoinleri sattı portföyde yalnızca Bitcoin kaldı", category: "kripto", keyword: null },
+    { slug: "tim-baskani-gultepe-e-ihracat", title: "TİM Başkanı Gültepe: e-ihracat hızla büyümeye devam edecek", category: "ekonomi", keyword: null },
+  ], "konut-satisinda-dask-devri", 3);
+
+  assert.equal(output, html, `alakasız bağlantı girdi: ${output}`);
+});
+
+/**
+ * [DAHILI_LINK] yer tutucusu 5 Eylül 2026'ya kadar SIRAYLA dolduruluyordu
+ * (`pool[idx % pool.length]`) — konu bakılmıyordu. Aynı kategoride olmak
+ * "ilgili" sayılıyor, o da yoksa havuzdaki ilk makale gövdeye giriyordu.
+ * Alakasız hedef yerine kalıcı kategori/veri merkezine bağlanmak doğrusu.
+ */
+test("alakasız aday varken yer tutucu kategori merkezine bağlanır", async () => {
+  const { pickPlaceholderTarget } = await import("../lib/bot/linker");
+  const html = "<p>Zorunlu deprem sigortası poliçesi konut satışında devredilemeyecek.</p>";
+  const pool = [
+    { slug: "japon-remixpoint", title: "Japon Remixpoint tüm altcoinleri sattı", category: "kripto", keyword: null },
+  ];
+  assert.equal(pickPlaceholderTarget(html, pool, new Set()), null);
+});

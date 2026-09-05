@@ -51,12 +51,26 @@ export async function autoLink(
   const otherCat = candidates.filter(a => a.category !== category);
   const pool = [...sameCat, ...otherCat];
 
-  let placeholderIdx = 0;
+  // [DAHILI_LINK] yer tutucuları KONUYA GÖRE doldurulur.
+  //
+  // 5 Eylül 2026'ya kadar sıradan doldurulıyordu (`pool[idx % pool.length]`):
+  // aynı kategoride olmak "ilgili" sayılıyordu, o da yoksa havuzdaki ilk
+  // makale konuluyordu. Böylece DASK haberinin gövdesine altcoin haberi
+  // girebiliyordu. Alakasız bağlantı okuru yanıltır ve arama motoruna yanlış
+  // konu ilişkisi bildirir; hiç bağlantı vermemek bundan iyidir — o durumda
+  // aşağıdaki kategori/veri merkezi bağlantıları devreye girer.
+  const used = new Set<string>();
+  const hubs = CATEGORY_HUBS[category] || CATEGORY_HUBS.ekonomi;
+  let hubIdx = 0;
   html = html.replace(/\[DAHILI_LINK\]/gi, () => {
-    const target = pool[placeholderIdx % pool.length];
-    if (!target) return "";
-    placeholderIdx++;
-    return `<a href="/${target.slug}">${target.title}</a>`;
+    const target = pickPlaceholderTarget(html, pool, used);
+    if (target) {
+      used.add(target.slug);
+      return `<a href="/${target.slug}">${target.title}</a>`;
+    }
+    const hub = hubs[hubIdx % hubs.length];
+    hubIdx++;
+    return hub ? `<a href="${hub.href}">${hub.label}</a>` : "";
   });
 
   // Also inject contextual internal links by matching keywords in content
@@ -80,8 +94,47 @@ export async function autoLink(
   return html;
 }
 
+/** Yer tutucu için konu örtüşmesi en yüksek aday; alakalı aday yoksa null. */
+export function pickPlaceholderTarget(
+  html: string,
+  pool: LinkableArticle[],
+  used: Set<string>,
+): LinkableArticle | null {
+  return (
+    pool
+      .filter((item) => !used.has(item.slug))
+      .map((item) => ({ item, score: relevanceScore(html, item) }))
+      .filter((entry) => entry.score > 0)
+      .sort((a, b) => b.score - a.score)[0]?.item ?? null
+  );
+}
+
 function countInternalLinks(html: string): number {
   return (html.match(/href=["']\/[^"']*["']/gi) || []).length;
+}
+
+/**
+ * Hedef makalenin konu kelimelerinden kaçı bu metinde geçiyor?
+ *
+ * 0 ise iki sayfa aynı konudan söz etmiyor demektir; bağlantı kurulmaz.
+ */
+export function relevanceScore(
+  html: string,
+  article: { title: string; keyword?: string | null },
+): number {
+  const text = html.toLocaleLowerCase("tr-TR");
+  const words = `${article.keyword ?? ""} ${article.title}`
+    .split(/[\s:,;.!?—–-]+/)
+    .filter((word) => isContentWord(word));
+  const seen = new Set<string>();
+  let score = 0;
+  for (const word of words) {
+    const lower = word.toLocaleLowerCase("tr-TR");
+    if (seen.has(lower)) continue;
+    seen.add(lower);
+    if (text.includes(lower)) score++;
+  }
+  return score;
 }
 
 /**
@@ -117,12 +170,68 @@ const GENERIC_ANCHOR_WORDS = new Set([
   // "doğal gaz" -> "doğal", "çalışma prensipleri" -> "çalışma".
   "doğal", "çalışma", "prensipleri", "süreci", "süreç", "tanım", "yöntem",
   "türleri", "çeşitleri", "örnekleri", "listesi", "tablosu", "durumu",
+  // Yardımcı fiil öbeğinin isim yarısı ("devam edecek", "dikkat çekti") tek
+  // başına konu adlandırmaz; 5 Eylül 2026 arızasında "devam" 5 harf olduğu
+  // için içerik kelimesi sayılmıştı.
+  "devam", "kapsamında", "konusunda", "durumunda", "yönünde", "sonucunda",
 ]);
 
 const MIN_SINGLE_WORD_ANCHOR = 7;
 
+/**
+ * KAPALI SINIF KELİMELER (bağlaç, zarf, edat, belirteç).
+ *
+ * Bu küme jenerik kelime listesi gibi büyümez — Türkçede sayısı sabittir.
+ * Hiçbiri bir sayfanın KONUSU olamaz, dolayısıyla hiçbiri çapa metni olamaz.
+ * 5 Eylül 2026 arızasında "yalnızca" tek kelime eşiğini (7 harf) geçtiği için
+ * çapa olmuş ve DASK haberini altcoin haberine bağlamıştı.
+ */
+const FUNCTION_WORDS = new Set([
+  "yalnızca", "sadece", "ayrıca", "özellikle", "böylece", "ancak", "fakat",
+  "ama", "çünkü", "dolayısıyla", "nitekim", "hatta", "yine", "yeniden",
+  "ardından", "sonra", "önce", "şimdi", "artık", "henüz", "halen", "hâlen",
+  "kadar", "beri", "göre", "rağmen", "karşın", "üzere", "üzerinden", "itibaren",
+  "tarafından", "boyunca", "gibi", "yaklaşık", "toplam", "tüm", "bütün", "her",
+  "bazı", "birçok", "çeşitli", "diğer", "aynı", "kendi", "böyle", "şöyle",
+  "daha", "çok", "az", "en", "hem", "veya", "ya", "ise", "ki", "de", "da",
+  "hızla", "birden", "giderek", "ağırlıklı", "büyük", "küçük", "yeni", "eski",
+]);
+
+/**
+ * ÇEKİMLİ FİİL BİÇİMLERİ yapısal olarak elenir.
+ *
+ * "edecek", "sattı", "kaldı", "geriledi", "yükseldi" — hepsi bir OLAYI anlatır,
+ * bir KONUYU adlandırmaz. Liste tutmak yerine eki tanımak gerekir; yoksa her
+ * yeni haber fiili aynı arızayı tekrar üretir (5 Eylül 2026: "devam edecek"
+ * çapası e-ihracat haberine bağlanmıştı).
+ */
+const FINITE_VERB_SUFFIX =
+  /(ecek|acak|ıyor|iyor|uyor|üyor|mış|miş|muş|müş|dı|di|du|dü|tı|ti|tu|tü|mekte|makta|meye|maya)$/;
+
+export function isFiniteVerbForm(word: string): boolean {
+  const lower = word.toLocaleLowerCase("tr-TR");
+  // Özel ad (Bitcoin, Gültepe) ya da kısaltma fiil sayılmaz.
+  if (/^[A-ZÇĞİÖŞÜ]/.test(word) && word.length > 1) return false;
+  return FINITE_VERB_SUFFIX.test(lower);
+}
+
 export function isGenericAnchor(word: string): boolean {
-  return GENERIC_ANCHOR_WORDS.has(word.toLocaleLowerCase("tr-TR"));
+  const lower = word.toLocaleLowerCase("tr-TR");
+  return GENERIC_ANCHOR_WORDS.has(lower) || FUNCTION_WORDS.has(lower);
+}
+
+/**
+ * İÇERİK KELİMESİ: hedef sayfanın konusunu taşıyabilecek kelime.
+ *
+ * Çapa metninde en az bir tanesi olmak ZORUNDA. Bu kural aynı zamanda konu
+ * alakasını da sağlar: makale hedefin konu kelimesini gerçekten geçmiyorsa
+ * eşleşme olmaz, bağlantı hiç kurulmaz ve kategori/veri merkezine düşülür.
+ */
+export function isContentWord(word: string): boolean {
+  if (word.length < 5) return false;
+  if (isGenericAnchor(word)) return false;
+  if (isFiniteVerbForm(word)) return false;
+  return true;
 }
 
 /** Bir makaleye bağlanırken kullanılabilecek çapa metinleri, önem sırasıyla. */
@@ -148,14 +257,13 @@ export function linkableTerms(article: { title: string; keyword?: string | null 
   for (const size of [3, 2]) {
     for (let index = 0; index + size <= words.length; index++) {
       const phrase = words.slice(index, index + size);
-      if (phrase.every(isGenericAnchor)) continue;
-      if (!phrase.some((word) => !isGenericAnchor(word) && word.length >= 5)) continue;
+      if (!phrase.some(isContentWord)) continue;
       push(phrase.join(" "));
     }
   }
 
   for (const word of words) {
-    if (word.length >= MIN_SINGLE_WORD_ANCHOR && !isGenericAnchor(word)) push(word);
+    if (word.length >= MIN_SINGLE_WORD_ANCHOR && isContentWord(word)) push(word);
   }
 
   return terms;
@@ -183,8 +291,15 @@ export function injectInternalLinks(
 ): string {
   let added = 0;
   const ledeEnd = ledeEndIndex(html);
+  // Konu örtüşmesi en yüksek adaydan başla: aynı metinde birden fazla aday
+  // eşleşiyorsa, bağlantı en alakalı olana gitsin.
+  const ordered = [...articles]
+    .map((article) => ({ article, score: relevanceScore(html, article) }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map((entry) => entry.article);
 
-  for (const article of articles) {
+  for (const article of ordered) {
     if (added >= maxLinks) break;
     if (article.slug === currentSlug) continue;
 
