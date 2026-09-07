@@ -13,6 +13,7 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
+    "seo:indeks-fark": "tsx scripts/indeks-fark.ts",
     "content:legacy:audit": "tsx scripts/archive-legacy-bot-articles.ts",
     "content:legacy:archive": "tsx scripts/archive-legacy-bot-articles.ts --apply",
     "content:legacy:archive-drafts": "tsx scripts/archive-legacy-bot-articles.ts --apply --drafts-only",
