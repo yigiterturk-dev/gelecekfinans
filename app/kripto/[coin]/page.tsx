@@ -6,6 +6,7 @@ import { MedCard } from "@/components/ArticleCard";
 import AdSlot from "@/components/AdSlot";
 import MarketFaq from "@/components/MarketFaq";
 import { cryptoFaq } from "@/lib/market-faq";
+import { CRYPTO_PROFILES } from "@/lib/crypto-profiles";
 import Sparkline from "@/components/Sparkline";
 
 export const revalidate = 300;
@@ -119,8 +120,11 @@ export default async function KriptoDetail({ params }: { params: Promise<{ coin:
 
       <section className="section">
         <h2 className="market-h2">{cfg.label} Hakkında</h2>
+        {CRYPTO_PROFILES[coin]?.paragraphs.map((p, i) => (
+          <p key={i} className="market-prose">{p}</p>
+        ))}
         <p className="market-prose">
-          {cfg.label} ({cfg.symbol}), kripto para piyasasının takip edilen varlıklarından biridir. Bu sayfadaki
+          Bu sayfadaki
           {" "}1 {cfg.symbol} = TL fiyatı, CoinGecko genel API verilerinden derlenir ve yaklaşık 5 dakikada bir
           güncellenir. Kripto varlıklar yüksek oynaklığa sahiptir; gösterilen veriler bilgilendirme amaçlıdır ve
           yatırım tavsiyesi niteliği taşımaz. Güncel gelişmeler için{" "}
@@ -128,7 +132,7 @@ export default async function KriptoDetail({ params }: { params: Promise<{ coin:
         </p>
       </section>
 
-      <MarketFaq items={cryptoFaq(cfg.label, cfg.symbol)} />
+      <MarketFaq items={[...(CRYPTO_PROFILES[coin]?.faq ?? []), ...cryptoFaq(cfg.label, cfg.symbol)]} />
 
       <section className="section market-links">
         <h2 className="market-h2">Diğer Kripto Paralar</h2>
