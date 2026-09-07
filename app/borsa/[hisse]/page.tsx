@@ -7,6 +7,7 @@ import AdSlot from "@/components/AdSlot";
 import Sparkline from "@/components/Sparkline";
 import MarketFaq from "@/components/MarketFaq";
 import { bistFaq } from "@/lib/market-faq";
+import { STOCK_PROFILES } from "@/lib/stock-profiles";
 
 export const revalidate = 300;
 const BASE = "https://gelecekfinans.com";
@@ -40,6 +41,7 @@ export default async function HisseDetail({ params }: { params: Promise<{ hisse:
   if (!cfg) notFound();
 
   const [d, related] = await Promise.all([getStock(hisse), safeRelatedArticles("borsa")]);
+  const profile = STOCK_PROFILES[hisse];
   const up = (d?.changePct ?? 0) >= 0;
   const others = Object.entries(BIST_STOCKS).filter(([k]) => k !== hisse).slice(0, 6);
   const baslik = cfg.index ? "BIST 100 Endeksi" : `${cfg.name} (${cfg.ticker}) Hisse Fiyatı`;
@@ -126,14 +128,17 @@ export default async function HisseDetail({ params }: { params: Promise<{ hisse:
 
       <section className="section">
         <h2 className="market-h2">{cfg.name} Hakkında</h2>
+        {profile
+          ? profile.paragraphs.map((p, i) => <p key={i} className="market-prose">{p}</p>)
+          : <p className="market-prose">{cfg.about}</p>}
         <p className="market-prose">
-          {cfg.about} Bu sayfadaki fiyat, borsa seans verisinden derlenir ve yaklaşık 5 dakikada bir güncellenir;
+          Bu sayfadaki fiyat, borsa seans verisinden derlenir ve yaklaşık 5 dakikada bir güncellenir;
           seans dışında son kapanış değeri gösterilir. Veriler bilgilendirme amaçlıdır, yatırım tavsiyesi niteliği
           taşımaz. Güncel gelişmeler için <Link href="/kategori/borsa">borsa haberleri</Link> sayfamızı takip edin.
         </p>
       </section>
 
-      <MarketFaq items={bistFaq(cfg.name, cfg.ticker, cfg.index === true)} />
+      <MarketFaq items={[...(profile?.faq ?? []), ...bistFaq(cfg.name, cfg.ticker, cfg.index === true)]} />
 
       <section className="section market-links">
         <h2 className="market-h2">Diğer Hisseler</h2>
