@@ -6,6 +6,7 @@ import { MedCard } from "@/components/ArticleCard";
 import AdSlot from "@/components/AdSlot";
 import MarketFaq from "@/components/MarketFaq";
 import { fxFaq } from "@/lib/market-faq";
+import { FX_PROFILES } from "@/lib/asset-profiles";
 import Sparkline from "@/components/Sparkline";
 import CurrencyConverter from "@/components/CurrencyConverter";
 
@@ -121,8 +122,11 @@ export default async function DovizDetail({ params }: { params: Promise<{ pair: 
 
       <section className="section">
         <h2 className="market-h2">{cfg.label} Nedir?</h2>
+        {FX_PROFILES[pair]?.paragraphs.map((p, i) => (
+          <p key={i} className="market-prose">{p}</p>
+        ))}
         <p className="market-prose">
-          {cfg.long} ({cfg.base}), Türkiye{"'"}de en çok takip edilen döviz birimlerinden biridir. Bu sayfadaki
+          Bu sayfadaki
           1 {cfg.base} = TL kuru, ücretsiz ve güncel piyasa verilerinden derlenir ve yaklaşık 10 dakikada bir
           yenilenir. Gösterilen değerler bilgilendirme amaçlıdır; bankaların ve döviz bürolarının alış-satış
           kurları farklılık gösterebilir. {cfg.label} ile ilgili son dakika gelişmeleri için{" "}
@@ -130,7 +134,7 @@ export default async function DovizDetail({ params }: { params: Promise<{ pair: 
         </p>
       </section>
 
-      <MarketFaq items={fxFaq(pair)} />
+      <MarketFaq items={[...(FX_PROFILES[pair]?.faq ?? []), ...fxFaq(pair)]} />
 
       <section className="section market-links">
         <h2 className="market-h2">Diğer Döviz Kurları</h2>

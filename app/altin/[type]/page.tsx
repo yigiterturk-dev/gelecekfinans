@@ -6,6 +6,7 @@ import { MedCard } from "@/components/ArticleCard";
 import AdSlot from "@/components/AdSlot";
 import MarketFaq from "@/components/MarketFaq";
 import { goldFaq } from "@/lib/market-faq";
+import { GOLD_PROFILES } from "@/lib/asset-profiles";
 import GoldCalculator from "@/components/calculators/GoldCalculator";
 
 export const revalidate = 600;
@@ -115,15 +116,18 @@ export default async function AltinDetail({ params }: { params: Promise<{ type: 
 
       <section className="section">
         <h2 className="market-h2">{cfg.long} Hakkında</h2>
+        {GOLD_PROFILES[type]?.paragraphs.map((p, i) => (
+          <p key={i} className="market-prose">{p}</p>
+        ))}
         <p className="market-prose">
-          {cfg.desc} Bu sayfadaki {cfg.label.toLowerCase()} fiyatı, uluslararası ons altın fiyatının güncel
+          Bu sayfadaki {cfg.label.toLowerCase()} fiyatı, uluslararası ons altın fiyatının güncel
           dolar/TL kuruyla çarpılmasıyla türetilir ve yaklaşık 10 dakikada bir güncellenir. Gösterilen değerler
           bilgilendirme amaçlıdır; kapalıçarşı ve banka fiyatları işçilik ve marj nedeniyle farklılık gösterebilir.
           Güncel gelişmeler için <Link href="/kategori/altin">altın haberleri</Link> sayfamızı takip edin.
         </p>
       </section>
 
-      <MarketFaq items={goldFaq(type)} />
+      <MarketFaq items={[...(GOLD_PROFILES[type]?.faq ?? []), ...goldFaq(type)]} />
 
       <section className="section market-links">
         <h2 className="market-h2">Diğer Altın Türleri</h2>
