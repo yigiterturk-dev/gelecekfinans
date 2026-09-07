@@ -35,6 +35,10 @@
     {
       "path": "/api/bot/gsc-cron",
       "schedule": "30 4 * * *"
+    },
+    {
+      "path": "/api/bot/index-ping",
+      "schedule": "0 3 * * *"
     }
   ]
 }
