@@ -12,6 +12,7 @@ import { Analytics } from "@vercel/analytics/react";
 import { getSettings } from "@/lib/settings";
 import CookieConsent from "@/components/CookieConsent";
 import { BRAND, BRAND_ALIASES, HOME_TITLE, TITLE_TEMPLATE } from "@/lib/brand";
+import { SAME_AS } from "@/lib/social";
 
 const BASE = "https://gelecekfinans.com";
 
@@ -122,6 +123,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               alternateName:BRAND_ALIASES,
               description:"Borsa, döviz, altın, kripto para ve ekonomi haberlerini doğrulanmış kaynaklarla yayımlayan bağımsız Türkçe finans yayını.",
               url:BASE,
+              /* Bağımsız platformlardaki doğrulanmış profiller. Google marka
+                 varlığını bu bağlarla tanır; dizi boşsa alan hiç yazılmaz. */
+              ...(SAME_AS.length ? { sameAs: SAME_AS } : {}),
               logo:{"@type":"ImageObject",url:`${BASE}/icon.svg`,width:512,height:512},
               foundingDate:"2026",
               publishingPrinciples:`${BASE}/yayincilik-ilkeleri`,
