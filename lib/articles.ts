@@ -7,6 +7,26 @@ export type { Article } from "./types";
 export type { ArticleListItem } from "./types";
 
 /**
+ * Veritabanina ULASILAMADI — "kayit yok" ile ayni sey DEGIL.
+ *
+ * Onceden `getArticleBySlug` her hatada `null` donuyordu ve makale sayfasi bunu
+ * `notFound()` ile 404'e ceviriyordu. 2026-09-09'da Neon ag kotasi dolup DB
+ * kilitlenince yayindaki 54 makalenin TAMAMI Googlebot'a 404 dondu — yani
+ * "bu sayfalar silindi" sinyali. Gecici bir altyapi arizasi kalici bir SEO
+ * kaybina donusuyordu.
+ *
+ * Artik DB arizasi bu hatayla yukari firlar; sayfa 5xx doner, Google URL'i
+ * indeksten dusurmez, sonra tekrar dener.
+ */
+export class DatabaseUnavailableError extends Error {
+  constructor(cause?: unknown) {
+    super("Veritabanina ulasilamadi");
+    this.name = "DatabaseUnavailableError";
+    this.cause = cause;
+  }
+}
+
+/**
  * DB'den gelen `aiExtras` JSON değerini güvenle `ArticleExtras`'a dönüştürür.
  * LLM/DB kaynaklı olduğu için biçimi doğrular; geçersiz/eksikse null döner,
  * böylece sayfa kutuyu ve FAQ schema'yı gösterMEZ (graceful).
@@ -187,7 +207,8 @@ export const getArticleBySlug = cache(async function getArticleBySlug(
   } catch (err) {
     if (!isMissingOptionalColumn(err)) {
       console.error("[getArticleBySlug] sorgu başarısız:", err);
-      return null;
+      // DB arızası ≠ makale yok. Bkz. DatabaseUnavailableError.
+      throw new DatabaseUnavailableError(err);
     }
     // `premium`/`aiExtras` kolonu yok: opsiyonel kolonları hariç tutarak yeniden dene.
     r = await prisma.article.findFirst({
