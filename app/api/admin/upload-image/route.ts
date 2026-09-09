@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { farkliKokenReddi } from "@/lib/csrf";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { put } from "@vercel/blob";
@@ -17,6 +18,9 @@ const MAX_BYTES = 8 * 1024 * 1024; // 8MB
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"];
 
 export async function POST(req: NextRequest) {
+  const kokenReddi = farkliKokenReddi(req);
+  if (kokenReddi) return kokenReddi;
+
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 

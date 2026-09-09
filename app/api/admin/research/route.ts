@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { farkliKokenReddi } from "@/lib/csrf";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import Parser from "rss-parser";
@@ -99,6 +100,9 @@ export async function GET(req: NextRequest) {
 // POST → seçilen başlığı güncel feed havuzunda ikinci bir yayıncıyla doğrular;
 // doğrulanamayan seçim model çağrısı yapılmadan 422 ile durur.
 export async function POST(req: NextRequest) {
+  const kokenReddi = farkliKokenReddi(req);
+  if (kokenReddi) return kokenReddi;
+
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
