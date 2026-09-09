@@ -44,3 +44,6 @@ next-env.d.ts
 /lib/generated/prisma
 .claude/
 .env*.local
+
+# nocturn-audit raporlari (yerel olcum ciktisi, depoya girmez)
+report/
