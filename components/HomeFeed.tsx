@@ -1,9 +1,9 @@
 "use client";
 import { useState } from "react";
 import { MedCard, CATS } from "./ArticleCard";
-import type { Article } from "@/lib/types";
+import type { ArticleListItem } from "@/lib/types";
 
-export default function HomeFeed({ articles }: { articles: Article[] }) {
+export default function HomeFeed({ articles }: { articles: ArticleListItem[] }) {
   const [active, setActive] = useState<string | null>(null);
   const filtered = active ? articles.filter(a => a.category === active) : articles;
   return (

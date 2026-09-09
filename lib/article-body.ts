@@ -16,7 +16,8 @@
  * ⚠️ Her iki çıktı da `sanitizeArticleHtml`'den geçer. Gövde LLM ve admin
  * editörü üretimi; ham basmak depolanan XSS demek.
  */
-import { buildTeaser, type Article } from "@/lib/articles";
+import { buildTeaser } from "@/lib/articles";
+import type { ArticleListItem } from "@/lib/types";
 import { injectInternalLinks } from "@/lib/internal-links";
 import { injectMarketLinks } from "@/lib/market-links";
 import { sanitizeArticleHtml } from "@/lib/sanitize";
@@ -31,7 +32,7 @@ export const TEASER_KELIME = 200;
 export function tamGovde(
   content: string,
   slug: string,
-  tumMakaleler: Article[]
+  tumMakaleler: ArticleListItem[]
 ): string {
   return sanitizeArticleHtml(
     injectMarketLinks(injectInternalLinks(content, slug, tumMakaleler), `/${slug}`)

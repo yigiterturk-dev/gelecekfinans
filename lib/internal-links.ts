@@ -1,4 +1,4 @@
-import type { Article } from "./types";
+import type { ArticleListItem } from "./types";
 import { isContentWord, turkceSinirliDesen } from "./anchor-words";
 
 /**
@@ -14,7 +14,7 @@ import { isContentWord, turkceSinirliDesen } from "./anchor-words";
  * Ek olarak GİRİŞ PARAGRAFI muaftır: makalenin odak kelimesi lede'de bölünürse
  * sayfa kendi hedef sorgusunda zayıflar.
  */
-export function injectInternalLinks(content: string, currentSlug: string, allArticles: Article[]): string {
+export function injectInternalLinks(content: string, currentSlug: string, allArticles: ArticleListItem[]): string {
   const candidates = allArticles
     .filter(a => a.slug !== currentSlug && a.keyword)
     .slice(0, 50);

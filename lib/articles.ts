@@ -1,8 +1,10 @@
 import { cache } from "react";
 import { prisma } from "./db";
-import type { Article, ArticleExtras, ArticleFaq } from "./types";
+import type { Article, ArticleListItem, ArticleExtras, ArticleFaq } from "./types";
 
 export type { Article } from "./types";
+
+export type { ArticleListItem } from "./types";
 
 /**
  * DB'den gelen `aiExtras` JSON değerini güvenle `ArticleExtras`'a dönüştürür.
@@ -75,13 +77,12 @@ function isMissingOptionalColumn(err: unknown): boolean {
 // sonuçlar birebir aynı kalır, yalnızca tekrar eden sorgu önlenir.
 export const getAllArticles = cache(async function getAllArticles(
   limit = 200
-): Promise<Article[]> {
+): Promise<ArticleListItem[]> {
   let rows: Array<{
     title: string;
     meta: string;
     keyword: string | null;
     category: string;
-    content: string;
     source: string | null;
     publishedAt: Date | null;
     createdAt: Date;
@@ -91,10 +92,26 @@ export const getAllArticles = cache(async function getAllArticles(
     updatedAt: Date;
     premium?: boolean;
   }>;
+  // `content` BİLEREK seçilmiyor — bkz. ArticleListItem.
+  const listSelect = {
+    title: true,
+    meta: true,
+    keyword: true,
+    category: true,
+    source: true,
+    publishedAt: true,
+    createdAt: true,
+    slug: true,
+    id: true,
+    imageUrl: true,
+    updatedAt: true,
+    premium: true,
+  } as const;
   const baseQuery = {
     where: { status: "PUBLISHED" as const },
     orderBy: { publishedAt: "desc" as const },
     take: limit,
+    select: listSelect,
   };
   try {
     rows = await prisma.article.findMany(baseQuery);
@@ -106,22 +123,10 @@ export const getAllArticles = cache(async function getAllArticles(
       return [];
     }
     // `premium` kolonu yok: kolonu hariç tutarak yeniden dene.
+    const { premium: _premium, ...selectWithoutPremium } = listSelect;
     rows = await prisma.article.findMany({
       ...baseQuery,
-      select: {
-        title: true,
-        meta: true,
-        keyword: true,
-        category: true,
-        content: true,
-        source: true,
-        publishedAt: true,
-        createdAt: true,
-        slug: true,
-        id: true,
-        imageUrl: true,
-        updatedAt: true,
-      },
+      select: selectWithoutPremium,
     });
   }
 
@@ -140,7 +145,6 @@ export const getAllArticles = cache(async function getAllArticles(
     meta: r.meta,
     keyword: r.keyword || "",
     category: r.category,
-    content: r.content,
     image_path: null,
     source: r.source || "",
     created_at: (r.publishedAt || r.createdAt).toISOString(),
@@ -225,7 +229,7 @@ export const getArticleBySlug = cache(async function getArticleBySlug(
   };
 });
 
-export async function getArticlesByCategory(cat: string): Promise<Article[]> {
+export async function getArticlesByCategory(cat: string): Promise<ArticleListItem[]> {
   const all = await getAllArticles();
   return all.filter((a) => a.category === cat);
 }
@@ -241,7 +245,7 @@ export async function getArticlesByCategory(cat: string): Promise<Article[]> {
  * `track` kolonu eski kurulumlarda olmayabilir; kolon yoksa boş liste döner
  * ve sayfa dürüst boş durum gösterir (getAllArticles ile aynı degrade davranışı).
  */
-export async function getGuides(limit = 100): Promise<Article[]> {
+export async function getGuides(limit = 100): Promise<ArticleListItem[]> {
   let rows: Array<{ slug: string; cluster: string | null }>;
   try {
     rows = await prisma.article.findMany({

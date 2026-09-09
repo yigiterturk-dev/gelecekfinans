@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { publicImageUrl } from "@/lib/image-url";
-import type { Article } from "@/lib/types";
+import type { ArticleListItem } from "@/lib/types";
 
 export const CATS: Record<string, {l:string;c:string}> = {
   kripto: {l:"KRİPTO",c:"#d97706"},
@@ -39,7 +39,7 @@ function ViewCount({n}:{n?:number}){
   return <span style={{fontSize:10,color:"#999"}}>&#128065; {txt}</span>;
 }
 
-export function HeroCard({article}:{article:Article}){
+export function HeroCard({article}:{article:ArticleListItem}){
   const img=publicImageUrl(article.imageUrl);
   return(
     <Link href={`/${article.slug}`} className="hero-editorial">
@@ -66,7 +66,7 @@ export function HeroCard({article}:{article:Article}){
   );
 }
 
-export function StripCard({article}:{article:Article}){
+export function StripCard({article}:{article:ArticleListItem}){
   const img=publicImageUrl(article.imageUrl);
   return(
     <Link href={`/${article.slug}`} className="strip-card">
@@ -85,7 +85,7 @@ export function StripCard({article}:{article:Article}){
   );
 }
 
-export function MedCard({article}:{article:Article}){
+export function MedCard({article}:{article:ArticleListItem}){
   const img=publicImageUrl(article.imageUrl);
   return(
     <Link href={`/${article.slug}`} className="grid-card">
@@ -104,7 +104,7 @@ export function MedCard({article}:{article:Article}){
   );
 }
 
-export function RankedCard({article,index,last=false}:{article:Article;index:number;last?:boolean}){
+export function RankedCard({article,index,last=false}:{article:ArticleListItem;index:number;last?:boolean}){
   const img=publicImageUrl(article.imageUrl);
   const c=CATS[article.category];
   // Boşluklar inline → Tailwind/CSS düşse bile satırlar dip dibe olmaz.
@@ -134,6 +134,6 @@ export function RankedCard({article,index,last=false}:{article:Article;index:num
   );
 }
 
-export default function ArticleCard({article,big=false}:{article:Article;big?:boolean}){
+export default function ArticleCard({article,big=false}:{article:ArticleListItem;big?:boolean}){
   return big?<HeroCard article={article}/>:<MedCard article={article}/>;
 }

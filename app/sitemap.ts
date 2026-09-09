@@ -53,12 +53,26 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Sitemap sorgusu sayfa görüntüleme istatistiklerine ihtiyaç duymaz. Doğrudan
   // makale tablosunu okumak hem daha ucuzdur hem yeni yayınların sitemap'e
   // başka bir sorgunun başarısına bağlı kalmadan girmesini sağlar.
-  const articles = await prisma.article.findMany({
-    where: { status: "PUBLISHED" },
-    orderBy: { publishedAt: "desc" },
-    take: 5000,
-    select: { slug: true, category: true, publishedAt: true, updatedAt: true, imageUrl: true },
-  });
+  // DB erişilemezse (kota, bakım, ağ) sitemap boş makale listesiyle üretilir.
+  // Öncesinde bu sorgu build'i tümden düşürüyordu: veritabanı kilitliyken
+  // DEPLOY BİLE YAPILAMIYORDU — yani düzeltmeyi yayına almak imkânsızdı.
+  let articles: Array<{
+    slug: string;
+    category: string;
+    publishedAt: Date | null;
+    updatedAt: Date;
+    imageUrl: string | null;
+  }> = [];
+  try {
+    articles = await prisma.article.findMany({
+      where: { status: "PUBLISHED" },
+      orderBy: { publishedAt: "desc" },
+      take: 5000,
+      select: { slug: true, category: true, publishedAt: true, updatedAt: true, imageUrl: true },
+    });
+  } catch (err) {
+    console.error("[sitemap] makale sorgusu başarısız, statik girdilerle devam:", err);
+  }
   const articleEntries = articles.map((a) => ({
     url: `${BASE}/${a.slug}`,
     lastModified: a.updatedAt,

@@ -25,3 +25,11 @@ export interface Article {
   /** Rehber şeridinde küme adı (haberlerde null/undefined). */
   cluster?: string | null;
 }
+
+/**
+ * Liste bağlamlarında kullanılan makale kaydı — `content` (tam HTML gövde)
+ * BİLEREK yoktur. Gövde makale başına ~10 KB; 200-500 kayıtlık listelerde her
+ * istekte megabaytlarca gereksiz DB trafiği demekti (Neon'un 5 GB/ay ağ kotası
+ * bu yüzden doldu). Gövde gerçekten gerekiyorsa `getArticleBySlug` kullan.
+ */
+export type ArticleListItem = Omit<Article, "content">;

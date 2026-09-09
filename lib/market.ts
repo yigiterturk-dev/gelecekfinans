@@ -496,10 +496,10 @@ export const REFERENCE_RATES: { asOf: string; rates: RateInfo[] } = {
  * İlgili haberler (savunmacı) — DB erişilemese bile sayfa çökmesin.
  * ------------------------------------------------------------------------- */
 
-import type { Article } from "@/lib/types";
+import type { ArticleListItem } from "@/lib/types";
 
 /** Kategoriye göre ilgili haberleri güvenli getirir. DB hatasında boş dizi döner. */
-export async function safeRelatedArticles(cat: string, limit = 4): Promise<Article[]> {
+export async function safeRelatedArticles(cat: string, limit = 4): Promise<ArticleListItem[]> {
   try {
     const { getArticlesByCategory } = await import("@/lib/articles");
     const arts = await getArticlesByCategory(cat);
