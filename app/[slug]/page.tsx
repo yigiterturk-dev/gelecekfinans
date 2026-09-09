@@ -1,6 +1,4 @@
-import { getAllArticles, getArticleBySlug, buildTeaser } from "@/lib/articles";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getAllArticles, getArticleBySlug } from "@/lib/articles";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -11,29 +9,48 @@ import { CATS, MedCard } from "@/components/ArticleCard";
 import ReadingProgress from "@/components/ReadingProgress";
 import ShareButtons from "@/components/ShareButtons";
 import AdSlot from "@/components/AdSlot";
-import { injectInternalLinks } from "@/lib/internal-links";
-import { injectMarketLinks } from "@/lib/market-links";
 import { readingTime } from "@/lib/reading-time";
-import { sanitizeArticleHtml } from "@/lib/sanitize";
+import { tamGovde, kilitliGovde } from "@/lib/article-body";
+import PremiumBody from "@/components/PremiumBody";
 
 /**
- * ⚠️ ÖLÇÜLDÜ (2026-09-09): burada `revalidate` YAZMAK ANLAMSIZDI.
- * `dynamic = "force-dynamic"` revalidate'i EZER — dosyada duran
- * `revalidate = 300` satırı hiç çalışmıyordu, yani "makaleler 5 dakika
- * önbellekleniyor" varsayımı yanlıştı: her istek veritabanına gidiyor.
- * Yanlış güven vermesin diye satır kaldırıldı.
+ * 🔑 ISR (2026-09-09). Sayfa ARTIK önbellekleniyor.
  *
- * force-dynamic'in gerçek sebebi aşağıdaki premium kapısı: `getServerSession`
- * çerez okur, çerez okuyan sayfa statik üretilemez.
+ * Öncesinde `force-dynamic` vardı ve yanında yazan `revalidate` hiç
+ * çalışmıyordu (force-dynamic onu ezer) — yani "makaleler önbellekleniyor"
+ * varsayımı yanlıştı, 53 makalenin HER isteği veritabanına gidiyordu.
+ * Sebep premium kapısının `getServerSession` çağrısıydı: çerez okuyan sayfa
+ * statik üretilemez.
  *
- * 📊 Bugünkü tablo: 53 yayınlanmış makalenin **premium olanı 0**. Yani şu an
- * kapı hiçbir şeyi korumuyor ama bedelini bütün site ödüyor.
- * ⏳ Açık iş (Yiğit'in kararı): premium gövdeyi sayfadan çıkarıp kimlik
- * doğrulamalı bir uçtan çekmek. O zaman sayfa ISR'a döner (TTFB düşer) ve
- * premium metin önbelleklenmiş HTML'e HİÇ girmediği için bugünkünden daha
- * güvenli olur. Bu bir ürün kararı, sessizce yapılmadı.
+ * Kapı yeniden kuruldu: sunucu premium makale için HER ZAMAN teaser basar,
+ * tam metin `/api/articles/[slug]/body` ucundan (oturum doğrulamalı)
+ * çekilir. Bu, eskisinden DAHA güvenli — premium metin artık önbellekte
+ * duran HTML'in içinde hiç bulunmuyor.
+ *
+ * ⚠️ Buraya `cookies()`, `headers()` ya da `getServerSession` EKLEME;
+ * eklersen sayfa sessizce dinamiğe döner ve bu kazanç kaybolur.
+ * tests/article-isr.test.ts bunu bekçilik ediyor.
  */
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
+
+/**
+ * Yayındaki makalelerin adreslerini derleme anında üretir.
+ *
+ * ⚠️ ÖLÇÜLDÜ: yalnızca `revalidate` yazmak YETMEDİ. `generateStaticParams`
+ * olmadan Next hiçbir yolu önceden üretemiyor ve rota derleme çıktısında
+ * `ƒ (Dynamic)` kalıyor — yani her istek yine sunucuda render ediliyordu.
+ * Build çıktısındaki işaret bu yüzden kabul ölçütü: `●` görmelisin, `ƒ` değil.
+ *
+ * `dynamicParams` açık: burada listelenmeyen yeni bir makale (bot yayına
+ * aldığı anda) yine de çalışır, ilk istekte üretilir ve sonraki ziyaretçiler
+ * için önbelleğe alınır. Kapalı olsaydı yeni makaleler 404 verirdi.
+ */
+export const dynamicParams = true;
+
+export async function generateStaticParams() {
+  const hepsi = await getAllArticles();
+  return hepsi.map((a) => ({ slug: a.slug }));
+}
 
 const BASE = "https://gelecekfinans.com";
 
@@ -104,19 +121,14 @@ export default async function ArticlePage({params}:{params:Promise<{slug:string}
 
   const tags = a.keyword ? a.keyword.split(/[,;]/).map(k => k.trim()).filter(Boolean) : [];
 
-  // Premium içerik kapısı: giriş yapmış kullanıcılar tam içeriği görür,
-  // diğerleri ~200 kelimelik teaser + üye girişi kapısı görür.
-  const session = a.premium ? await getServerSession(authOptions) : null;
-  const gated = !!a.premium && !session;
-  // LLM/admin üretimi HTML basmadan önce sanitize edilir (stored-XSS koruması).
-  const bodyHtml = sanitizeArticleHtml(
-    gated
-      ? buildTeaser(a.content, 200)
-      // Önce makaleler arası bağlantı, sonra canlı veri sayfalarına bağlam
-      // bağlantısı. Sıra önemli: piyasa linki 3 ile sınırlı ve mevcut
-      // bağlantıların metnine dokunmuyor, sonra çalışması güvenli.
-      : injectMarketLinks(injectInternalLinks(a.content, a.slug, allArticles), `/${a.slug}`)
-  );
+  // Premium kapısı. ÖNBELLEĞE giren HTML'de premium makale HER ZAMAN kilitli
+  // basılır — okurun üye olup olmadığına BAKILMAZ, çünkü bu çıktı CDN'de
+  // duruyor ve herkese açık. Üyeye tam metni PremiumBody istemci bileşeni
+  // kimlik doğrulamalı uçtan çekip gösteriyor.
+  const gated = !!a.premium;
+  const bodyHtml = gated
+    ? kilitliGovde(a.content)
+    : tamGovde(a.content, a.slug, allArticles);
 
   // AI "Özet & Cebine Etkisi" + SSS — yalnızca alanlar varsa ve içerik
   // kilitli (premium teaser) DEĞİLSE göster (premium içeriği sızdırma).
@@ -209,8 +221,15 @@ export default async function ArticlePage({params}:{params:Promise<{slug:string}
         </aside>
       )}
 
-      {/* Body with internal links (premium teaser if gated) */}
-      <article className="article-prose" dangerouslySetInnerHTML={{__html:bodyHtml}}/>
+      {/* Gövde. Premium ise: önbellekte teaser durur, üyeye tam metni
+          PremiumBody kimlik doğrulamalı uçtan çekip bunun yerine koyar. */}
+      {gated ? (
+        <PremiumBody slug={a.slug}>
+          <article className="article-prose" dangerouslySetInnerHTML={{__html:bodyHtml}}/>
+        </PremiumBody>
+      ) : (
+        <article className="article-prose" dangerouslySetInnerHTML={{__html:bodyHtml}}/>
+      )}
 
       {/* SSS — sayfada görünür (FAQPage JSON-LD ile birebir aynı içerik) */}
       {faq.length > 0 && (
