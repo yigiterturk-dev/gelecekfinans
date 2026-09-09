@@ -1,16 +1,11 @@
 import type { Metadata } from "next";
+import { paylasimMeta } from "@/lib/og";
 
 export const metadata: Metadata = {
   title: "Kullanım Koşulları",
   description: "GelecekFinans web sitesi kullanım koşulları ve yasal uyarı.",
   alternates: { canonical: "https://gelecekfinans.com/kullanim-kosullari" },
-  openGraph: {
-    type: "website",
-    url: "https://gelecekfinans.com/kullanim-kosullari",
-    title: "Kullanım Koşulları — GelecekFinans",
-    description: "GelecekFinans web sitesi kullanım koşulları ve yasal uyarı.",
-    siteName: "GelecekFinans",
-  },
+  ...paylasimMeta({ url: "https://gelecekfinans.com/kullanim-kosullari", title: "Kullanım Koşulları — GelecekFinans", description: "GelecekFinans web sitesi kullanım koşulları ve yasal uyarı." }),
 };
 
 export default function KullanimKosullari() {

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { paylasimMeta } from "@/lib/og";
 import Link from "next/link";
 
 const BASE = "https://gelecekfinans.com";
@@ -7,13 +8,11 @@ export const metadata: Metadata = {
   title: "Yayıncılık İlkeleri ve Düzeltme Politikası",
   description: "GelecekFinans'ın kaynak doğrulama, yapay zekâ kullanımı, özgünlük, düzeltme ve reklam bağımsızlığı ilkeleri.",
   alternates: { canonical: `${BASE}/yayincilik-ilkeleri` },
-  openGraph: {
-    type: "website",
+  ...paylasimMeta({
     url: `${BASE}/yayincilik-ilkeleri`,
     title: "Yayıncılık İlkeleri — GelecekFinans",
     description: "Kaynak doğrulama, özgünlük, düzeltme ve yapay zekâ kullanım politikamız.",
-    siteName: "GelecekFinans",
-  },
+  }),
 };
 
 export default function YayincilikIlkeleri() {

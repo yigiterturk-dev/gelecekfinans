@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { paylasimMeta } from "@/lib/og";
 import Link from "next/link";
 import { getGuides } from "@/lib/articles";
 import { MedCard } from "@/components/ArticleCard";
@@ -26,8 +27,7 @@ export async function generateMetadata(): Promise<Metadata> {
     title,
     description,
     alternates: { canonical: `${BASE}/rehber` },
-    openGraph: { type: "website", url: `${BASE}/rehber`, title, description, siteName: "GelecekFinans" },
-    twitter: { card: "summary_large_image", title, description },
+    ...paylasimMeta({ url: `${BASE}/rehber`, title, description }),
   };
 }
 

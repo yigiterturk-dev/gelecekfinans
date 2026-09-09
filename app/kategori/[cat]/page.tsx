@@ -3,6 +3,7 @@ import { MedCard, CATS } from "@/components/ArticleCard";
 import Newsletter from "@/components/Newsletter";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import { paylasimMeta } from "@/lib/og";
 import Link from "next/link";
 import MarketFaq from "@/components/MarketFaq";
 import { getCategoryProfile } from "@/lib/category-profiles";
@@ -29,14 +30,7 @@ export async function generateMetadata({params, searchParams}:{params:Promise<{c
     description,
     alternates: { canonical },
     robots: { index: articleCount > 0, follow: true },
-    openGraph: {
-      type: "website",
-      url: canonical,
-      title,
-      description,
-      siteName: "GelecekFinans",
-    },
-    twitter: { card: "summary_large_image", title, description },
+    ...paylasimMeta({ url: canonical, title, description }),
   };
 }
 

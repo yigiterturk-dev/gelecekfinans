@@ -1,18 +1,12 @@
 import type { Metadata } from "next";
+import { paylasimMeta } from "@/lib/og";
 import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Hakkımızda",
   description: "GelecekFinans hakkında bilgi edinin. Misyonumuz, ekibimiz ve editoryal politikamız.",
   alternates: { canonical: "https://gelecekfinans.com/hakkimizda" },
-  openGraph: {
-    type: "website",
-    url: "https://gelecekfinans.com/hakkimizda",
-    title: "Hakkımızda — GelecekFinans",
-    description: "GelecekFinans hakkında bilgi edinin. Misyonumuz ve editoryal politikamız.",
-    siteName: "GelecekFinans",
-  },
-  twitter: { card: "summary", title: "Hakkımızda — GelecekFinans" },
+  ...paylasimMeta({ url: "https://gelecekfinans.com/hakkimizda", title: "Hakkımızda — GelecekFinans", description: "GelecekFinans hakkında bilgi edinin. Misyonumuz ve editoryal politikamız." }),
 };
 
 export default function Hakkimizda() {

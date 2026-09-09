@@ -1,16 +1,11 @@
 import type { Metadata } from "next";
+import { paylasimMeta } from "@/lib/og";
 
 export const metadata: Metadata = {
   title: "Gizlilik Politikası",
   description: "GelecekFinans gizlilik politikası ve kişisel verilerin korunması.",
   alternates: { canonical: "https://gelecekfinans.com/gizlilik-politikasi" },
-  openGraph: {
-    type: "website",
-    url: "https://gelecekfinans.com/gizlilik-politikasi",
-    title: "Gizlilik Politikası — GelecekFinans",
-    description: "GelecekFinans gizlilik politikası ve kişisel verilerin korunması.",
-    siteName: "GelecekFinans",
-  },
+  ...paylasimMeta({ url: "https://gelecekfinans.com/gizlilik-politikasi", title: "Gizlilik Politikası — GelecekFinans", description: "GelecekFinans gizlilik politikası ve kişisel verilerin korunması." }),
 };
 
 export default function GizlilikPolitikasi() {
