@@ -46,7 +46,11 @@ async function main() {
       console.log("   https://console.developers.google.com/apis/api/indexing.googleapis.com/overview");
     } else if (reason === "forbidden") {
       console.log("\n⚠️ Servis hesabı mülkün SAHİBİ değil. GSC → Ayarlar → Kullanıcılar ve izinler'den");
-      console.log(`   ${process.env.GSC_CLIENT_EMAIL} adresini 'Sahip' olarak ekle.`);
+      // Servis hesabı adresi maskelenir: bu çıktı oturum dökümüne düşüyor.
+      const sa = process.env.GSC_CLIENT_EMAIL ?? "";
+      const [saAd, saAlan] = sa.split("@");
+      const saMaskeli = saAd ? `${saAd.slice(0, 4)}${"*".repeat(Math.max(1, saAd.length - 4))}@${saAlan ?? ""}` : "(GSC_CLIENT_EMAIL yok)";
+      console.log(`   ${saMaskeli} adresini 'Sahip' olarak ekle (tam adres .env.local'de).`);
     } else if (reason === "not-configured") {
       console.log("\n⚠️ GSC_CLIENT_EMAIL / GSC_PRIVATE_KEY yok (.env.local).");
     } else {

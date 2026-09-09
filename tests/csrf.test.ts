@@ -66,3 +66,15 @@ test("durum değiştiren HER admin ucu kapıyı çağırır", () => {
   });
   assert.deepEqual(eksik, [], "bu uçlarda köken kapısı yok");
 });
+
+test("create-admin scripti sırları sızdırmıyor", () => {
+  // Bu üç şey bir kez gerçekten oldu: admin şifresi bir oturum dökümünde göründü.
+  const ham = readFileSync(fileURLToPath(new URL("../scripts/create-admin.ts", import.meta.url)), "utf8");
+  // Yorumlar soyulur: dosyanın başındaki açıklama eski hatayı ADIYLA anlatıyor,
+  // onu ihlal sanmak testi yanlış yere kırar.
+  const s = ham.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+  assert.ok(!/admin123/.test(s), "kodda varsayılan şifre kalmış");
+  assert.ok(!/console\.log\([^)]*\$\{?password/.test(s), "şifre ekrana basılıyor");
+  assert.ok(s.includes("process.env.ADMIN_PASSWORD"), "şifre ortam değişkeninden okunmalı");
+  assert.ok(!/process\.argv\[3\]\s*\|\|/.test(s), "şifre hâlâ argümandan varsayılanla alınıyor");
+});
