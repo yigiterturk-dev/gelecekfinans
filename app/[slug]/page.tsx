@@ -16,8 +16,24 @@ import { injectMarketLinks } from "@/lib/market-links";
 import { readingTime } from "@/lib/reading-time";
 import { sanitizeArticleHtml } from "@/lib/sanitize";
 
+/**
+ * ⚠️ ÖLÇÜLDÜ (2026-09-09): burada `revalidate` YAZMAK ANLAMSIZDI.
+ * `dynamic = "force-dynamic"` revalidate'i EZER — dosyada duran
+ * `revalidate = 300` satırı hiç çalışmıyordu, yani "makaleler 5 dakika
+ * önbellekleniyor" varsayımı yanlıştı: her istek veritabanına gidiyor.
+ * Yanlış güven vermesin diye satır kaldırıldı.
+ *
+ * force-dynamic'in gerçek sebebi aşağıdaki premium kapısı: `getServerSession`
+ * çerez okur, çerez okuyan sayfa statik üretilemez.
+ *
+ * 📊 Bugünkü tablo: 53 yayınlanmış makalenin **premium olanı 0**. Yani şu an
+ * kapı hiçbir şeyi korumuyor ama bedelini bütün site ödüyor.
+ * ⏳ Açık iş (Yiğit'in kararı): premium gövdeyi sayfadan çıkarıp kimlik
+ * doğrulamalı bir uçtan çekmek. O zaman sayfa ISR'a döner (TTFB düşer) ve
+ * premium metin önbelleklenmiş HTML'e HİÇ girmediği için bugünkünden daha
+ * güvenli olur. Bu bir ürün kararı, sessizce yapılmadı.
+ */
 export const dynamic = "force-dynamic";
-export const revalidate = 300;
 
 const BASE = "https://gelecekfinans.com";
 
