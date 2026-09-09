@@ -102,7 +102,10 @@ async function main() {
     await bekle(BEKLEME_MS);
   }
 
-  const tarih = new Date().toISOString().slice(0, 10);
+  // Yerel takvim gunu: bu tarih olcum kaydinin ADI ve icerigi oluyor.
+  // toISOString UTC'ye cevirir; Turkiye UTC+3 oldugu icin gece calisan bir
+  // olcum bir onceki gunun dosyasini EZERDI. sv-SE tam YYYY-MM-DD verir.
+  const tarih = new Date().toLocaleDateString("sv-SE");
   mkdirSync(KLASOR, { recursive: true });
   writeFileSync(join(KLASOR, `${tarih}.json`), JSON.stringify({ tarih, durum } satisfies Anlik, null, 2) + "\n");
 
