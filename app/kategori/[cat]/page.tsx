@@ -4,6 +4,8 @@ import Newsletter from "@/components/Newsletter";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
+import MarketFaq from "@/components/MarketFaq";
+import { getCategoryProfile } from "@/lib/category-profiles";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 300;
@@ -18,7 +20,10 @@ export async function generateMetadata({params, searchParams}:{params:Promise<{c
   const articleCount = (await getArticlesByCategory(cat)).length;
   const canonical = page > 1 ? `${BASE}/kategori/${cat}?sayfa=${page}` : `${BASE}/kategori/${cat}`;
   const title = page > 1 ? `${c.l} Haberleri — Sayfa ${page}` : `${c.l} Haberleri ve Son Dakika Gelişmeleri`;
-  const description = `Güncel ${c.l.toLowerCase()} haberleri, analizleri ve son dakika gelişmeleri. GelecekFinans'tan tarafsız ${c.l.toLowerCase()} piyasası takibi.`;
+  const profile = getCategoryProfile(cat);
+  const description = profile
+    ? profile.paragraphs[0].slice(0, 155).replace(/\s+\S*$/, "")
+    : `Güncel ${c.l.toLowerCase()} haberleri, analizleri ve son dakika gelişmeleri.`;
   return{
     title,
     description,
@@ -42,6 +47,9 @@ export default async function CatPage({params, searchParams}:{params:Promise<{ca
   const allArts = await getArticlesByCategory(cat);
   const totalPages = Math.ceil(allArts.length / PER_PAGE);
   const arts = allArts.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+  // Kategoriye özgü metin YALNIZCA ilk sayfada: ?sayfa=2 ve sonrasında
+  // tekrarlanırsa aynı metin birden çok adreste görünür (kanibalizasyon).
+  const profile = page === 1 ? getCategoryProfile(cat) : null;
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -77,6 +85,17 @@ export default async function CatPage({params, searchParams}:{params:Promise<{ca
       </div>
 
       {!arts.length && <p className="cat-empty">Bu kategoride henüz haber yok.</p>}
+
+      {profile && (
+        <section className="section">
+          <h2 className="market-h2">{cfg.l.charAt(0) + cfg.l.slice(1).toLowerCase()} Haberleri Hakkında</h2>
+          {profile.paragraphs.map((t) => (
+            <p key={t.slice(0, 40)} className="market-prose">{t}</p>
+          ))}
+        </section>
+      )}
+
+      {profile && <MarketFaq items={profile.faq} />}
 
       {/* Pagination */}
       {totalPages > 1 && (
