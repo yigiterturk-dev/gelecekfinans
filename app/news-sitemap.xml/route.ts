@@ -14,23 +14,41 @@ export function escapeXml(value: string): string {
     .replace(/'/g, "&apos;");
 }
 
+type HaberSatiri = {
+  slug: string;
+  title: string;
+  publishedAt: Date | null;
+  imageUrl: string | null;
+};
+
 export async function GET() {
   // Google News sitemap yalnızca son iki gündeki haberleri taşımalıdır.
   const since = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
-  const articles = await prisma.article.findMany({
-    where: {
-      status: "PUBLISHED",
-      publishedAt: { gte: since },
-    },
-    orderBy: { publishedAt: "desc" },
-    take: 1000,
-    select: {
-      slug: true,
-      title: true,
-      publishedAt: true,
-      imageUrl: true,
-    },
-  });
+
+  // DB erişilemezse (Neon egress kotası dolduğunda oluyor) 500 dönmek yerine
+  // GEÇERLİ ama boş bir sitemap dön. 500, Search Console'da kalıcı sitemap
+  // hatası olarak birikiyordu — 2026-09-09'dan beri "hata=1".
+  let articles: HaberSatiri[] = [];
+  let veriOkundu = true;
+  try {
+    articles = await prisma.article.findMany({
+      where: {
+        status: "PUBLISHED",
+        publishedAt: { gte: since },
+      },
+      orderBy: { publishedAt: "desc" },
+      take: 1000,
+      select: {
+        slug: true,
+        title: true,
+        publishedAt: true,
+        imageUrl: true,
+      },
+    });
+  } catch (hata) {
+    veriOkundu = false;
+    console.error("news-sitemap: makaleler okunamadı", hata);
+  }
 
   const urls = articles.map((article) => {
     const publishedAt = article.publishedAt;
@@ -61,7 +79,10 @@ ${urls}
   return new Response(xml, {
     headers: {
       "Content-Type": "application/xml; charset=utf-8",
-      "Cache-Control": "public, max-age=300, s-maxage=300, stale-while-revalidate=600",
+      // Veri okunamadıysa kısa önbellek: DB dönünce sitemap hızla dolsun.
+      "Cache-Control": veriOkundu
+        ? "public, max-age=300, s-maxage=300, stale-while-revalidate=600"
+        : "public, max-age=60, s-maxage=60",
     },
   });
 }
