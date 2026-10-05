@@ -1,4 +1,4 @@
-import Image from "next/image";
+import SafeImage from "@/components/SafeImage";
 import { publicImageUrl } from "@/lib/image-url";
 import { getAllArticles } from "@/lib/articles";
 import { HeroCard, StripCard, MedCard, RankedCard, CATS, catColor, Ago } from "@/components/ArticleCard";
@@ -154,7 +154,7 @@ export default async function HomePage() {
                       hero ile alt şerit arasında görsel olarak kopuk kalıyordu. */}
                   {a.imageUrl && (
                     <div style={{ position: "relative", aspectRatio: "16/9", borderRadius: 8, overflow: "hidden", marginBottom: 4 }}>
-                      <Image
+                      <SafeImage
                         src={publicImageUrl(a.imageUrl)!}
                         alt={a.title}
                         fill

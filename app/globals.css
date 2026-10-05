@@ -444,6 +444,8 @@ input:focus-visible,
   padding: 28px;
   align-items: stretch;
   text-decoration: none;
+  min-width: 0;
+  width: 100%;
 }
 .hero-editorial:hover {
   box-shadow: var(--shadow-lg);
@@ -475,6 +477,7 @@ input:focus-visible,
   flex-direction: column;
   justify-content: space-between;
   background: transparent;
+  min-width: 0;
 }
 .hero-eyebrow {
   font-family: var(--mono);
@@ -496,6 +499,7 @@ input:focus-visible,
   color: var(--ink);
   margin-bottom: 12px;
   text-wrap: balance;
+  overflow-wrap: anywhere;
 }
 .hero-desc {
   font-family: var(--sans);
@@ -1008,6 +1012,32 @@ input:focus-visible,
   height: 100%;
   object-fit: cover;
   display: block;
+}
+.image-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  overflow: hidden;
+  background: radial-gradient(circle at 75% 25%, color-mix(in srgb, var(--accent) 26%, transparent), transparent 34%), linear-gradient(135deg, var(--ink) 0%, var(--surface2) 100%);
+  color: var(--paper);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.image-fallback-mark {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--paper) 45%, transparent);
+  border-radius: 50%;
+  font-size: 9px;
+  font-weight: 700;
 }
 .article-prose h2 {
   font-family: var(--display);
@@ -1762,6 +1792,11 @@ input:focus-visible,
   grid-template-columns: 1fr 300px;
   border-bottom: 1px solid var(--border);
 }
+.home-split {
+  width: 100%;
+  min-width: 0;
+}
+.home-split > * { min-width: 0; }
 
 /* Ana sayfa yerleşimi inline style ile verildiği için (Tailwind utility'leri
    güvenilmez) responsive kırılımlar !important ile inline'ı geçersiz kılar.
@@ -1802,7 +1837,6 @@ input:focus-visible,
 
 @media (max-width: 640px) {
   .nav-brand-row { padding: 0 16px; height: 52px; }
-  .nav-brand-row .search-btn { display: none !important; }
   .logo-wordmark { font-size: 20px; }
   .nav-cat-row { padding: 0 16px; }
   .pbar { height: 34px; }

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import Image from "next/image";
+import SafeImage from "@/components/SafeImage";
 import { publicImageUrl } from "@/lib/image-url";
 import type { ArticleListItem } from "@/lib/types";
 
@@ -58,7 +58,7 @@ export function HeroCard({article}:{article:ArticleListItem}){
       </div>
       <div className="hero-img-col">
         {img
-          ? <Image src={img} alt={article.title} fill sizes="480px" style={{objectFit:"cover"}} priority />
+          ? <SafeImage src={img} alt={article.title} fill sizes="480px" style={{objectFit:"cover"}} priority />
           : <div style={{width:"100%",height:"100%",background:"var(--surface2)",minHeight:380}}/>
         }
       </div>
@@ -72,7 +72,7 @@ export function StripCard({article}:{article:ArticleListItem}){
     <Link href={`/${article.slug}`} className="strip-card">
       {img
         ? <div style={{overflow:"hidden",borderRadius:"var(--radius)",marginBottom:14,position:"relative",aspectRatio:"16/9"}}>
-            <Image src={img} alt={article.title} fill sizes="(max-width:768px) 100vw, 33vw" className="strip-card-img" style={{objectFit:"cover"}} />
+            <SafeImage src={img} alt={article.title} fill sizes="(max-width:768px) 100vw, 33vw" className="strip-card-img" style={{objectFit:"cover"}} />
           </div>
         : <div style={{width:"100%",aspectRatio:"16/9",background:"var(--surface2)",borderRadius:"var(--radius)",marginBottom:14}}/>
       }
@@ -91,7 +91,7 @@ export function MedCard({article}:{article:ArticleListItem}){
     <Link href={`/${article.slug}`} className="grid-card">
       {img
         ? <div style={{overflow:"hidden",position:"relative",aspectRatio:"16/9"}}>
-            <Image src={img} alt={article.title} fill sizes="(max-width:640px) 100vw, (max-width:1024px) 50vw, 25vw" className="grid-card-img" style={{objectFit:"cover"}} />
+            <SafeImage src={img} alt={article.title} fill sizes="(max-width:640px) 100vw, (max-width:1024px) 50vw, 25vw" className="grid-card-img" style={{objectFit:"cover"}} />
           </div>
         : <div style={{width:"100%",aspectRatio:"16/9",background:"var(--surface2)"}}/>
       }
@@ -128,7 +128,7 @@ export function RankedCard({article,index,last=false}:{article:ArticleListItem;i
         <p className="ranked-row-meta" style={{margin:0}}>{Ago(article.created_at)} <ViewCount n={article.views}/></p>
       </div>
       {img&&<div style={{width:56,height:42,borderRadius:4,overflow:"hidden",flexShrink:0,position:"relative"}}>
-        <Image src={img} alt={article.title} fill sizes="56px" style={{objectFit:"cover"}} />
+        <SafeImage src={img} alt={article.title} fill sizes="56px" style={{objectFit:"cover"}} />
       </div>}
     </Link>
   );

@@ -5,7 +5,7 @@ import AdSlot from "@/components/AdSlot";
 export const revalidate = 86400;
 const BASE = "https://gelecekfinans.com";
 
-export const TOOLS = [
+const TOOLS = [
   { slug: "doviz-cevirici", title: "Döviz Çevirici", desc: "Dolar, Euro, Sterlin ve TL arasında canlı kurla çeviri yapın.", icon: "💱" },
   { slug: "altin-hesaplama", title: "Altın Hesaplama", desc: "Gram, çeyrek ve cumhuriyet altınının güncel TL değerini hesaplayın.", icon: "🥇" },
   { slug: "kredi-faiz-hesaplama", title: "Kredi Faizi Hesaplama", desc: "Kredi tutarı, faiz ve vadeye göre aylık taksit ve toplam ödemeyi görün.", icon: "🏦" },

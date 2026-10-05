@@ -57,7 +57,7 @@ export default function Newsletter() {
   }
 
   return (
-    <div className="newsletter-box">
+    <div className="newsletter-box" aria-busy={status === "loading"}>
       <p className="newsletter-eyebrow">Ücretsiz Bülten</p>
       <p className="newsletter-title">Günlük Finans Bülteni</p>
       <p className="newsletter-desc">Her sabah piyasa özeti ve öne çıkan haberler e-postanızda.</p>
@@ -87,7 +87,7 @@ export default function Newsletter() {
       <p className="newsletter-fineprint">
         İlgi alanı seçmezseniz tüm kategorilerden haber alırsınız.
       </p>
-      {status === "error" && <p className="newsletter-error">Bir hata oluştu, tekrar deneyin.</p>}
+      {status === "error" && <p className="newsletter-error" role="alert">Bir hata oluştu, tekrar deneyin.</p>}
     </div>
   );
 }

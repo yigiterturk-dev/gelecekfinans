@@ -94,7 +94,8 @@ export default function Navbar(){
           <button
             onClick={toggleTheme}
             className="theme-toggle-btn"
-            aria-label="Karanlık/Aydınlık Modu Değiştir"
+            aria-label={theme === "light" ? "Karanlık moda geç" : "Aydınlık moda geç"}
+            title={theme === "light" ? "Karanlık moda geç" : "Aydınlık moda geç"}
             style={{
               background: "none",
               border: "none",

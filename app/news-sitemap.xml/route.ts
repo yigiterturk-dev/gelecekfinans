@@ -5,7 +5,7 @@ const BASE = "https://gelecekfinans.com";
 
 export const dynamic = "force-dynamic";
 
-export function escapeXml(value: string): string {
+function escapeXml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")

@@ -1,6 +1,9 @@
 "use client";
 
+import { useState } from "react";
+
 export default function ShareButtons({ url, title }: { url: string; title: string }) {
+  const [copied, setCopied] = useState(false);
   const encoded = encodeURIComponent(url);
   const encodedTitle = encodeURIComponent(title);
 
@@ -11,20 +14,26 @@ export default function ShareButtons({ url, title }: { url: string; title: strin
     { label: "LinkedIn", href: `https://www.linkedin.com/sharing/share-offsite/?url=${encoded}`, bg: "#0a66c2" },
   ];
 
-  function copyLink() {
-    navigator.clipboard.writeText(url);
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2200);
+    } catch {
+      setCopied(false);
+    }
   }
 
   return (
     <div className="share-row">
       {buttons.map(b => (
         <a key={b.label} href={b.href} target="_blank" rel="noopener noreferrer"
-          className="share-btn" style={{ background: b.bg }}>
+          className="share-btn" style={{ background: b.bg }} aria-label={`${b.label} ile paylaş`}>
           {b.label}
         </a>
       ))}
-      <button onClick={copyLink} className="share-copy">
-        Link Kopyala
+      <button onClick={copyLink} className="share-copy" type="button" aria-live="polite">
+        {copied ? "Kopyalandı" : "Link Kopyala"}
       </button>
     </div>
   );

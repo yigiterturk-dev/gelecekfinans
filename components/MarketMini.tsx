@@ -75,22 +75,28 @@ export default function MarketMini() {
   const [f, setF] = useState<Fiyatlar>({});
   const [btc, setBtc] = useState<{ price?: number; pct?: number; sparkline?: number[] }>({});
   const [loaded, setLoaded] = useState(false);
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
 
   useEffect(() => {
-    const go = () => {
-      fetch("/api/fiyatlar")
-        .then((r) => r.json())
-        .then((d: Fiyatlar) => setF(d))
-        .catch(() => {})
-        .finally(() => setLoaded(true));
-      fetch("/api/kripto")
-        .then((r) => r.json())
-        .then((d: Coin[]) => {
-          if (!Array.isArray(d)) return;
-          const b = d.find((c) => c.symbol?.toLowerCase() === "btc");
+    const go = async () => {
+      try {
+        const [marketResponse, cryptoResponse] = await Promise.all([
+          fetch("/api/fiyatlar"),
+          fetch("/api/kripto"),
+        ]);
+        const market = (await marketResponse.json()) as Fiyatlar;
+        const coins = (await cryptoResponse.json()) as Coin[];
+        setF(market);
+        if (Array.isArray(coins)) {
+          const b = coins.find((c) => c.symbol?.toLowerCase() === "btc");
           if (b) setBtc({ price: b.current_price, pct: b.price_change_percentage_24h, sparkline: b.sparkline_in_7d?.price });
-        })
-        .catch(() => {});
+        }
+        setUpdatedAt(new Date());
+      } catch {
+        // Keep the last successful values visible if a provider is temporarily unavailable.
+      } finally {
+        setLoaded(true);
+      }
     };
     go();
     const id = setInterval(go, 60000);
@@ -101,8 +107,8 @@ export default function MarketMini() {
     { name: "Dolar", sub: "USD/TRY", href: "/doviz/usd-try", price: f.tcmb?.usd?.satis, pct: f.usdPct, sparkline: f.usdHistory, prefix: "₺", frac: 4 },
     { name: "Euro", sub: "EUR/TRY", href: "/doviz/eur-try", price: f.tcmb?.eur?.satis, pct: f.eurPct, sparkline: f.eurHistory, prefix: "₺", frac: 4 },
     { name: "Gram Altın", sub: "24 ayar", href: "/altin/gram-altin", price: f.gold?.price, pct: f.gold?.pct, sparkline: f.gold?.sparkline, prefix: "₺", frac: 2 },
-    { name: "Bitcoin", sub: "BTC/USD", href: "/kripto", price: btc.price ?? f.btc?.price, pct: btc.pct ?? f.btc?.pct, sparkline: btc.sparkline, prefix: "₺", frac: 0 },
-    { name: "BIST 100", sub: "Endeks", href: "/doviz", price: f.bist?.price, pct: f.bist?.pct, sparkline: f.bist?.sparkline, prefix: "", frac: 0 },
+    { name: "Bitcoin", sub: "BTC/USD", href: "/kripto", price: btc.price ?? f.btc?.price, pct: btc.pct ?? f.btc?.pct, sparkline: btc.sparkline, prefix: "$", frac: 0 },
+    { name: "BIST 100", sub: "Endeks", href: "/borsa", price: f.bist?.price, pct: f.bist?.pct, sparkline: f.bist?.sparkline, prefix: "", frac: 0 },
   ];
 
   return (
@@ -148,7 +154,7 @@ export default function MarketMini() {
             whiteSpace: "nowrap",
           }}
         >
-          Canlı
+          {updatedAt ? `Son kontrol ${updatedAt.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}` : "Veri bekleniyor"}
         </span>
       </div>
 

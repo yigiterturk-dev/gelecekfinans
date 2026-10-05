@@ -2,7 +2,7 @@ import { getAllArticles, getArticleBySlug } from "@/lib/articles";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
-import Image from "next/image";
+import SafeImage from "@/components/SafeImage";
 import { absoluteImageUrl, imageObjectLd, publicImageUrl } from "@/lib/image-url";
 import { parseProfileSubject, profileAboutLd } from "@/lib/entity-profile";
 import { CATS, MedCard } from "@/components/ArticleCard";
@@ -192,7 +192,7 @@ export default async function ArticlePage({params}:{params:Promise<{slug:string}
       {img&&(
         <figure className="article-figure">
           <div className="article-figure-media">
-            <Image src={img} alt={a.title} fill style={{objectFit:"cover"}} sizes="720px" priority />
+            <SafeImage src={img} alt={a.title} fill style={{objectFit:"cover"}} sizes="720px" priority />
           </div>
           {/* Görselin yanındaki metin Google Görseller'in en güçlü bağlam
               sinyallerinden biri; alt metnin kopyası değil, kaynak künyesi. */}
