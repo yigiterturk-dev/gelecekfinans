@@ -1,6 +1,6 @@
 # GelecekFinans
 
-[![CI](https://github.com/moriana55/gelecekfinans/actions/workflows/ci.yml/badge.svg)](https://github.com/moriana55/gelecekfinans/actions/workflows/ci.yml)
+[![CI](https://github.com/yigiterturk-dev/gelecekfinans/actions/workflows/ci.yml/badge.svg)](https://github.com/yigiterturk-dev/gelecekfinans/actions/workflows/ci.yml)
 [![Next.js 16](https://img.shields.io/badge/Next.js-16.3-111111?logo=nextdotjs)](https://nextjs.org/)
 [![Tests](https://img.shields.io/badge/tests-11%2F11-0a8f4e)](./tests)
 [![Security audit](https://img.shields.io/badge/npm_audit-0_vulnerabilities-0a8f4e)](./docs/showcase-audit.md)
@@ -50,7 +50,7 @@ The AI writer and external integrations are lazy-initialized, so missing optiona
 Requirements: Node.js 20+, npm, and PostgreSQL.
 
 ```bash
-git clone https://github.com/moriana55/gelecekfinans.git
+git clone https://github.com/yigiterturk-dev/gelecekfinans.git
 cd gelecekfinans
 npm ci
 cp .env.example .env

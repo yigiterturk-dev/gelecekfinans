@@ -10,6 +10,6 @@ project:
 revision:
   version: 2026-08-06.v2
   production_url: https://gelecekfinans.com
-  repository: https://github.com/moriana55/gelecekfinans
+  repository: https://github.com/yigiterturk-dev/gelecekfinans
   active_branch: agent-improve-2026-06-29
   production_allowed: true
