@@ -175,6 +175,13 @@ async function deepseekJson<T>(args: {
       // karşılaştırmak, tutarlılık lazım.
       temperature: Number(process.env.DEEPSEEK_TEMPERATURE || (args.name.includes("article") ? 1.3 : 0.3)),
       response_format: { type: "json_object" },
+      // Aynı uç Gemini'nin OpenAI uyumlu adresine de bağlanıyor. gemini-2.5-flash
+      // düşünme token'larını max_tokens'tan yiyor: hakem çağrısında (300) 243'ü
+      // düşünmeye gitti, cevap "length" ile kesildi, 13 konunun 13'ü engellendi
+      // (2026-11-07). DEEPSEEK_REASONING_EFFORT=none düşünmeyi kapatır.
+      ...(process.env.DEEPSEEK_REASONING_EFFORT
+        ? { reasoning_effort: process.env.DEEPSEEK_REASONING_EFFORT as OpenAI.ChatCompletionCreateParams["reasoning_effort"] }
+        : {}),
       messages: [
         { role: "system", content: system },
         { role: "user", content: args.user },
