@@ -219,7 +219,7 @@ function anthropic(): Anthropic {
 
 function evidencePrompt(topic: Topic): string {
   const packet = topic.evidencePacket;
-  if (!packet || packet.status !== "VERIFIED") {
+  if (!packet || (packet.status !== "VERIFIED" && packet.status !== "ATTRIBUTED")) {
     throw new Error("RESEARCH_BLOCKED: İki bağımsız kaynak doğrulaması tamamlanmadı");
   }
   const budget = resolveArticleAIBudgetConfig();
@@ -241,6 +241,20 @@ function evidencePrompt(topic: Topic): string {
   }
   return blocks.join("\n\n");
 }
+/**
+ * Tek kaynaklı kulis haberi: iddia kaynağa ait, bizim değil. Başlıkta ve metnin
+ * ilk paragrafında kaynak adı geçer; resmî karar gibi yazılmaz.
+ */
+function attributionInstructions(source: string): string {
+  return [
+    "",
+    `⚠️ TEK KAYNAKLI KULİS HABERİ: Bu haber yalnızca ${source} kaynağına dayanır ve doğrulanmış değildir.`,
+    `Başlıkta ve ilk paragrafta "${source}'e göre" veya "${source} kaynaklı habere göre" biçiminde kaynağı AÇIKÇA an; iddiayı kesin gerçek gibi yazma ("olacak" yerine "olması bekleniyor", "ileri sürüldü" gibi).`,
+    "Metinde bunun resmî bir açıklama OLMADIĞINI ve henüz doğrulanmadığını belirt. Rakam varsa 'kaynağın hesabına göre' diye ver; kendi hesabın gibi sunma.",
+    "Kaynakta olmayan hiçbir ayrıntı, yorum veya tahmin ekleme.",
+  ].join("\n");
+}
+
 function articleInstructions(targetWords: number): string {
   return [
     "GelecekFinans için Türkçe, ölçülü ve olgusal bir ekonomi haberi hazırla.",
@@ -970,13 +984,16 @@ export async function writeArticle(
 }> {
   const preset = options.preset ?? NEWS_QUALITY_PRESET;
   const schema = options.schema ?? ArticleDraftSchema;
-  const baseInstructions = options.instructions ?? articleInstructions(targetWords);
+  const attributedSource = topic.evidencePacket?.status === "ATTRIBUTED"
+    ? topic.evidencePacket.evidence[0]?.source
+    : undefined;
+  const baseInstructions = (options.instructions ?? articleInstructions(targetWords)) + (attributedSource ? attributionInstructions(attributedSource) : "");
   const minEvidenceChars = options.minEvidenceChars ?? MIN_EVIDENCE_MATERIAL_CHARS;
 
   const packet = topic.evidencePacket;
   if (!packet) throw new Error("RESEARCH_BLOCKED: Kanıt paketi yok");
   if (preset.requireEvidence) {
-    if (packet.status !== "VERIFIED") {
+    if (packet.status !== "VERIFIED" && packet.status !== "ATTRIBUTED") {
       throw new Error(
         `RESEARCH_BLOCKED: ${options.researchBlockedMessage ?? "İki bağımsız kaynak doğrulaması tamamlanmadı"}`,
       );

@@ -192,7 +192,7 @@ export function evidenceMaterialCharacterCount(packet: EvidencePacket): number {
 
 export interface EvidencePacket {
   storyKey: string;
-  status: "VERIFIED" | "INSUFFICIENT";
+  status: "VERIFIED" | "INSUFFICIENT" | "ATTRIBUTED";
   independentSourceCount: number;
   evidence: EvidenceItem[];
   reasons: string[];
@@ -499,5 +499,37 @@ export function buildEvidencePacket(
     reasons: status === "VERIFIED"
       ? [`${independentSourceCount} bağımsız yayıncı aynı olayı destekliyor`]
       : ["İkinci bağımsız yayıncı bulunamadı; içerik üretimi durduruldu"],
+  };
+}
+
+
+/**
+ * KULİS / TEK KAYNAK ATIFLI ŞERİT
+ *
+ * Normal kural: iki bağımsız yayıncı. İstisna: tek, bilinen bir ana akım
+ * yayıncıdan gelen ve kulis/iddia/beklenti niteliği taşıyan haber, ancak
+ * metinde kaynağa AÇIKÇA atıf yapılarak ("X'e göre") yazılabilir. Paket
+ * "ATTRIBUTED" olur; "VERIFIED" ile karıştırılmaz, kalite kapısı atıfı ayrıca arar.
+ */
+const ATTRIBUTION_DOMAINS = new Set([
+  "sozcu.com.tr", "hurriyet.com.tr", "milliyet.com.tr", "dunya.com",
+  "bloomberght.com", "haberturk.com", "ntv.com.tr", "aa.com.tr", "cnnturk.com",
+]);
+const ATTRIBUTION_MARKERS = /kulis|kaynaklara göre|öğrenildi|öğrenildiğine|iddia|bekleniyor|değerlendiriliyor|masada|planlanıyor|hazırlık/i;
+const ATTRIBUTION_MAX_AGE_MS = 48 * 60 * 60 * 1000;
+
+export function toAttributedPacket(packet: EvidencePacket | undefined, now = Date.now()): EvidencePacket | null {
+  if (!packet || packet.status === "VERIFIED" || packet.independentSourceCount !== 1) return null;
+  const item = packet.evidence[0];
+  if (!item?.sourceUrl) return null;
+  const domain = domainFromUrl(item.sourceUrl).replace(/^www\./, "");
+  if (!ATTRIBUTION_DOMAINS.has(domain)) return null;
+  if (!ATTRIBUTION_MARKERS.test(`${item.title} ${item.summary}`)) return null;
+  const published = item.publishedAt ? Date.parse(item.publishedAt) : NaN;
+  if (!isFinite(published) || now - published > ATTRIBUTION_MAX_AGE_MS) return null;
+  return {
+    ...packet,
+    status: "ATTRIBUTED",
+    reasons: [`Tek kaynak (${item.source}); metin kaynağa atıfla yazılmalı`],
   };
 }

@@ -353,7 +353,15 @@ export function validateDraft(
   const supportedNumbers = supportedNumbersIn(evidenceText);
   const draftText = textParts(draft).join(" ");
 
-  if (preset.requireEvidence
+  if (preset.requireEvidence && packet.status === "ATTRIBUTED") {
+    // Tek kaynaklı kulis şeridi: kapı iki kaynak yerine kaynağa AÇIK atıf arar.
+    const name = (packet.evidence[0]?.source || "").toLocaleLowerCase("tr-TR").trim();
+    const head = `${draft.title} ${textParts(draft).slice(0, 3).join(" ")}`.toLocaleLowerCase("tr-TR");
+    if (!name || !head.includes(name)) issues.push("Tek kaynaklı kulis haberinde kaynağa başlıkta/girişte atıf yok");
+    if (!/göre|ileri sürül|iddia|bekleniyor|kulis|belirtil/i.test(head)) {
+      issues.push("Kulis haberinde atıf dili (…e göre / iddia / bekleniyor) yok");
+    }
+  } else if (preset.requireEvidence
     && (packet.status !== "VERIFIED" || packet.independentSourceCount < preset.minIndependentSources)) {
     issues.push("İki bağımsız kaynak kapısı geçilmedi");
   }

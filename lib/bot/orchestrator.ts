@@ -24,6 +24,7 @@ import {
   buildEvidencePacket,
   enrichEvidencePacket,
   evidenceMaterialCharacterCount,
+  toAttributedPacket,
   type ResearchCandidate,
 } from "@/lib/bot/research";
 import { checkPlagiarism } from "@/lib/bot/plagiarism";
@@ -164,6 +165,7 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
   let autoPublished = 0;
   let reviewQueued = 0;
   let blocked = 0;
+  let attributedInRun = 0;
   let duplicatesSkipped = 0;
   let imageFallbacks = 0;
   let writerCalls = 0;
@@ -262,7 +264,18 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
           judgeFailures: sameStoryJudgeFailures(),
         });
       }
-      if (!packet || packet.status !== "VERIFIED" || packet.independentSourceCount < 2) {
+      if (packet && packet.status !== "VERIFIED" && attributedInRun < 1) {
+        const attributed = toAttributedPacket(packet);
+        if (attributed) {
+          packet = attributed;
+          attributedInRun++;
+          await logEvent(run.id, "research", "Tek kaynak kulis haberi atıflı şeritte yazılacak", {
+            title: topic.title, source: attributed.evidence[0]?.source,
+          });
+        }
+      }
+      if (!packet || (packet.status !== "VERIFIED" && packet.status !== "ATTRIBUTED")
+        || (packet.status === "VERIFIED" && packet.independentSourceCount < 2)) {
         blocked++;
         await logEvent(run.id, "research", "Konu ikinci bağımsız kaynak bulunamadığı için durduruldu", {
           title: topic.title,
