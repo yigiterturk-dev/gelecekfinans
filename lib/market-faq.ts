@@ -237,6 +237,34 @@ export const BIST_HUB_FAQ: FaqItem[] = [
 /* -------------------------------------------------------------------------- */
 
 const ARAC_FAQ: Record<string, FaqItem[]> = {
+  "bilesik-faiz-hesaplama": [
+    {
+      q: "Bileşik faiz nedir?",
+      a: "Bileşik faiz, kazanılan faizin anaparaya eklenip sonraki dönemlerde bu birikmiş tutar üzerinden de faiz işletilmesidir. Süre uzadıkça getiri doğrusal değil üstel büyür; bu yüzden uzun vadede basit faize göre belirgin fark yaratır.",
+    },
+    {
+      q: "Bileşik faiz nasıl hesaplanır?",
+      a: "Her dönem sonunda bakiye (1 + dönemlik faiz oranı) ile çarpılır; aylık ek yatırım varsa her ay bakiyeye eklenir. Bu araç yıllık oranı 12'ye bölerek aylık bileşikleme yapar ve aylık ek yatırımı her ayın sonunda ekler.",
+    },
+    {
+      q: "Sonuçlar garanti mi?",
+      a: "Hayır. Sonuç, girdiğiniz sabit getiri varsayımına dayanır. Gerçek getiriler dönemden döneme değişir; vergi, komisyon ve enflasyon hesaba katılmaz.",
+    },
+  ],
+  "hisse-kar-zarar-hesaplama": [
+    {
+      q: "Hisse kâr zarar nasıl hesaplanır?",
+      a: "Net sonuç, satıştan elde edilen tutardan alış maliyetinin çıkarılmasıyla bulunur. Komisyon hem alışta hem satışta işlem tutarı üzerinden kesildiği için maliyete ve satış gelirine yansıtılır.",
+    },
+    {
+      q: "Komisyon oranını nereden öğrenirim?",
+      a: "Komisyon oranı aracı kurumdan kuruma ve işlem hacmine göre değişir; genellikle binde olarak ifade edilir. Güncel oranı aracı kurumunuzun tarifesinden veya müşteri temsilcinizden öğrenebilirsiniz.",
+    },
+    {
+      q: "Hesapta vergi ve diğer masraflar var mı?",
+      a: "Bu araç yalnızca fiyat farkı ve komisyonu hesaplar. BSMV gibi ek masraflar ve olası vergi yükümlülükleri dahil değildir; kendi durumunuz için güncel mevzuata veya bir mali müşavire danışın.",
+    },
+  ],
   "kredi-faiz-hesaplama": [
     {
       q: "Kredi taksiti nasıl hesaplanır?",

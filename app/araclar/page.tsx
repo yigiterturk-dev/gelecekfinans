@@ -11,6 +11,8 @@ const TOOLS = [
   { slug: "kredi-faiz-hesaplama", title: "Kredi Faizi Hesaplama", desc: "Kredi tutarı, faiz ve vadeye göre aylık taksit ve toplam ödemeyi görün.", icon: "🏦" },
   { slug: "mevduat-faiz-hesaplama", title: "Mevduat Faizi Hesaplama", desc: "Vadeli mevduatın brüt ve stopaj sonrası net getirisini hesaplayın.", icon: "💰" },
   { slug: "enflasyon-hesaplama", title: "Enflasyon Hesaplama", desc: "Paranızın enflasyon karşısındaki alım gücünü ve güncel karşılığını hesaplayın.", icon: "📈" },
+  { slug: "bilesik-faiz-hesaplama", title: "Bileşik Faiz Hesaplama", desc: "Aylık ek yatırımla bileşik faizin dönem sonu değerini hesaplayın.", icon: "🔁" },
+  { slug: "hisse-kar-zarar-hesaplama", title: "Hisse Kâr/Zarar Hesaplama", desc: "Komisyon dahil hisse işleminin net kâr/zararını ve getirisini hesaplayın.", icon: "📊" },
 ];
 
 export async function generateMetadata(): Promise<Metadata> {

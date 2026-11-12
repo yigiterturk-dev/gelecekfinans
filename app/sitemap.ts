@@ -47,6 +47,8 @@ const TOOL_SLUGS = [
   "kredi-faiz-hesaplama",
   "mevduat-faiz-hesaplama",
   "enflasyon-hesaplama",
+  "bilesik-faiz-hesaplama",
+  "hisse-kar-zarar-hesaplama",
 ];
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {

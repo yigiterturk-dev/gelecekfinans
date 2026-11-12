@@ -9,6 +9,8 @@ import GoldCalculator from "@/components/calculators/GoldCalculator";
 import LoanCalculator from "@/components/calculators/LoanCalculator";
 import DepositCalculator from "@/components/calculators/DepositCalculator";
 import InflationCalculator from "@/components/calculators/InflationCalculator";
+import CompoundCalculator from "@/components/calculators/CompoundCalculator";
+import StockPnlCalculator from "@/components/calculators/StockPnlCalculator";
 
 export const revalidate = 86400;
 const BASE = "https://gelecekfinans.com";
@@ -19,7 +21,7 @@ interface ToolDef {
   metaTitle: string;
   desc: string;
   intro: string;
-  component: "doviz" | "altin" | "kredi" | "mevduat" | "enflasyon";
+  component: "doviz" | "altin" | "kredi" | "mevduat" | "enflasyon" | "bilesik" | "hissekz";
   related: { href: string; label: string }[];
 }
 
@@ -94,6 +96,34 @@ const TOOLS: Record<string, ToolDef> = {
       { href: "/araclar", label: "Tüm Araçlar" },
     ],
   },
+  "bilesik-faiz-hesaplama": {
+    title: "Bileşik Faiz Hesaplama",
+    h1: "Bileşik Faiz Hesaplama",
+    metaTitle: "Bileşik Faiz Hesaplama — Aylık Ek Yatırımlı Getiri Hesaplayıcı",
+    desc: "Başlangıç tutarı, aylık ek yatırım, yıllık getiri ve süreye göre bileşik faizle paranızın dönem sonu değerini hesaplayın.",
+    intro:
+      "Bileşik faizde kazanılan getiri anaparaya eklenir ve sonraki dönemlerde onun üzerinden de getiri kazanılır. Başlangıç tutarını, isterseniz aylık ek yatırımı, yıllık getiriyi ve süreyi girerek dönem sonundaki değeri görün.",
+    component: "bilesik",
+    related: [
+      { href: "/araclar/mevduat-faiz-hesaplama", label: "Mevduat Faizi" },
+      { href: "/araclar/enflasyon-hesaplama", label: "Enflasyon Hesaplama" },
+      { href: "/araclar", label: "Tüm Araçlar" },
+    ],
+  },
+  "hisse-kar-zarar-hesaplama": {
+    title: "Hisse Kâr/Zarar Hesaplama",
+    h1: "Hisse Kâr Zarar Hesaplama",
+    metaTitle: "Hisse Kâr Zarar Hesaplama — Komisyon Dahil Net Getiri (BIST)",
+    desc: "Alış ve satış fiyatı, adet ve komisyona göre hisse işleminin net kâr/zararını ve yüzde getirisini hesaplayın.",
+    intro:
+      "Hisse alış ve satış fiyatını, adedi ve komisyon oranınızı girerek işlemin komisyon sonrası net kâr veya zararını ve yüzde getirisini hesaplayın. Komisyon oranı için aracı kurumunuzun tarifesine bakın.",
+    component: "hissekz",
+    related: [
+      { href: "/borsa", label: "Borsa İstanbul" },
+      { href: "/araclar/bilesik-faiz-hesaplama", label: "Bileşik Faiz" },
+      { href: "/araclar", label: "Tüm Araçlar" },
+    ],
+  },
 };
 
 export function generateStaticParams() {
@@ -120,6 +150,8 @@ function Calculator({ kind }: { kind: ToolDef["component"] }) {
     case "kredi": return <LoanCalculator />;
     case "mevduat": return <DepositCalculator />;
     case "enflasyon": return <InflationCalculator />;
+    case "bilesik": return <CompoundCalculator />;
+    case "hissekz": return <StockPnlCalculator />;
   }
 }
 
