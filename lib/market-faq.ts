@@ -237,6 +237,48 @@ export const BIST_HUB_FAQ: FaqItem[] = [
 /* -------------------------------------------------------------------------- */
 
 const ARAC_FAQ: Record<string, FaqItem[]> = {
+  "kira-artis-hesaplama": [
+    {
+      q: "Kira artış oranı nasıl belirlenir?",
+      a: "Yenilenen kira dönemlerinde kira artışı, Türk Borçlar Kanunu m. 344 uyarınca bir önceki kira yılındaki TÜFE 12 aylık ortalama değişim oranını aşamaz. Taraflar bundan daha düşük bir artışta anlaşabilir.",
+    },
+    {
+      q: "TÜFE 12 aylık ortalama oranını nereden bulurum?",
+      a: "TÜİK her ay tüketici fiyat endeksi verisini açıklar; 12 aylık ortalama değişim oranı bu duyurularda yer alır. Hesaplayıcıya kira yenileme ayına ait güncel oranı girin.",
+    },
+    {
+      q: "Bu hesaplama hukuki görüş yerine geçer mi?",
+      a: "Hayır. Araç yalnızca girdiğiniz oranla aritmetik hesap yapar. Uyuşmazlık durumunda sözleşmenizi ve güncel mevzuatı bir avukata danışarak değerlendirin.",
+    },
+  ],
+  "emekli-zammi-hesaplama": [
+    {
+      q: "Emekli zammı nasıl hesaplanır?",
+      a: "Yeni aylık, mevcut aylığın zam oranı kadar artırılmasıyla bulunur. Zam oranı açıklanmadan önce tahmini bir oranla senaryo görebilirsiniz.",
+    },
+    {
+      q: "Kesin zam oranını nereden öğrenirim?",
+      a: "Enflasyon farkına göre belirlenen oran, TÜİK verisinin açıklanmasının ardından resmî duyurularla kamuoyuna bildirilir. Kesin tutar için SGK ve ilgili kurumların duyurularına bakın.",
+    },
+    {
+      q: "Sonuç net ele geçen tutar mıdır?",
+      a: "Araç yalnızca aylığın zam sonrası brüt tutarını gösterir; kesintiler ve olası vergi etkisi hesaba katılmaz.",
+    },
+  ],
+  "temettu-hesaplama": [
+    {
+      q: "Net temettü nasıl hesaplanır?",
+      a: "Brüt temettü, hisse adedi ile hisse başına brüt temettünün çarpımıdır. Net tutar, bu brüt tutardan stopaj düşülerek bulunur.",
+    },
+    {
+      q: "Temettü verimi nedir?",
+      a: "Hisse başına brüt temettünün hisse fiyatına oranıdır. Hissenin fiyatı değiştikçe verim de değişir; geçmiş temettü gelecekte tekrarlanacak anlamına gelmez.",
+    },
+    {
+      q: "Stopaj oranı ve vergi durumum için neye bakmalıyım?",
+      a: "Stopaj oranı ve beyan yükümlülüğü mevzuata ve kişisel durumunuza göre değişebilir. Güncel hükümler için mevzuata veya bir mali müşavire danışın.",
+    },
+  ],
   "bilesik-faiz-hesaplama": [
     {
       q: "Bileşik faiz nedir?",

@@ -11,6 +11,9 @@ import DepositCalculator from "@/components/calculators/DepositCalculator";
 import InflationCalculator from "@/components/calculators/InflationCalculator";
 import CompoundCalculator from "@/components/calculators/CompoundCalculator";
 import StockPnlCalculator from "@/components/calculators/StockPnlCalculator";
+import RentIncreaseCalculator from "@/components/calculators/RentIncreaseCalculator";
+import PensionRaiseCalculator from "@/components/calculators/PensionRaiseCalculator";
+import DividendCalculator from "@/components/calculators/DividendCalculator";
 
 export const revalidate = 86400;
 const BASE = "https://gelecekfinans.com";
@@ -21,7 +24,7 @@ interface ToolDef {
   metaTitle: string;
   desc: string;
   intro: string;
-  component: "doviz" | "altin" | "kredi" | "mevduat" | "enflasyon" | "bilesik" | "hissekz";
+  component: "doviz" | "altin" | "kredi" | "mevduat" | "enflasyon" | "bilesik" | "hissekz" | "kira" | "emekli" | "temettu";
   related: { href: string; label: string }[];
 }
 
@@ -124,6 +127,46 @@ const TOOLS: Record<string, ToolDef> = {
       { href: "/araclar", label: "Tüm Araçlar" },
     ],
   },
+  "kira-artis-hesaplama": {
+    title: "Kira Artışı Hesaplama",
+    h1: "Kira Artış Oranı Hesaplama",
+    metaTitle: "Kira Artış Oranı Hesaplama — Yeni Kira Bedeli",
+    desc: "Mevcut kiranız ve TÜFE 12 aylık ortalama oranına göre yeni kira bedelini ve artış tutarını hesaplayın.",
+    intro:
+      "Mevcut aylık kiranızı ve TÜİK’in açıkladığı TÜFE 12 aylık ortalama artış oranını girerek yeni kira bedelini ve artış tutarını görün.",
+    component: "kira",
+    related: [
+      { href: "/araclar/enflasyon-hesaplama", label: "Enflasyon Hesaplama" },
+      { href: "/araclar", label: "Tüm Araçlar" },
+    ],
+  },
+  "emekli-zammi-hesaplama": {
+    title: "Emekli Zammı Hesaplama",
+    h1: "Emekli Maaşı Zam Hesaplama",
+    metaTitle: "Emekli Maaşı Zam Hesaplama — Yeni Aylık Tutarı",
+    desc: "Mevcut emekli aylığınız ve zam oranına göre yeni maaşınızı ve yıllık farkı hesaplayın.",
+    intro:
+      "Mevcut aylığınızı ve beklediğiniz ya da açıklanan zam oranını girerek zam tutarını, yeni aylığı ve yıllık farkı görün.",
+    component: "emekli",
+    related: [
+      { href: "/araclar/enflasyon-hesaplama", label: "Enflasyon Hesaplama" },
+      { href: "/araclar", label: "Tüm Araçlar" },
+    ],
+  },
+  "temettu-hesaplama": {
+    title: "Temettü Hesaplama",
+    h1: "Temettü Hesaplama",
+    metaTitle: "Temettü Hesaplama — Net Temettü ve Verim",
+    desc: "Hisse adedi, hisse başına brüt temettü ve stopaja göre net temettü gelirini ve temettü verimini hesaplayın.",
+    intro:
+      "Sahip olduğunuz hisse adedini ve hisse başına brüt temettüyü girerek stopaj sonrası net temettü gelirinizi ve temettü verimini hesaplayın.",
+    component: "temettu",
+    related: [
+      { href: "/borsa", label: "Borsa İstanbul" },
+      { href: "/araclar/hisse-kar-zarar-hesaplama", label: "Hisse Kâr/Zarar" },
+      { href: "/araclar", label: "Tüm Araçlar" },
+    ],
+  },
 };
 
 export function generateStaticParams() {
@@ -152,6 +195,9 @@ function Calculator({ kind }: { kind: ToolDef["component"] }) {
     case "enflasyon": return <InflationCalculator />;
     case "bilesik": return <CompoundCalculator />;
     case "hissekz": return <StockPnlCalculator />;
+    case "kira": return <RentIncreaseCalculator />;
+    case "emekli": return <PensionRaiseCalculator />;
+    case "temettu": return <DividendCalculator />;
   }
 }
 
