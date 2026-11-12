@@ -305,7 +305,7 @@ export const ENTITY_QUALITY_PRESET: QualityPreset = {
 const SPECIFIC_FIGURE_PATTERNS: Array<[RegExp, string]> = [
   [/%\s?\d|\byüzde\s+\d/i, "Rehberde yüzde/oran yazılamaz"],
   [/\d+[.,]\d/, "Rehberde ondalıklı sayı yazılamaz"],
-  [/\b\d{4,}\b/, "Rehberde dört haneli veya daha büyük sayı yazılamaz"],
+  [/\b(?!(?:19|20)\d{2}\b)\d{4,}\b/, "Rehberde dört haneli veya daha büyük sayı yazılamaz"],
   [/\b\d+\s?(?:tl|lira|dolar|euro|avro|usd|try|bin|milyon|milyar)\b/i, "Rehberde para tutarı yazılamaz"],
 ];
 
