@@ -163,6 +163,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE}/arsiv`, lastModified: enYeniMakale, changeFrequency: "daily", priority: 0.6 },
     { url: `${BASE}/rehber`, lastModified: enYeniMakale, changeFrequency: "daily", priority: 0.8 },
     { url: `${BASE}/hakkimizda`, lastModified: STATIK_SAYFA_TARIHI, changeFrequency: "monthly", priority: 0.3 },
+    { url: `${BASE}/kunye`, lastModified: new Date("2026-11-12"), changeFrequency: "yearly", priority: 0.3 },
+    { url: `${BASE}/yazarlar`, lastModified: new Date("2026-11-12"), changeFrequency: "monthly", priority: 0.3 },
     { url: `${BASE}/yayincilik-ilkeleri`, lastModified: STATIK_SAYFA_TARIHI, changeFrequency: "monthly", priority: 0.5 },
     { url: `${BASE}/iletisim`, lastModified: STATIK_SAYFA_TARIHI, changeFrequency: "monthly", priority: 0.3 },
     { url: `${BASE}/gizlilik-politikasi`, lastModified: STATIK_SAYFA_TARIHI, changeFrequency: "yearly", priority: 0.2 },

@@ -62,6 +62,8 @@ export default function SiteFooter() {
             <h4>Kurumsal</h4>
             <Link href="/arsiv" className="footer-link">Haber Arşivi</Link>
             <Link href="/hakkimizda" className="footer-link">Hakkımızda</Link>
+            <Link href="/kunye" className="footer-link">Künye</Link>
+            <Link href="/yazarlar" className="footer-link">Yazarlar</Link>
             <Link href="/yayincilik-ilkeleri" className="footer-link">Yayıncılık İlkeleri</Link>
             <Link href="/iletisim" className="footer-link">İletişim</Link>
             <Link href="/gizlilik-politikasi" className="footer-link">Gizlilik Politikası</Link>

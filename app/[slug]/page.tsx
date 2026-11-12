@@ -275,7 +275,7 @@ export default async function ArticlePage({params}:{params:Promise<{slug:string}
       <div className="author-box">
         <div className="author-avatar">GF</div>
         <div>
-          <Link href="/hakkimizda" className="author-name">GelecekFinans Haber Merkezi</Link>
+          <Link href="/yazarlar" className="author-name">GelecekFinans Haber Merkezi</Link>
           <div className="author-role">
             İki bağımsız kaynak ve özgünlük kontrolüyle hazırlanan finans haberleri.{" "}
             <Link href="/yayincilik-ilkeleri">Yayın yöntemimiz</Link>
