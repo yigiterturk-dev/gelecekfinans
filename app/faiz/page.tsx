@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { REFERENCE_RATES, safeRelatedArticles } from "@/lib/market";
 import { fetchPolicyRate } from "@/lib/tcmb-evds";
+import { fetchTcmbRates } from "@/lib/tcmb-faiz";
 import MarketFaq from "@/components/MarketFaq";
 import { FAIZ_FAQ } from "@/lib/market-faq";
 import { MedCard } from "@/components/ArticleCard";
@@ -26,7 +27,10 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function FaizPage() {
   // Anahtar varsa canlı politika faizi; yoksa null → sabit tabloya düşer.
-  const canli = await fetchPolicyRate();
+  const [canli, tcmb] = await Promise.all([fetchPolicyRate(), fetchTcmbRates()]);
+  const kartlar = tcmb
+    ? REFERENCE_RATES.rates.map((r, i) => ({ ...r, value: [tcmb.policy, tcmb.borrow, tcmb.lend][i] ?? r.value }))
+    : REFERENCE_RATES.rates;
   const [yil, ay] = REFERENCE_RATES.asOf.split("-");
   const AYLAR = ["Ocak","Şubat","Mart","Nisan","Mayıs","Haziran","Temmuz","Ağustos","Eylül","Ekim","Kasım","Aralık"];
   const donemAdi = `${AYLAR[Number(ay) - 1] ?? ay} ${yil}`;
@@ -64,7 +68,7 @@ export default async function FaizPage() {
         TCMB politika faizi ve referans faiz oranları ile mevduat getirisi hesaplayıcı.
       </p>
 
-      {canli ? (
+      {canli || tcmb ? (
         <div className="market-hero">
           <div className="market-hero-head">
             <span className="market-flag market-flag-lg" aria-hidden>🏦</span>
@@ -73,8 +77,8 @@ export default async function FaizPage() {
               <p className="market-hero-sub">Bir hafta vadeli repo ihale faiz oranı</p>
             </div>
           </div>
-          <div className="market-headline"><strong>%{canli.value.toLocaleString("tr-TR")}</strong></div>
-          <div className="market-updated">Kaynak: TCMB EVDS · veri tarihi {canli.date}</div>
+          <div className="market-headline"><strong>%{(canli?.value ?? tcmb!.policy).toLocaleString("tr-TR")}</strong></div>
+          <div className="market-updated">Kaynak: TCMB · yürürlük tarihi {canli ? canli.date : tcmb!.date}</div>
         </div>
       ) : (
         /* Canlı kaynak bağlı değilken bayatlığı GİZLEMİYORUZ: kullanıcı hangi
@@ -88,7 +92,7 @@ export default async function FaizPage() {
       )}
 
       <div className="market-grid">
-        {REFERENCE_RATES.rates.map((r) => (
+        {kartlar.map((r) => (
           <div key={r.label} className="market-card market-card-static">
             <div className="market-card-name">{r.label}</div>
             <div className="market-card-price">%{r.value.toLocaleString("tr-TR")}</div>
