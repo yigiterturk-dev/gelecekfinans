@@ -469,23 +469,23 @@ export interface RateInfo {
 /** TCMB politika faizi vb. — ücretsiz canlı uç güvenilir olmadığından statik referans.
  *  Tarih ile birlikte gösterilir; yatırım tavsiyesi değildir. */
 export const REFERENCE_RATES: { asOf: string; rates: RateInfo[] } = {
-  asOf: "2026-06",
+  asOf: "2026-10",
   rates: [
     {
       label: "TCMB Politika Faizi (1 Hafta Repo)",
-      value: 42.5,
+      value: 36.0,
       unit: "%",
       desc: "Türkiye Cumhuriyet Merkez Bankası bir hafta vadeli repo ihale faiz oranı.",
     },
     {
       label: "Gecelik Borçlanma Faizi",
-      value: 41.0,
+      value: 34.5,
       unit: "%",
       desc: "TCMB gecelik borçlanma faiz oranı (alt bant).",
     },
     {
       label: "Gecelik Borç Verme Faizi",
-      value: 46.0,
+      value: 39.0,
       unit: "%",
       desc: "TCMB gecelik borç verme faiz oranı (üst bant / marjinal fonlama).",
     },
