@@ -26,7 +26,8 @@ export default function CookieConsent() {
         <p>
           Zorunlu işlevlerin yanında, onay verirseniz ziyaretleri ölçmek için Google Analytics ve
           etkinleştirildiğinde reklam hizmetlerini kullanırız. Ayrıntılar için{" "}
-          <Link href="/gizlilik-politikasi">Gizlilik Politikası</Link>.
+          <Link href="/gizlilik-politikasi">Gizlilik Politikası</Link> ve{" "}
+          <Link href="/cerez-politikasi">Çerez Politikası</Link>.
         </p>
       </div>
       <div className="consent-actions">

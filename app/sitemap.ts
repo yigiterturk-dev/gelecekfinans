@@ -166,6 +166,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE}/yayincilik-ilkeleri`, lastModified: STATIK_SAYFA_TARIHI, changeFrequency: "monthly", priority: 0.5 },
     { url: `${BASE}/iletisim`, lastModified: STATIK_SAYFA_TARIHI, changeFrequency: "monthly", priority: 0.3 },
     { url: `${BASE}/gizlilik-politikasi`, lastModified: STATIK_SAYFA_TARIHI, changeFrequency: "yearly", priority: 0.2 },
+    { url: `${BASE}/cerez-politikasi`, lastModified: new Date("2026-11-12"), changeFrequency: "yearly", priority: 0.2 },
     { url: `${BASE}/kullanim-kosullari`, lastModified: STATIK_SAYFA_TARIHI, changeFrequency: "yearly", priority: 0.2 },
     ...marketHubs,
     ...fxEntries,
