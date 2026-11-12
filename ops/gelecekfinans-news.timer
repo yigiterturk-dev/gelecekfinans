@@ -1,0 +1,11 @@
+[Unit]
+Description=GelecekFinans news schedule (UTC)
+
+[Timer]
+OnCalendar=*-*-* 05:00:00 UTC
+Unit=gelecekfinans-job@news.service
+AccuracySec=30s
+Persistent=false
+
+[Install]
+WantedBy=timers.target
