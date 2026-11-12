@@ -59,7 +59,7 @@ export const GuideDraftSchema = ArticleDraftSchema.extend({
     subsections: z.array(z.object({
       heading: z.string().min(1),
       paragraphs: z.array(z.string().min(1)).min(1),
-    })),
+    })).default([]),
   })).min(4).max(8),
   summary: z.array(z.string().min(1)).length(3),
   faq: z.array(z.object({
