@@ -1,11 +1,10 @@
 /**
  * Görsel URL normalizasyonu — SEO için görseller kendi alan adımızdan servis edilir.
  *
- * Bot ürettiği kapak görsellerini Vercel Blob'a yazıyor; ham URL
- * `https://<store>.public.blob.vercel-storage.com/gorseller/<slug>.png` biçiminde.
- * Bu URL Google Görseller'de gelecekfinans.com'a değil blob alt alan adına
- * atfediliyor. `next.config` içindeki `/gorseller/:path*` rewrite'ı sayesinde aynı
- * dosya kendi alan adımızdan da servis ediliyor; burada URL'i o yola çeviriyoruz.
+ * Görseller artık sunucudaki `public/gorseller` dizininde tutuluyor ve
+ * `/gorseller/<slug>.png` olarak kendi alan adımızdan servis ediliyor.
+ * Eski kayıtlarda Vercel Blob URL'i kalmış olabilir; burada onları da aynı
+ * yerel yola çeviriyoruz (geçiş uyumluluğu).
  */
 
 /** Bot üretimi kapak görsellerinin sabit boyutu (lib/bot/images.ts ImageResponse). */

@@ -8,7 +8,6 @@ import CryptoTicker from "@/components/CryptoTicker";
 import BreakingNews from "@/components/BreakingNews";
 import GoogleAnalytics from "@/components/GoogleAnalytics";
 import PageTracker from "@/components/PageTracker";
-import { Analytics } from "@vercel/analytics/react";
 import { getSettings } from "@/lib/settings";
 import CookieConsent from "@/components/CookieConsent";
 import { BRAND, BRAND_ALIASES, HOME_TITLE, TITLE_TEMPLATE } from "@/lib/brand";
@@ -156,7 +155,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <CryptoTicker />
         </ChromeGate>
         <PageTracker />
-        <Analytics />
         <CookieConsent />
       </body>
     </html>

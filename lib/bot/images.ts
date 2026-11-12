@@ -1,6 +1,6 @@
 import React from "react";
 import { ImageResponse } from "next/og";
-import { put } from "@vercel/blob";
+import { storeImageBytes, storeRemoteImage } from "@/lib/local-images";
 import { getBistHistory, getCrypto, getFxHistory, getGoldUsdHistory, CRYPTO_COINS } from "@/lib/market";
 import { createVisualBrief, type VisualBrief } from "./visual-director";
 import { searchLicensedMedia, type LicensedMediaAsset } from "./licensed-media";
@@ -47,9 +47,7 @@ export async function getArticleImageResult(article: ArticleImageInput): Promise
     const chart = await buildMarketSeries(article.category, article);
     if (chart) {
       const card = await createChartCard(article, downsample(chart.series, 60), chart.label, chart.unit);
-      const stored = process.env.BLOB_READ_WRITE_TOKEN
-        ? await uploadBufferToBlob(card, article.slug || `chart-${article.category}`, "image/png")
-        : null;
+      const stored = await storeImageBytes(card, article.slug || `chart-${article.category}`, "image/png");
       if (stored) return {
         url: stored,
         strategy: "MARKET_CHART",
@@ -72,7 +70,7 @@ export async function getArticleImageResult(article: ArticleImageInput): Promise
       headline: article.title,
     });
     if (asset) {
-      const stored = await uploadRemoteToBlob(
+      const stored = await storeRemoteImage(
         asset.downloadUrl,
         article.slug || `licensed-${asset.provider}-${asset.assetId}`,
         false,
@@ -94,7 +92,7 @@ export async function getArticleImageResult(article: ArticleImageInput): Promise
 
   const card = await createBrandedCard(article);
   const stored = card
-    ? await uploadBufferToBlob(card, article.slug || `branded-${article.category}`, "image/png")
+    ? await storeImageBytes(card, article.slug || `branded-${article.category}`, "image/png")
     : null;
   if (stored) return {
     url: stored,
@@ -401,49 +399,4 @@ export async function createBrandedCard(article: ArticleImageInput): Promise<Buf
   );
   const response = new ImageResponse(element, { width: 1200, height: 675 });
   return Buffer.from(await response.arrayBuffer());
-}
-
-async function uploadRemoteToBlob(src: string, prefix: string, allowExternalFallback: boolean): Promise<string | null> {
-  if (!process.env.BLOB_READ_WRITE_TOKEN) return allowExternalFallback ? src : null;
-  try {
-    const response = await fetch(src, { signal: AbortSignal.timeout(20000) });
-    if (!response.ok) return null;
-    const contentType = response.headers.get("content-type")?.split(";")[0] || "image/jpeg";
-    return uploadBufferToBlob(Buffer.from(await response.arrayBuffer()), prefix, contentType);
-  } catch {
-    return null;
-  }
-}
-
-async function uploadBufferToBlob(bytes: Buffer, prefix: string, contentType: string): Promise<string | null> {
-  if (!process.env.BLOB_READ_WRITE_TOKEN) return null;
-  try {
-    const extension = contentType === "image/png" ? "png" : "jpg";
-    const safePrefix = prefix
-      .toLocaleLowerCase("tr-TR")
-      .replace(/[^a-z0-9-]+/gi, "-")
-      .replace(/-{2,}/g, "-")
-      .replace(/^-|-$/g, "")
-      .slice(0, 80) || "gorsel";
-    // Aynı makale yeniden üretilirse aynı adrese yazılır; böylece hem dosya adı
-    // okunur kalır hem de eski görsel çöp olarak birikmez.
-    const key = `gorseller/${safePrefix}.${extension}`;
-    /**
-     * `allowOverwrite` şart: aynı makale ikinci kez işlendiğinde (görsel
-     * onarımı, yeniden üretim, elle tetikleme) `put` aynı adrese yazmayı
-     * "This blob already exists" ile reddediyordu. Hata aşağıdaki catch'te
-     * yutulduğu için sonuç sessizce `null` oluyor, makale de "kapak görseli
-     * yok" gerekçesiyle yayımlanmayıp inceleme kuyruğunda kalıyordu —
-     * ilk üretim başarılı olsa bile. Ölçüldü: aynı taslakta 1. deneme
-     * BRANDED_EDITORIAL, 2. deneme NONE.
-     */
-    const blob = await put(key, bytes, {
-      access: "public", contentType, addRandomSuffix: false, allowOverwrite: true,
-    });
-    return blob.url;
-  } catch (error) {
-    // Sessiz null, canlıda saatlerce yanlış yere baktırdı. Sebep artık kayıtta.
-    console.warn(`[gorsel] blob yüklemesi başarısız (${prefix}):`, (error as Error).message);
-    return null;
-  }
 }

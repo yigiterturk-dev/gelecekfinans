@@ -68,7 +68,7 @@ NEXTAUTH_SECRET="replace-with-at-least-32-random-characters"
 NEXTAUTH_URL="http://localhost:3000"
 ```
 
-OpenAI, Resend, Vercel Blob, Unsplash, cron, and bot credentials are feature-specific. See [.env.example](.env.example) for the complete list. Never commit real secrets.
+OpenAI, Resend, Unsplash, cron, and bot credentials are feature-specific. See [.env.example](.env.example) for the complete list. Never commit real secrets.
 
 ## Verification
 

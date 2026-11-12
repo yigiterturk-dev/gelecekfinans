@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { farkliKokenReddi } from "@/lib/csrf";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { put } from "@vercel/blob";
+import { storeImageBytes } from "@/lib/local-images";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 
 function rateLimitResponse(result: ReturnType<typeof rateLimit>) {
@@ -12,8 +12,9 @@ function rateLimitResponse(result: ReturnType<typeof rateLimit>) {
   );
 }
 
-// Makale düzenleme ekranından gelen görsel dosyasını Vercel Blob'a yükler.
-// Sadece resim, max ~8MB. Dönen public URL form.imageUrl'e yazılır.
+// Makale düzenleme ekranından gelen görsel dosyasını sunucudaki
+// public/gorseller dizinine yazar. Sadece resim, max ~8MB. Dönen public URL
+// form.imageUrl'e yazılır.
 const MAX_BYTES = 8 * 1024 * 1024; // 8MB
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"];
 
@@ -26,10 +27,6 @@ export async function POST(req: NextRequest) {
 
   const limit = rateLimit(`admin:upload-image:post:${clientIp(req)}`, { limit: 10, windowMs: 60_000 });
   if (!limit.ok) return rateLimitResponse(limit);
-
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
-    return NextResponse.json({ error: "Blob deposu yapılandırılmamış (BLOB_READ_WRITE_TOKEN yok)." }, { status: 500 });
-  }
 
   let file: File | null = null;
   try {
@@ -55,11 +52,12 @@ export async function POST(req: NextRequest) {
   try {
     // Dosya adını güvenli hale getir (yol/garip karakter kalmasın).
     const safeName = (file.name || "image").replace(/[^a-zA-Z0-9._-]/g, "-").slice(-80);
-    const blob = await put(`gorseller/${Date.now()}-${safeName}`, file, {
-      access: "public",
-      addRandomSuffix: false,
-    });
-    return NextResponse.json({ url: blob.url });
+    const prefix = `${Date.now()}-${safeName.replace(/\.[^.]+$/, "")}`;
+    const url = await storeImageBytes(Buffer.from(await file.arrayBuffer()), prefix, file.type);
+    if (!url) {
+      return NextResponse.json({ error: "Görsel kaydedilemedi." }, { status: 500 });
+    }
+    return NextResponse.json({ url });
   } catch (e) {
     return NextResponse.json({ error: `Yükleme başarısız: ${(e as Error).message}` }, { status: 500 });
   }

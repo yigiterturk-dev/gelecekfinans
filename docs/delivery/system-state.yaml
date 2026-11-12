@@ -42,8 +42,7 @@ legacy_cleanup:
   database_rows_recoverable: false
 release:
   production_url: https://gelecekfinans.com
-  deployment_id: dpl_Dzv9YUgx9VESLEpY2U6T2dMEtnUe
-  deployment_url: https://gelecekfinans-site-ceoepjchd-yamakyeter.vercel.app
+  hosting: netcup VPS (/opt/gelecekfinans, systemd + Caddy)
   status: READY
   live_qa:
     article_desktop_visual: pass

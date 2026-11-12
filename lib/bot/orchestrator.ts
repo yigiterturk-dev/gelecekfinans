@@ -268,7 +268,6 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
         const attributed = toAttributedPacket(packet);
         if (attributed) {
           packet = attributed;
-          attributedInRun++;
           await logEvent(run.id, "research", "Tek kaynak kulis haberi atıflı şeritte yazılacak", {
             title: topic.title, source: attributed.evidence[0]?.source,
           });
@@ -304,6 +303,8 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
         }, undefined, "warning");
         continue;
       }
+
+      if (packet.status === "ATTRIBUTED") attributedInRun++; // kota yalnız yazıma giden konuda harcanır
 
       // Hakem paketi zenginleştirmiş olabilir: yeni gelen kanıtlar arşivdeki
       // bir haberle örtüşüyorsa yazar çağrısı yapılmadan burada durulur.
@@ -620,7 +621,7 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
   // hiç makale eklenmeden hatayla biten koşu da sessizce birikmemeli.
   //
   // ── GÜNDE EN FAZLA BİR UYARI (2026-08-13) ────────────────────────────────
-  // Bot günde ÜÇ kez koşuyor (05:00, 10:00, 15:30 — vercel.json). Sorun devam
+  // Bot günde ÜÇ kez koşuyor (05:00, 10:00, 15:30 — systemd timer). Sorun devam
   // ettiği sürece her koşu ayrı mail atıyordu: aynı arıza için günde 3 mail.
   // Sürekli gelen alarm okunmaz hale gelir ve asıl tehlike budur — insan
   // alarmı susturur, sonraki gerçek arızayı kaçırır.
