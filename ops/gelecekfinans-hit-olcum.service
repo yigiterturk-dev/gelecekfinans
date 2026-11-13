@@ -1,0 +1,14 @@
+[Unit]
+Description=GelecekFinans hit tahmin kalibrasyonu
+After=network-online.target gelecekfinans.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/gelecekfinans
+Environment=HIT_LEDGER=/var/lib/gelecekfinans/hit-tahminleri.jsonl
+ExecStart=/opt/gelecekfinans/node_modules/.bin/tsx scripts/hit-olcum.ts --cikti /var/lib/gelecekfinans/hit-kalibrasyon.json
+StandardOutput=append:/var/lib/gelecekfinans/hit-olcum.log
+StandardError=append:/var/lib/gelecekfinans/hit-olcum.log
+TimeoutStartSec=180
+UMask=0077

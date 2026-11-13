@@ -1,0 +1,11 @@
+[Unit]
+Description=GelecekFinans hit motoru schedule (UTC)
+
+[Timer]
+OnCalendar=*-*-* 06:30:00 UTC
+Unit=gelecekfinans-hit.service
+AccuracySec=60s
+Persistent=true
+
+[Install]
+WantedBy=timers.target

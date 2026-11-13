@@ -14,6 +14,8 @@
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
     "seo:indeks-fark": "tsx scripts/indeks-fark.ts",
+    "gorsel:adaylar": "tsx scripts/gorsel-adaylar.ts",
+    "gorsel:doldur": "tsx scripts/backfill-images.ts",
     "content:legacy:audit": "tsx scripts/archive-legacy-bot-articles.ts",
     "content:legacy:archive": "tsx scripts/archive-legacy-bot-articles.ts --apply",
     "content:legacy:archive-drafts": "tsx scripts/archive-legacy-bot-articles.ts --apply --drafts-only",
@@ -25,7 +27,10 @@
     "measure:corroboration": "tsx scripts/measure-corroboration.ts",
     "measure:extraction": "tsx scripts/measure-extraction.ts",
     "measure:pipeline": "tsx scripts/measure-pipeline.ts",
-    "fix:links": "tsx scripts/backfill-links.ts"
+    "fix:links": "tsx scripts/backfill-links.ts",
+    "hit:motoru": "tsx scripts/hit-motoru.ts",
+    "hit:rapor": "tsx scripts/hit-motoru.ts --json --rapor veri/hit-raporu.md",
+    "hit:olcum": "tsx scripts/hit-olcum.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",

@@ -1,0 +1,15 @@
+[Unit]
+Description=GelecekFinans hit motoru raporu
+After=network-online.target gelecekfinans.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/gelecekfinans
+Environment=HIT_LEDGER=/var/lib/gelecekfinans/hit-tahminleri.jsonl
+Environment=HIT_RAPOR=/var/lib/gelecekfinans/hit-raporu.md
+ExecStart=/opt/gelecekfinans/node_modules/.bin/tsx scripts/hit-motoru.ts --gun 28 --limit 15 --json
+StandardOutput=append:/var/lib/gelecekfinans/hit-motoru.log
+StandardError=append:/var/lib/gelecekfinans/hit-motoru.log
+TimeoutStartSec=180
+UMask=0077

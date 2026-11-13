@@ -12,6 +12,7 @@
 
 # testing
 /coverage
+/.cache/
 
 # next.js
 /.next/
@@ -45,3 +46,7 @@ next-env.d.ts
 
 # nocturn-audit raporlari (yerel olcum ciktisi, depoya girmez)
 report/
+
+# veritabanı dökümleri
+*.dump
+*.sql.gz

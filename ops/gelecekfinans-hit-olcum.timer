@@ -1,0 +1,11 @@
+[Unit]
+Description=GelecekFinans hit kalibrasyonu schedule (UTC)
+
+[Timer]
+OnCalendar=Mon *-*-* 07:00:00 UTC
+Unit=gelecekfinans-hit-olcum.service
+AccuracySec=60s
+Persistent=true
+
+[Install]
+WantedBy=timers.target
