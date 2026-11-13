@@ -267,7 +267,9 @@ function articleInstructions(targetWords: number): string {
     // İntihal kapısı (plagiarism.ts) kaynakla %25 örtüşmeyi veya 14 kelimelik
     // kesintisiz eşleşmeyi reddediyor. Küçük modeller kanıt metnini olduğu gibi
     // aktarma eğiliminde: kural sayıyla yazılmazsa makale burada ölüyor.
-    "Kanıt metnindeki cümleleri KOPYALAMA. Olguları kendi cümlelerinle, kendi cümle kuruluşunla yeniden yaz. Kaynakla 10 kelimeden uzun birebir ortak dizi kalmasın; yalnızca rakamlar, özel adlar ve kurum adları aynı kalabilir.",
+    "Kanıt metnindeki cümleleri KOPYALAMA. Olguları kendi cümlelerinle, kendi cümle kuruluşunla yeniden yaz. Kaynakla 6 kelimeden uzun birebir ortak dizi kalmasın; yalnızca rakamlar, özel adlar ve kurum adları aynı kalabilir.",
+    "Uzun hukuki veya teknik tanımları cümle cümle aktarma; sadeleştirerek anlat, terim adını en fazla 6 kelimeyle ver.",
+    "YORUM YASAK: Olayı değerlendirme, yorumlama veya tahmin etme. 'dikkat çekici', 'yankı uyandırdı', 'sinyallerini veriyor', 'önemli bir adım', 'piyasalar rahatladı', 'gözler ... çevrildi' gibi ifadeler kullanma. Yalnızca kanıtta yazılan olguları aktar; neden-sonuç ve gelecek çıkarımı yapma.",
     "Yatırım tavsiyesi, teknik analiz, destek/direnç, fiyat hedefi ve gelecek tahmini yazma.",
     /**
      * ⚠️ ÇIPA ETKİSİ (ölçüldü 2026-09-04): istem "EN AZ 320" derken yayındaki

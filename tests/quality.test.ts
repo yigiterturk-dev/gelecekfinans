@@ -251,3 +251,23 @@ test("temiz taslakta kozmetik liste boştur", () => {
   assert.equal(report.passed, true);
   assert.equal(report.cosmeticIssues.length, 0);
 });
+
+test("kanıtta olmayan yorum ifadesi kalite kapısını düşürür", () => {
+  const draft = validDraft();
+  draft.lede = `${draft.lede} Karar piyasalarda yankı uyandırdı.`;
+  const report = validateDraft(draft, packet);
+  assert.equal(report.passed, false);
+  assert.ok(report.issues.some((i) => i.includes("yankı uyandırdı")), report.issues.join("; "));
+});
+
+test("kaynakta geçen yorum ifadesi engellenmez", () => {
+  const draft = validDraft();
+  const kaynak = `${draft.lede} Karar piyasalarda yankı uyandırdı.`;
+  draft.lede = kaynak;
+  const kaynakliPacket: EvidencePacket = {
+    ...packet,
+    evidence: packet.evidence.map((item) => ({ ...item, summary: `${item.summary} yankı uyandırdı` })),
+  };
+  const report = validateDraft(draft, kaynakliPacket);
+  assert.ok(!report.issues.some((i) => i.includes("yankı uyandırdı")), report.issues.join("; "));
+});

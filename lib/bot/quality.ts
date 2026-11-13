@@ -24,6 +24,29 @@ const FORBIDDEN_PATTERNS: Array<[RegExp, string]> = [
   [/kesin (?:yükselecek|düşecek)/iu, "Kesin fiyat tahmini"],
 ];
 
+/**
+ * Yorum/tahmin kalıpları.
+ *
+ * 13 Kasım 2026 canlı kaydı: Fed takvimi haberi "dikkat çekici", "yankı
+ * uyandırdı", "sinyallerini veriyor", "arayışında olabileceği" cümleleriyle
+ * yayınlandı. Bunlar kanıtta yoktu; modelin kendi değerlendirmesiydi. Kural,
+ * KANITTA geçmeyen yorum kalıplarını reddeder — kaynak gerçekten böyle
+ * diyorsa cümle geçer.
+ */
+const EDITORIAL_PATTERNS: Array<[RegExp, string]> = [
+  [/yank[ıi] uyand[ıi]rd/iu, "yankı uyandırdı"],
+  [/dikkat [çc]ekici/iu, "dikkat çekici"],
+  [/sinyal(?:ler)?ini veriyor/iu, "sinyallerini veriyor"],
+  [/aray[ıi][şs][ıi]nda olabilece/iu, "arayışında olabileceği"],
+  [/merakla bekleniyor/iu, "merakla bekleniyor"],
+  [/yak[ıi]ndan takip ediliyor/iu, "yakından takip ediliyor"],
+  [/(?:piyasalar?|borsa) (?:rahatlad[ıi]|nefes ald[ıi])/iu, "piyasa yorumu"],
+  [/b[üu]y[üu]k (?:bir )?ad[ıi]m/iu, "büyük adım"],
+  [/[öo]nemli (?:bir )?(?:ad[ıi]m|sinyal|d[öo]n[üu]m noktas[ıi])/iu, "önemli adım"],
+  [/tarihi (?:bir )?(?:ad[ıi]m|karar)/iu, "tarihi karar"],
+  [/(?:g[öo]zler|g[öo]zlerin) .{0,30}[çc]evrildi/iu, "gözler çevrildi"],
+];
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -419,6 +442,14 @@ export function validateDraft(
 
   for (const [pattern, label] of FORBIDDEN_PATTERNS) {
     if (pattern.test(draftText)) issues.push(label);
+  }
+
+  const evidenceLower = evidenceText.toLocaleLowerCase("tr-TR");
+  for (const [pattern, label] of EDITORIAL_PATTERNS) {
+    const hit = draftText.match(pattern);
+    if (hit && !evidenceLower.includes(hit[0].toLocaleLowerCase("tr-TR"))) {
+      issues.push(`Kanıtta olmayan yorum ifadesi: "${hit[0]}" (${label})`);
+    }
   }
 
   const paragraphs = [draft.lede, ...draft.sections.flatMap((section) => section.paragraphs)]
