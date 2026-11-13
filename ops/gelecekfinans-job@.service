@@ -1,0 +1,14 @@
+[Unit]
+Description=GelecekFinans scheduled job (%i)
+After=network-online.target gelecekfinans.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/gelecekfinans
+ExecStart=/usr/local/bin/gf-cron.sh %i
+TimeoutStartSec=310
+SuccessExitStatus=75
+UMask=0077
+# Çıktı journald'a, son durum /var/lib/gelecekfinans/cron'a yazılır.
+# HTTP 200 + üretim yok/atlandı durumları da görünür uyarı (exit 2) olur.
