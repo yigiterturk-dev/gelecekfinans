@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import { IBM_Plex_Serif, IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
@@ -155,6 +156,22 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <CryptoTicker />
         </ChromeGate>
         <PageTracker />
+        <Script
+          async
+          id="swg-basic"
+          src="https://news.google.com/swg/js/v1/swg-basic.js"
+          strategy="afterInteractive"
+        />
+        <Script id="swg-basic-init" strategy="afterInteractive">
+          {`(self.SWG_BASIC = self.SWG_BASIC || []).push((basicSubscriptions) => {
+            basicSubscriptions.init({
+              type: "NewsArticle",
+              isPartOfType: ["Product"],
+              isPartOfProductId: "CAowvpvNDA:openaccess",
+              clientOptions: { theme: "light", lang: "tr" },
+            });
+          });`}
+        </Script>
         <CookieConsent />
       </body>
     </html>
