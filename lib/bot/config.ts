@@ -13,8 +13,10 @@
 //   ntv.com.tr/ekonomi.rss        → 0 item (ölü)
 //   koinmedya.com/feed            → son haber 12 Mayıs 2026 (bayat)
 //   hurriyet.com.tr/rss/ekonomi   → son haber 7 Haziran 2026 (bayat)
-//   patronlardunyasi / bigpara / milliyet / mynet / cumhuriyet / kriptokoin
+//   patronlardunyasi / bigpara / milliyet / mynet / kriptokoin
 //                                 → 0 item
+// (cumhuriyet 31 Ağustos'ta ölüydü, 13 Kasım'da tekrar taze item veriyor —
+//  feed'ler geri gelebiliyor, liste periyodik ölçülmeli.)
 export const RSS_FEEDS = [
   // Genel ekonomi / finans
   "https://www.aa.com.tr/tr/rss/default?cat=ekonomi",
@@ -59,6 +61,14 @@ export const RSS_FEEDS = [
   "https://uzmancoin.com/feed/",
   "https://kriptohaber.com.tr/feed/",
   "https://tr.investing.com/rss/news_301.rss",
+  // ── 2026-11-13'te canlı ölçülüp EKLENENLER ────────────────────────────
+  // Neden: son koşularda 16 konunun 6'sı "ikinci bağımsız kaynak yok"
+  // diye düşüyordu; üretimi kısıtlayan şey artık kalite kapısı değil,
+  // kaynak darlığı. Üçü de ölçüm anında taze item verdi (en yenisi <2 saat).
+  // Foreks veri ağırlıklı, Cumhuriyet ve Finansingundemi makro/piyasa.
+  "https://www.foreks.com/rss/",
+  "https://www.cumhuriyet.com.tr/rss/ekonomi",
+  "https://www.finansingundemi.com/rss",
 ];
 
 export const CATEGORIES: Record<string, string[]> = {
