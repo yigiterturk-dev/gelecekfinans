@@ -37,3 +37,13 @@ test("kelime korunamıyorsa taslak bozulmadan geri döner", () => {
   const girdi = `${"A".repeat(200)} ${kelime}`;
   assert.equal(capMetaLength(girdi, kelime), girdi);
 });
+
+test("kelime 180'in ötesindeyse cümle penceresine indirgenir", () => {
+  // 12 Kasım 2026: model odak kelimeyi metanın sonuna koydu, 192 karakterlik
+  // meta kalite kapısından geçemedi ve makale çöpe gitti.
+  const girdi = `${"Piyasalarda günün öne çıkan gelişmeleri analistler tarafından değerlendirildi. ".repeat(2)}${kelime} bekleniyor.`;
+  assert.ok(girdi.length > 180, `girdi kısa kaldı: ${girdi.length}`);
+  const sonuc = capMetaLength(girdi, kelime);
+  assert.ok(sonuc.length <= 180, `meta hâlâ uzun: ${sonuc.length}`);
+  assert.ok(sonuc.toLocaleLowerCase("tr-TR").includes(kelime), "odak kelime kayboldu");
+});

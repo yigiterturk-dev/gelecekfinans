@@ -938,6 +938,55 @@ export interface WriteArticleOptions {
  * denemeler bitince QUALITY_BLOCKED makaleyi imha ediyor. Odak kelimeyi
  * koruyan 180'lik bir meta, silinmis bir makaleden her kosulda iyidir.
  */
+/**
+ * Kırpma odak kelimeyi koruyamıyorsa metayı kelimenin bulunduğu cümle
+ * penceresine indirger. 12 Kasım 2026: model kelimeyi metanın sonuna koydu,
+ * 165 ve 180'lik kesimler kelimeyi düşürdü, fonksiyon orijinali döndürdü ve
+ * 192 karakterlik meta kalite kapısından geçemedi.
+ */
+function keywordWindow(meta: string, needle: string, gate: number, min: number): string | null {
+  const lower = meta.toLocaleLowerCase("tr-TR");
+  const at = lower.indexOf(needle);
+  if (at < 0) return null;
+  const sentences = meta.split(/(?<=[.!?])\s+/);
+  let pos = 0;
+  let target = -1;
+  for (let index = 0; index < sentences.length; index++) {
+    const end = pos + sentences[index].length;
+    if (at >= pos && at < end) {
+      target = index;
+      break;
+    }
+    pos = end + 1;
+  }
+  if (target < 0) return null;
+
+  let start = target;
+  let end = target;
+  let out = sentences[target];
+  const tryAdd = (next: number): boolean => {
+    const candidate = next < start ? `${sentences[next]} ${out}` : `${out} ${sentences[next]}`;
+    if (candidate.length > gate) return false;
+    out = candidate;
+    start = Math.min(start, next);
+    end = Math.max(end, next);
+    return true;
+  };
+  for (let guard = 0; out.length < min && guard < sentences.length; guard++) {
+    if (!tryAdd(end + 1) && !tryAdd(start - 1)) break;
+  }
+  for (let next = end + 1; next < sentences.length; next++) {
+    if (!tryAdd(next)) break;
+  }
+  if (out.length > gate) {
+    const cut = out.slice(0, gate);
+    const space = cut.lastIndexOf(" ");
+    out = cut.slice(0, space > 0 ? space : gate).trim();
+  }
+  const acceptable = out.length >= Math.min(min, gate) && out.toLocaleLowerCase("tr-TR").includes(needle);
+  return acceptable ? out : null;
+}
+
 export function capMetaLength(
   meta: string,
   keyword: string,
@@ -959,6 +1008,15 @@ export function capMetaLength(
   if (meta.length > gate) {
     const survivable = cutAt(gate);
     if (usable(survivable)) return survivable;
+    const rescued = keywordWindow(meta, needle, gate, min);
+    if (rescued) return rescued;
+    // Son çare: kelime zaten kapı sınırının içindeyse sert kesim yeterli.
+    const hard = meta.slice(0, gate);
+    if (hard.toLocaleLowerCase("tr-TR").includes(needle)) {
+      const space = hard.lastIndexOf(" ");
+      const trimmed = hard.slice(0, space > 0 ? space : gate).trim();
+      if (trimmed.length >= min) return trimmed;
+    }
   }
   return meta;
 }
