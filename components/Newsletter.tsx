@@ -45,7 +45,7 @@ export default function Newsletter() {
 
   if (status === "success") {
     return (
-      <div className="newsletter-box center">
+      <div className="newsletter-box center" role="status">
         <p className="newsletter-title accent">Teşekkürler!</p>
         <p className="newsletter-desc">
           {needsConfirm
@@ -58,9 +58,12 @@ export default function Newsletter() {
 
   return (
     <div className="newsletter-box" aria-busy={status === "loading"}>
+      <div className="newsletter-copy">
       <p className="newsletter-eyebrow">Ücretsiz Bülten</p>
-      <p className="newsletter-title">Günlük Finans Bülteni</p>
+      <h2 className="newsletter-title">Gündemi yakalayın.<br />Güne bir adım önde başlayın.</h2>
       <p className="newsletter-desc">Her sabah piyasa özeti ve öne çıkan haberler e-postanızda.</p>
+      </div>
+      <div className="newsletter-signup">
       <form onSubmit={subscribe} className="newsletter-form">
         <input
           type="email" value={email} onChange={e => setEmail(e.target.value)}
@@ -88,6 +91,7 @@ export default function Newsletter() {
         İlgi alanı seçmezseniz tüm kategorilerden haber alırsınız.
       </p>
       {status === "error" && <p className="newsletter-error" role="alert">Bir hata oluştu, tekrar deneyin.</p>}
+      </div>
     </div>
   );
 }

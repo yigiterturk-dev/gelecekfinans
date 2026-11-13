@@ -36,7 +36,7 @@ export function Ago(d:string){
 function ViewCount({n}:{n?:number}){
   if(!n || n < 1) return null;
   const txt = n >= 1000 ? `${(n/1000).toFixed(1).replace(".0","")}K` : String(n);
-  return <span style={{fontSize:10,color:"#999"}}>&#128065; {txt}</span>;
+  return <span style={{fontSize:12,color:"var(--muted)"}}>{txt} okunma</span>;
 }
 
 export function HeroCard({article}:{article:ArticleListItem}){
@@ -54,11 +54,12 @@ export function HeroCard({article}:{article:ArticleListItem}){
         <div className="hero-meta">
           <span>{Ago(article.created_at)}</span>
           <ViewCount n={article.views}/>
+          <span className="edition-read-story">Haberi okuyun <span aria-hidden="true">↗</span></span>
         </div>
       </div>
       <div className="hero-img-col">
         {img
-          ? <SafeImage src={img} alt={article.title} fill sizes="480px" style={{objectFit:"cover"}} priority />
+          ? <SafeImage src={img} alt={article.title} fill sizes="(max-width: 980px) 95vw, 880px" style={{objectFit:"contain"}} priority />
           : <div style={{width:"100%",height:"100%",background:"var(--surface2)",minHeight:380}}/>
         }
       </div>

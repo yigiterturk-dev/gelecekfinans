@@ -38,15 +38,20 @@ export default function Navbar(){
     setTheme(nextTheme);
     if (nextTheme === "dark") {
       document.documentElement.classList.add("dark");
-      localStorage.setItem("theme", "dark");
     } else {
       document.documentElement.classList.remove("dark");
-      localStorage.setItem("theme", "light");
     }
+    try { localStorage.setItem("theme", nextTheme); } catch { /* Theme still works when storage is unavailable. */ }
   };
 
   return(
-    <div className="nav">
+    <header className="nav publication-nav">
+      <div className="publication-topline">
+        <div className="publication-topline-inner">
+          <span>FİNANS · EKONOMİ · PİYASALAR</span>
+          <div><Link href="/arsiv">Haber arşivi</Link><Link href="/yayincilik-ilkeleri">Yayıncılık ilkeleri</Link></div>
+        </div>
+      </div>
       <div className="nav-brand-row">
         <Link href="/" className="nav-brand-link" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
           <div style={{
@@ -89,7 +94,8 @@ export default function Navbar(){
             </div>
           </div>
         </Link>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <p className="publication-motto">Ekonomiye daha net bakın.</p>
+        <div className="publication-actions" style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <Search/>
           <button
             onClick={toggleTheme}
@@ -121,15 +127,23 @@ export default function Navbar(){
           </button>
         </div>
       </div>
-      <div className="nav-cat-row">
+      <nav className="nav-cat-row" aria-label="Ana gezinme">
+        <div className="publication-news-links">
         <Link href="/" className={`nav-cat${p==="/"?" act":""}`}>Tüm Haberler</Link>
         {CATS.map(c=> (
           <Link key={c.k} href={`/kategori/${c.k}`} className={`nav-cat${p===`/kategori/${c.k}`?" act":""}`}>{c.l}</Link>
         ))}
-        {MARKET.map(m=> (
-          <Link key={m.h} href={m.h} className={`nav-cat nav-cat-market${p===m.h||p.startsWith(m.h+"/")?" act":""}`}>{m.l}</Link>
-        ))}
-      </div>
-    </div>
+        </div>
+        <details className="publication-market-menu" key={p}>
+          <summary>Piyasalar <span aria-hidden="true">⌄</span></summary>
+          <div className="publication-market-links">
+            {MARKET.map(m=> (
+              <Link key={m.h} href={m.h} aria-current={p===m.h ? "page" : undefined}>{m.l}<span aria-hidden="true">↗</span></Link>
+            ))}
+          </div>
+        </details>
+        <Link href="/araclar" className="publication-tools-link">Hesaplama araçları <span aria-hidden="true">↗</span></Link>
+      </nav>
+    </header>
   );
 }
