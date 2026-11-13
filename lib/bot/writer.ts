@@ -461,6 +461,8 @@ function plagiarismRepairInstructions(
     "",
     "Aynı olguları koru ama metni SIFIRDAN kendi cümlelerinle yaz: cümle sırasını değiştir,",
     "uzun cümleleri böl, kaynağın söz dizimini taklit etme. Rakamlar, kurum ve kişi adları aynı kalsın.",
+    "Hedef: kaynakla en fazla 6 kelimelik ortak dizi kalsın (kapı 14 kelimede reddediyor).",
+    "Yukarıdaki dizileri metinde BİREBİR kullanma; teknik bir terim zorunluysa tırnak içinde en fazla 6 kelimeyle ver, gerisini kendi cümlenle anlat.",
   ].join("\n");
 }
 
@@ -1158,7 +1160,13 @@ export async function writeArticle(
     return meta === candidate.meta ? candidate : { ...candidate, meta };
   };
 
-  const MAX_ATTEMPTS = resolveArticleAIConfig().provider === "deepseek" ? 4 : 2;
+  /**
+   * 13 Kasım 2026: intihal kapısı haber akışının tek darboğazı kaldı ve
+   * ücretli sağlayıcıda tek onarım hakkı yetmiyordu (canlı kayıt: onarım
+   * sonrası 17 kelimelik eşleşme sürdü, makale düştü). İkinci onarım
+   * ~$0,026; yayınlanan makale başına bu maliyet kabul edilebilir.
+   */
+  const MAX_ATTEMPTS = resolveArticleAIConfig().provider === "deepseek" ? 4 : 3;
   let draft = trimMeta(normalizeKeyword(normalizeEvidenceIds(
     await generateDraft(topic, targetWords, baseInstructions, schema),
   )));
