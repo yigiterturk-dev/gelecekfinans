@@ -137,10 +137,10 @@ export const getAllArticles = cache(async function getAllArticles(
     rows = await prisma.article.findMany(baseQuery);
   } catch (err) {
     if (!isMissingOptionalColumn(err)) {
-      // `premium`/`aiExtras` ile ilgisiz gerçek bir hata: sayfayı çökertmek
-      // yerine degrade ederek boş liste döndür (homepage temiz boş durum gösterir).
+      // Kesintiyi boş arşiv diye önbelleğe alma. ISR bu hata sırasında
+      // son başarılı sayfayı korur; soğuk istekte ise gerçek 5xx döner.
       console.error("[getAllArticles] sorgu başarısız:", err);
-      return [];
+      throw new DatabaseUnavailableError(err);
     }
     // `premium` kolonu yok: kolonu hariç tutarak yeniden dene.
     const { premium: _premium, ...selectWithoutPremium } = listSelect;
@@ -151,14 +151,20 @@ export const getAllArticles = cache(async function getAllArticles(
   }
 
   const slugs = rows.map((r) => `/${r.slug}`);
-  const viewCounts = slugs.length > 0
-    ? await prisma.pageView.groupBy({
+  const viewMap = new Map<string, number>();
+  if (slugs.length > 0) {
+    try {
+      const viewCounts = await prisma.pageView.groupBy({
         by: ["path"],
         where: { path: { in: slugs } },
         _count: { path: true },
-      })
-    : [];
-  const viewMap = new Map(viewCounts.map((v) => [v.path, v._count.path]));
+      });
+      for (const v of viewCounts) viewMap.set(v.path, v._count.path);
+    } catch (err) {
+      // Sayaç yardımcı veridir; arızası haber sunumunu durdurmamalı.
+      console.error("[getAllArticles] görüntülenme sayacı okunamadı:", err);
+    }
+  }
 
   return rows.map((r) => ({
     title: r.title,
@@ -263,8 +269,8 @@ export async function getArticlesByCategory(cat: string): Promise<ArticleListIte
  * listelerinde, haberlerin arasında görünüyorlardı; ne okur bir arada
  * bulabiliyordu ne de tarayıcı küme olarak görebiliyordu.
  *
- * `track` kolonu eski kurulumlarda olmayabilir; kolon yoksa boş liste döner
- * ve sayfa dürüst boş durum gösterir (getAllArticles ile aynı degrade davranışı).
+ * Bağlantı hatası boş liste değildir; ISR'nin son başarılı arşivi koruması
+ * için veritabanı hatası yukarı taşınır.
  */
 export async function getGuides(limit = 100): Promise<ArticleListItem[]> {
   let rows: Array<{ slug: string; cluster: string | null }>;
@@ -277,7 +283,7 @@ export async function getGuides(limit = 100): Promise<ArticleListItem[]> {
     });
   } catch (err) {
     console.error("[getGuides] sorgu başarısız:", err);
-    return [];
+    throw new DatabaseUnavailableError(err);
   }
   if (rows.length === 0) return [];
   const kume = new Map(rows.map((r) => [r.slug, r.cluster]));
