@@ -84,6 +84,11 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
   const autoPublishEnabled = options.autoPublish === true;
   const aiBudget = resolveArticleAIBudgetConfig();
   const aiConfig = resolveArticleAIConfig();
+  /**
+   * Rehbere ayrılan pay haber akışından düşülür; yoksa haber günlük tavanı
+   * öğlene kadar tüketip rehberi tamamen aç bırakıyor (12 Kasım 2026 kaydı).
+   */
+  const newsWriterCallLimit = Math.max(1, aiBudget.dailyWriterCallLimit - aiBudget.guideWriterCallReserve);
   // Sunucu platformu isteği zorla sonlandırırsa önceki kayıt `running` kalabilir.
   // Aktif bir 300 sn işi etkilememek için yalnızca 6 dakikadan eski kayıtları
   // güvenli biçimde başarısız olarak kapat.
@@ -345,9 +350,9 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
           `İş başına ${aiBudget.maxWriterCallsPerRun} yazar çağrısı sınırına ulaşıldı; ek çağrı yapılmadı.`,
         );
       }
-      if (dailyWriterCalls >= aiBudget.dailyWriterCallLimit) {
+      if (dailyWriterCalls >= newsWriterCallLimit) {
         throw new AIBudgetLimitError(
-          `Günlük ${aiBudget.dailyWriterCallLimit} yazar çağrısı sınırına ulaşıldı; ek çağrı yapılmadı.`,
+          `Günlük yazar çağrısı sınırına ulaşıldı (haber payı ${newsWriterCallLimit}); ek çağrı yapılmadı.`,
         );
       }
       await logEvent(run.id, "writer_call_reserved", "Yazar modeli çağrısı bütçeden ayrıldı", {
@@ -357,7 +362,7 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
         runCall: writerCalls + 1,
         dailyCall: dailyWriterCalls + 1,
         maxWriterCallsPerRun: aiBudget.maxWriterCallsPerRun,
-        dailyWriterCallLimit: aiBudget.dailyWriterCallLimit,
+        dailyWriterCallLimit: newsWriterCallLimit,
       });
       writerCalls++;
       dailyWriterCalls++;
@@ -388,7 +393,7 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
               runCall: writerCalls,
               dailyCall: dailyWriterCalls,
               maxWriterCallsPerRun: aiBudget.maxWriterCallsPerRun,
-              dailyWriterCallLimit: aiBudget.dailyWriterCallLimit,
+              dailyWriterCallLimit: newsWriterCallLimit,
             });
           }
         }

@@ -5,6 +5,7 @@ import { resolveArticleAIBudgetConfig, startOfIstanbulDay } from "../lib/bot/ai-
 test("AI bütçesi güvenli üretim varsayılanlarını kullanır", () => {
   assert.deepEqual(resolveArticleAIBudgetConfig({}), {
     dailyWriterCallLimit: 24,
+    guideWriterCallReserve: 8,
     maxWriterCallsPerRun: 6,
     writerMaxOutputTokens: 5000,
     verifierMaxOutputTokens: 800,
@@ -16,11 +17,13 @@ test("AI bütçesi güvenli üretim varsayılanlarını kullanır", () => {
 test("AI bütçe değişkenleri güvenli aralıklara sıkıştırılır", () => {
   const budget = resolveArticleAIBudgetConfig({
     ARTICLE_DAILY_WRITER_CALL_LIMIT: "999",
+    ARTICLE_GUIDE_WRITER_RESERVE: "24",
     ARTICLE_MAX_WRITER_CALLS_PER_RUN: "0",
     OPENAI_WRITER_MAX_OUTPUT_TOKENS: "9000",
     OPENAI_VERIFIER_MAX_OUTPUT_TOKENS: "10",
   });
   assert.equal(budget.dailyWriterCallLimit, 50);
+  assert.equal(budget.guideWriterCallReserve, 24);
   assert.equal(budget.maxWriterCallsPerRun, 1);
   assert.equal(budget.writerMaxOutputTokens, 9000);
   assert.equal(budget.verifierMaxOutputTokens, 300);
@@ -50,5 +53,18 @@ test("günlük tavan cron programının altında kalmaz", () => {
   assert.ok(
     maxWriterCallsPerRun >= Math.ceil(hedefMakale * makaleBaşınaÇağrı) + 1,
     "koşum tavanı, onarım turlarıyla birlikte hedefi bir redde rağmen tutturmalı",
+  );
+});
+
+test("haber akışı rehbere ayrılan payı tüketemez", () => {
+  const { dailyWriterCallLimit, guideWriterCallReserve } = resolveArticleAIBudgetConfig({});
+  const haberPayı = dailyWriterCallLimit - guideWriterCallReserve;
+  assert.ok(guideWriterCallReserve > 0, "rehber için pay ayrılmıyor");
+  assert.ok(haberPayı >= 12, `haber payı çok dar: ${haberPayı}`);
+  assert.equal(
+    resolveArticleAIBudgetConfig({ ARTICLE_DAILY_WRITER_CALL_LIMIT: "10", ARTICLE_GUIDE_WRITER_RESERVE: "30" })
+      .guideWriterCallReserve,
+    24,
+    "rehber payı günlük tavanın üstüne çıkabiliyor",
   );
 });

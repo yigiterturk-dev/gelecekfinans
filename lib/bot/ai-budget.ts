@@ -1,5 +1,7 @@
 export interface ArticleAIBudgetConfig {
   dailyWriterCallLimit: number;
+  /** Haber akışının dokunamayacağı, rehber akışına ayrılmış çağrı payı. */
+  guideWriterCallReserve: number;
   maxWriterCallsPerRun: number;
   writerMaxOutputTokens: number;
   verifierMaxOutputTokens: number;
@@ -41,6 +43,13 @@ export function resolveArticleAIBudgetConfig(
      * cinsinden 24'e çekildi: ~$0,63/gün, ~$19/ay; $50-75 bütçenin içinde.
      */
     dailyWriterCallLimit: boundedInteger(env.ARTICLE_DAILY_WRITER_CALL_LIMIT, 24, 1, 50),
+    /**
+     * 12 Kasım 2026 canlı kaydı: haber akışı günlük tavanı öğlene kadar
+     * tüketti ve 20:00 rehber koşumu "günlük yazar çağrısı sınırına ulaşıldı"
+     * diyerek hiç başlamadı. Rehber, uzun kuyruk talebini hedefleyen tek akış;
+     * haberin artığıyla çalışmamalı. Tavanın bir payı baştan rehbere ayrılır.
+     */
+    guideWriterCallReserve: boundedInteger(env.ARTICLE_GUIDE_WRITER_RESERVE, 8, 0, 24),
     // Koşu başına 1 iken TEK bir kalite reddi bütün koşumu "bütçe doldu"
     // hatasıyla bitiriyordu: elenen konu yerine yenisi denenemiyordu. 2 ile
     // koşum ikinci bir konuya şans veriyordu ama koşumun HEDEFİ de 2 makale:
