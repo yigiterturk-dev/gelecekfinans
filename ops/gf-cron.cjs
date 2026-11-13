@@ -19,6 +19,11 @@ function classifyResult(status, body) {
     return { level: "error", code: "INVALID_RESPONSE" };
   }
   if (body.fatalErrorCode) return { level: "error", code: "PROVIDER_FAILED" };
+  // Kapıların (kanıt, kalite, intihal) hepsini reddettiği koşu arıza değil:
+  // sistem tasarlandığı gibi çalışıp yayınlanabilir konu bulamamış demektir.
+  if (body.added === 0 && Number(body.blocked) > 0 && Array.isArray(body.errors) && body.errors.length) {
+    return { level: "warning", code: "ALL_BLOCKED" };
+  }
   if (body.error || (Array.isArray(body.errors) && body.errors.length && !body.added)) {
     return { level: "error", code: "PIPELINE_FAILED" };
   }

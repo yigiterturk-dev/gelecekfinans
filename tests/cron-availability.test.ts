@@ -14,6 +14,10 @@ test("HTTP 200 içindeki sağlayıcı arızası başarı sayılmaz", () => {
 
 test("çalışmış görünen boş üretim ve eksik GSC uyarıdır", () => {
   assert.equal(classifyResult(200, { added: 0, blocked: 2, errors: [] }).code, "NO_CONTENT");
+  // 12 Kasım 2026: tüm adaylar kapılarda düştü, üretim hatası yok.
+  const hepsiKapıda = classifyResult(200, { added: 0, blocked: 6, errors: ["PLAGIARISM_BLOCKED"] });
+  assert.equal(hepsiKapıda.level, "warning");
+  assert.equal(hepsiKapıda.code, "ALL_BLOCKED");
   assert.equal(classifyResult(200, { skipped: true }).code, "SKIPPED");
   assert.equal(classifyResult(200, { added: 1, errors: [] }).level, "ok");
 });
