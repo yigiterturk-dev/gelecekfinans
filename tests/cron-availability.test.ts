@@ -18,6 +18,10 @@ test("çalışmış görünen boş üretim ve eksik GSC uyarıdır", () => {
   const hepsiKapıda = classifyResult(200, { added: 0, blocked: 6, errors: ["PLAGIARISM_BLOCKED"] });
   assert.equal(hepsiKapıda.level, "warning");
   assert.equal(hepsiKapıda.code, "ALL_BLOCKED");
+  // 13 Kasım 2026: bir makale yayınlandıktan sonra koşum içi çağrı tavanı doldu.
+  const butce = classifyResult(200, { fatalErrorCode: "AI_BUDGET_LIMIT_REACHED", added: 1, blocked: 5 });
+  assert.equal(butce.level, "warning");
+  assert.equal(butce.code, "BUDGET_LIMIT");
   assert.equal(classifyResult(200, { skipped: true }).code, "SKIPPED");
   assert.equal(classifyResult(200, { added: 1, errors: [] }).level, "ok");
 });

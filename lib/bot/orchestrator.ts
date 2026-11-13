@@ -618,7 +618,7 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
       finishedAt: new Date(), articlesAdded: added, duplicatesSkipped,
       autoPublished, reviewQueued, blocked, imageFallbacks,
       errors: errors.length ? errors.join("\n") : null,
-      status: fatalErrorCode || (errors.length > 0 && added === 0) ? "failed" : "completed",
+      status: added === 0 && (fatalErrorCode || errors.length > 0) ? "failed" : "completed",
     },
   });
 

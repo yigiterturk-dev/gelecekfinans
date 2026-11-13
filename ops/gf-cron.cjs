@@ -18,6 +18,10 @@ function classifyResult(status, body) {
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     return { level: "error", code: "INVALID_RESPONSE" };
   }
+  // Koşum içi yazar çağrısı tavanı arıza değil: o turda yazılabilen yazıldı.
+  if (body.fatalErrorCode === "AI_BUDGET_LIMIT_REACHED") {
+    return { level: "warning", code: "BUDGET_LIMIT" };
+  }
   if (body.fatalErrorCode) return { level: "error", code: "PROVIDER_FAILED" };
   // Kapıların (kanıt, kalite, intihal) hepsini reddettiği koşu arıza değil:
   // sistem tasarlandığı gibi çalışıp yayınlanabilir konu bulamamış demektir.
