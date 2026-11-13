@@ -49,3 +49,14 @@ test("Claude zorlanmışsa eksik anahtarda güvenli biçimde durur", () => {
     /ANTHROPIC_API_KEY/,
   );
 });
+
+test("rehber akışı kelime seçmeden önce AI yapılandırmasını doğrular", async () => {
+  // Anahtar yokken kelime seçilirse deneme hakkı boşa yanar; yapılandırma
+  // kapısı pickKeywords'ten ÖNCE çalışmak zorunda.
+  const { readFileSync } = await import("node:fs");
+  const kaynak = readFileSync(new URL("../lib/bot/guide-orchestrator.ts", import.meta.url), "utf8");
+  const kapi = kaynak.indexOf("resolveArticleAIConfig()");
+  const secim = kaynak.indexOf("await pickKeywords(");
+  assert.ok(kapi > 0, "rehber akışında AI yapılandırma kapısı yok");
+  assert.ok(kapi < secim, "yapılandırma kapısı kelime seçiminden sonra çalışıyor");
+});

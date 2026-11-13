@@ -11,18 +11,32 @@ import { readFileSync } from "node:fs";
  */
 const kaynak = readFileSync(new URL("../lib/bot/keywords.ts", import.meta.url), "utf8");
 
+function markKeywordFailedGovdesi(): string {
+  return kaynak.slice(kaynak.indexOf("export async function markKeywordFailed"));
+}
+
+/** PUBLISHED koruması: koruma bloğunun SONU (return) ile durum hesabının başı. */
+function korumaSiniri(govde: string): { bas: number; son: number; durumHesabi: number } {
+  const bas = govde.indexOf('status === "PUBLISHED"');
+  return {
+    bas,
+    son: govde.indexOf("return;", bas),
+    durumHesabi: govde.indexOf("resolveKeywordFailure("),
+  };
+}
+
 test("markKeywordFailed yayınlanmış kelimeyi düşürmüyor", () => {
-  const govde = kaynak.slice(kaynak.indexOf("export async function markKeywordFailed"));
+  const govde = markKeywordFailedGovdesi();
   assert.ok(/status === "PUBLISHED"/.test(govde), "PUBLISHED koruması kaldırılmış");
-  assert.ok(
-    govde.indexOf('status === "PUBLISHED"') < govde.indexOf("exhausted"),
-    "koruma, durum güncellemesinden ÖNCE gelmeli",
-  );
+  const { bas, son, durumHesabi } = korumaSiniri(govde);
+  assert.ok(durumHesabi > 0, "durum hesabı bulunamadı");
+  assert.ok(bas < son && son < durumHesabi, "koruma, durum güncellemesinden ÖNCE gelmeli");
 });
 
 test("koruma durumu değil yalnızca lastError'ı yazıyor", () => {
-  const govde = kaynak.slice(kaynak.indexOf("export async function markKeywordFailed"));
-  const blok = govde.slice(govde.indexOf('status === "PUBLISHED"'), govde.indexOf("const exhausted"));
+  const govde = markKeywordFailedGovdesi();
+  const { bas, son } = korumaSiniri(govde);
+  const blok = govde.slice(bas, son);
   assert.ok(/lastError/.test(blok), "yayın sonrası hata bilgisi kaybediliyor");
   assert.ok(!/status:/.test(blok), "koruma bloğu durumu değiştiriyor");
 });

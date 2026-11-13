@@ -12,7 +12,7 @@ import { notifyIndexNow } from "@/lib/bot/indexnow";
 
 const GUIDE_SITE_URL = process.env.SITE_URL || "https://gelecekfinans.com";
 import { getArticleImageResult } from "@/lib/bot/images";
-import { writeEntityArticle, writeGuideArticle } from "@/lib/bot/writer";
+import { resolveArticleAIConfig, writeEntityArticle, writeGuideArticle } from "@/lib/bot/writer";
 import { resetUsageLedger, usageSummary } from "@/lib/bot/usage";
 import { buildGuideTopic } from "@/lib/bot/evergreen";
 import { buildEntityTopic, type EntityTopic } from "@/lib/bot/entity-topic";
@@ -63,6 +63,16 @@ export async function runGuidePipeline(options: GuidePipelineOptions) {
   const targetWords = Math.max(900, Math.min(options.targetWords || 1200, 1800));
   const autoPublishEnabled = options.autoPublish === true;
   const aiBudget = resolveArticleAIBudgetConfig();
+  /**
+   * YAPILANDIRMA KAPISI — kelime seçilmeden ÖNCE.
+   *
+   * Haber akışı bunu zaten yapıyor (orchestrator.ts başında). Rehber akışında
+   * yoktu: anahtar kelime seçiliyor, "yazıma alındı" sayacı artıyor, sonra
+   * yazar çağrısı AI anahtarı olmadığı için patlıyordu. Yani konfigürasyon
+   * arızası, iyi kelimelerin deneme hakkını yakıyordu (1 Kasım 2026: iki
+   * koşuda 4 deneme boşa gitti). Artık kelimeye hiç dokunulmadan durur.
+   */
+  resolveArticleAIConfig();
 
   resetUsageLedger();
   const run = await prisma.botRun.create({ data: { articlesFound: 0 } });
