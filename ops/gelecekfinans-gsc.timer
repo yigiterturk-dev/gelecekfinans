@@ -1,0 +1,11 @@
+[Unit]
+Description=GelecekFinans gsc schedule (UTC)
+
+[Timer]
+OnCalendar=*-*-* 04:30:00 UTC
+Unit=gelecekfinans-job@gsc.service
+AccuracySec=30s
+Persistent=false
+
+[Install]
+WantedBy=timers.target

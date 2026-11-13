@@ -1,0 +1,13 @@
+[Unit]
+Description=GelecekFinans guide schedule (UTC)
+
+[Timer]
+OnCalendar=*-*-* 08:00:00 UTC
+OnCalendar=*-*-* 12:00:00 UTC
+OnCalendar=*-*-* 20:00:00 UTC
+Unit=gelecekfinans-job@guide.service
+AccuracySec=30s
+Persistent=false
+
+[Install]
+WantedBy=timers.target

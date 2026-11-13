@@ -1,0 +1,11 @@
+[Unit]
+Description=GelecekFinans image schedule (UTC)
+
+[Timer]
+OnCalendar=*-*-* 16:30:00 UTC
+Unit=gelecekfinans-job@image.service
+AccuracySec=30s
+Persistent=false
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,11 @@
+[Unit]
+Description=GelecekFinans index schedule (UTC)
+
+[Timer]
+OnCalendar=*-*-* 03:00:00 UTC
+Unit=gelecekfinans-job@index.service
+AccuracySec=30s
+Persistent=false
+
+[Install]
+WantedBy=timers.target
