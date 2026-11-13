@@ -1,4 +1,5 @@
 import type { ArticleImageInput } from "./images";
+import { stockMediaConfigured } from "./stock-media";
 
 export type VisualMode = "DATA_CHART" | "LICENSED_MEDIA" | "BRANDED_CARD";
 
@@ -53,9 +54,11 @@ export function createVisualBrief(article: ArticleImageInput): VisualBrief {
     };
   }
 
+  // Stok sağlayıcı anahtarı da yeterli: Pexels/Pixabay adaptörü aynı portu
+  // besliyor. Anahtar yoksa markalı kart tek güvenli yol olmaya devam eder.
   const licensedConfigured = Boolean(
     process.env.LICENSED_MEDIA_SEARCH_ENDPOINT && process.env.LICENSED_MEDIA_API_KEY,
-  );
+  ) || stockMediaConfigured();
   return {
     mode: licensedConfigured ? "LICENSED_MEDIA" : "BRANDED_CARD",
     storyType: "finance-news",

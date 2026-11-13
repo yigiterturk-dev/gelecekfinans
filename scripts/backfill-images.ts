@@ -2,6 +2,7 @@
 // Jenerik Unsplash stok fotoları gider. Çalıştırma:
 //   npx tsx --env-file=.env --env-file=.env.local scripts/backfill-images.ts [limit] [--all]
 import { prisma } from "../lib/db";
+import { asJson } from "../lib/prisma-json";
 import { getArticleImageResult } from "../lib/bot/images";
 
 async function main() {
@@ -32,9 +33,27 @@ async function main() {
       });
       const url = result.url;
       if (!url) { fail++; console.log(`[backfill] ✗ görsel üretilemedi: ${a.title.slice(0, 50)}`); continue; }
+      // Lisans kanıtı makalede kalmalı: sağlayıcı, varlık kimliği, kaynak
+      // sayfası ve atıf sonradan sorulduğunda gösterilebilsin.
+      const previous = (a.automationMeta || {}) as Record<string, unknown>;
       await prisma.article.update({
         where: { id: a.id },
-        data: { imageUrl: url, imageStrategy: result.strategy },
+        data: {
+          imageUrl: url,
+          imageStrategy: result.strategy,
+          automationMeta: asJson({
+            ...previous,
+            visual: {
+              strategy: result.strategy,
+              brief: result.brief,
+              audit: result.audit,
+              attempts: result.attempts,
+              licensedAsset: result.licensedAsset,
+              repairedAt: new Date().toISOString(),
+              repairedBy: "BACKFILL",
+            },
+          }),
+        },
       });
       ok++;
       console.log(`[backfill] ✓ (${ok}) ${a.category.padEnd(7)} ${result.strategy.padEnd(18)} ${a.title.slice(0, 42)}`);

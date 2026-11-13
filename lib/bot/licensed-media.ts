@@ -1,15 +1,7 @@
-export interface LicensedMediaAsset {
-  provider: string;
-  assetId: string;
-  licenseId: string;
-  licenseName: string;
-  downloadUrl: string;
-  sourceUrl: string;
-  attribution: string;
-  caption: string;
-  width: number;
-  height: number;
-}
+import { searchStockMedia } from "./stock-media";
+import type { LicensedMediaAsset } from "./media-types";
+
+export type { LicensedMediaAsset };
 
 interface LicensedMediaResponse {
   assets?: Partial<LicensedMediaAsset>[];
@@ -33,11 +25,10 @@ function validAsset(asset: Partial<LicensedMediaAsset>): asset is LicensedMediaA
 }
 
 /**
- * Sağlayıcıdan bağımsız arama portu. Anlaşmalı ajans adaptörü şu sözleşmeyle
- * yanıt verir: { assets: LicensedMediaAsset[] }. Lisans kimliği veya kaynak
- * sayfası eksik hiçbir varlık indirilmez.
+ * Anlaşmalı ajans adaptörü. Kurumsal lisans varsa stok sağlayıcılarından önce
+ * denenir; sözleşme: `{ assets: LicensedMediaAsset[] }`.
  */
-export async function searchLicensedMedia(input: {
+async function searchManagedAgency(input: {
   query: string;
   category: string;
   headline: string;
@@ -73,3 +64,22 @@ export async function searchLicensedMedia(input: {
   }
 }
 
+/**
+ * Görsel arama portu: anlaşmalı ajans → Pexels → Pixabay.
+ *
+ * Ücretsiz sağlayıcılar lisans kimliğini ve kaynak sayfasını ürettiği için
+ * `validAsset` kontrolünden geçer; indirme ve `/gorseller` altına yazma
+ * `images.ts` içinde yapılır. Hiçbiri bulunamazsa `null` döner ve markalı
+ * kart devreye girer — lisansı kanıtlanamayan fotoğraf asla kullanılmaz.
+ */
+export async function searchLicensedMedia(input: {
+  query: string;
+  category: string;
+  headline: string;
+}): Promise<LicensedMediaAsset | null> {
+  const managed = await searchManagedAgency(input);
+  if (managed) return managed;
+
+  const stock = await searchStockMedia(input);
+  return stock.asset;
+}

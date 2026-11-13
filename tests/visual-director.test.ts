@@ -15,8 +15,12 @@ test("doğrudan fiyat hareketi gerçek veri grafiğine gider", () => {
 test("sağlayıcı yokken haber sentetik fotoğraf yerine markalı karta gider", () => {
   const previousEndpoint = process.env.LICENSED_MEDIA_SEARCH_ENDPOINT;
   const previousKey = process.env.LICENSED_MEDIA_API_KEY;
+  const previousPexels = process.env.PEXELS_API_KEY;
+  const previousPixabay = process.env.PIXABAY_API_KEY;
   delete process.env.LICENSED_MEDIA_SEARCH_ENDPOINT;
   delete process.env.LICENSED_MEDIA_API_KEY;
+  delete process.env.PEXELS_API_KEY;
+  delete process.env.PIXABAY_API_KEY;
   const brief = createVisualBrief({
     title: "TCMB politika faizini sabit tuttu",
     keyword: "politika faizi",
@@ -26,6 +30,8 @@ test("sağlayıcı yokken haber sentetik fotoğraf yerine markalı karta gider",
   assert.match(brief.mustAvoid.join(" "), /sentetik kişi/i);
   if (previousEndpoint) process.env.LICENSED_MEDIA_SEARCH_ENDPOINT = previousEndpoint;
   if (previousKey) process.env.LICENSED_MEDIA_API_KEY = previousKey;
+  if (previousPexels) process.env.PEXELS_API_KEY = previousPexels;
+  if (previousPixabay) process.env.PIXABAY_API_KEY = previousPixabay;
 });
 
 test("markalı kart gerçek PNG üretir", async () => {
