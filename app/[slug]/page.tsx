@@ -196,7 +196,14 @@ export default async function ArticlePage({params}:{params:Promise<{slug:string}
           </div>
           {/* Görselin yanındaki metin Google Görseller'in en güçlü bağlam
               sinyallerinden biri; alt metnin kopyası değil, kaynak künyesi. */}
-          <figcaption className="article-figcaption">{a.title} — GelecekFinans</figcaption>
+          <figcaption className="article-figcaption">
+            {a.title}
+            {a.imageCredit ? (
+              <> — <a href={a.imageCredit.url} target="_blank" rel="noopener noreferrer nofollow">{a.imageCredit.text}</a></>
+            ) : (
+              <> — GelecekFinans</>
+            )}
+          </figcaption>
         </figure>
       )}
 

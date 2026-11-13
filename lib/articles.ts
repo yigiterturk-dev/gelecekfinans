@@ -1,6 +1,6 @@
 import { cache } from "react";
 import { prisma } from "./db";
-import type { Article, ArticleListItem, ArticleExtras, ArticleFaq } from "./types";
+import type { Article, ArticleListItem, ArticleExtras, ArticleFaq, ImageCredit } from "./types";
 
 export type { Article } from "./types";
 
@@ -186,6 +186,32 @@ export const getAllArticles = cache(async function getAllArticles(
 
 // React cache(): generateMetadata + sayfa render'ı aynı slug'ı iki kez sorgular;
 // cache() ile tek istekte tek DB sorgusu yapılır. Sonuç birebir aynı.
+/**
+ * `automationMeta.visual.licensedAsset` içinden sayfada basılacak künyeyi
+ * çıkarır. Yalnızca https kaynak kabul edilir; künye yoksa (markalı kart,
+ * grafik) null döner.
+ */
+export function coerceImageCredit(value: unknown): ImageCredit | null {
+  if (!value || typeof value !== "object") return null;
+  const visual = (value as { visual?: unknown }).visual;
+  if (!visual || typeof visual !== "object") return null;
+  const asset = (visual as { licensedAsset?: unknown }).licensedAsset;
+  if (!asset || typeof asset !== "object") return null;
+  const fields = asset as { attribution?: unknown; licenseName?: unknown; sourceUrl?: unknown };
+  const text = [fields.attribution, fields.licenseName]
+    .filter((part): part is string => typeof part === "string" && part.trim().length > 0)
+    .join(" · ")
+    .slice(0, 220);
+  const url = fields.sourceUrl;
+  if (!text || typeof url !== "string") return null;
+  try {
+    if (new URL(url).protocol !== "https:") return null;
+  } catch {
+    return null;
+  }
+  return { text, url };
+}
+
 export const getArticleBySlug = cache(async function getArticleBySlug(
   slug: string
 ): Promise<Article | null> {
@@ -206,6 +232,7 @@ export const getArticleBySlug = cache(async function getArticleBySlug(
         updatedAt: Date;
         premium?: boolean;
         aiExtras?: unknown;
+        automationMeta?: unknown;
       }
     | null;
   try {
@@ -232,6 +259,7 @@ export const getArticleBySlug = cache(async function getArticleBySlug(
         id: true,
         imageUrl: true,
         updatedAt: true,
+        automationMeta: true,
       },
     });
   }
@@ -253,6 +281,8 @@ export const getArticleBySlug = cache(async function getArticleBySlug(
     premium: r.premium ?? false,
     // Kolon yoksa / değer geçersizse coerceExtras null döner → kutu gizlenir.
     aiExtras: coerceExtras(r.aiExtras),
+    // Stok görselin lisans künyesi (CC BY/BY-SA'da görünmesi zorunlu).
+    imageCredit: coerceImageCredit(r.automationMeta),
   };
 });
 

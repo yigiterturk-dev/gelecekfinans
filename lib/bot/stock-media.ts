@@ -21,7 +21,7 @@ const CACHE_DIR = path.join(process.cwd(), ".cache");
 const CACHE_FILE = path.join(CACHE_DIR, "stok-gorsel.json");
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const MIN_SCORE = 4;
-const MIN_WIDTH = 1200;
+const MIN_WIDTH = 1024;
 
 interface CacheShape {
   /** Sorgu başına aday listesi — aynı sorguya düşen makaleler arasında dönebiliriz. */
@@ -145,7 +145,10 @@ export function buildStockQuery(input: { title: string; keyword?: string | null;
   const base = CATEGORY_QUERIES[categoryKey] || DEFAULT_QUERY;
   const entities = ENTITIES.filter((entity) => entity.pattern.test(text)).map((entity) => entity.term);
   const head = [...new Set(entities)].slice(0, 2).join(" ");
-  return head ? `${head} ${base}` : base;
+  const combined = `${head} ${base}`.trim();
+  // "TCMB" hem varlık sözlüğünden hem kategori tabanından "central bank"
+  // getiriyordu; tekrarlanan terim aramayı bozuyor.
+  return [...new Set(combined.split(/\s+/))].join(" ");
 }
 
 interface PexelsPhoto {
@@ -233,6 +236,94 @@ async function searchPexels(query: string): Promise<LicensedMediaAsset[]> {
   }));
 }
 
+interface OpenverseResult {
+  id: string;
+  title?: string | null;
+  url?: string;
+  width?: number;
+  height?: number;
+  creator?: string | null;
+  foreign_landing_url?: string;
+  license?: string;
+  license_version?: string;
+  source?: string;
+}
+
+/**
+ * Anahtarsız sağlayıcı: Openverse (CC0 / kamu malı / CC BY / CC BY-SA).
+ *
+ * Pexels yeni anahtar vermeyi durdurduğunda sistemin tamamen görselsiz
+ * kalmaması için eklendi. Ticari kullanıma kapalı lisanslar (NC/ND) ve
+ * atıf gerektiren lisanslar kabul edilir, ama atıf zorunlu olanlar için
+ * makale sayfasında künye basılır (bkz. imageCredit).
+ */
+const OPENVERSE_LICENSES: Record<string, string> = {
+  cc0: "CC0",
+  pdm: "Kamu Malı İşareti",
+  by: "CC BY",
+  "by-sa": "CC BY-SA",
+};
+
+function openverseLicense(result: OpenverseResult): { id: string; name: string } | null {
+  const code = (result.license || "").toLocaleLowerCase("tr-TR");
+  const name = OPENVERSE_LICENSES[code];
+  if (!name) return null;
+  const version = result.license_version ? ` ${result.license_version}` : "";
+  return { id: `${code}${version ? `-${result.license_version}` : ""}`, name: `${name}${version}` };
+}
+
+const IMAGE_EXTENSIONS = /\.(jpe?g|png|webp)$/i;
+
+/**
+ * Wikimedia dosya URL'ini 1600px küçük resme çevirir.
+ * Orijinal 4000px dosyayı indirmek disk ve bant genişliği israfı; küçük resim
+ * yolu dosya adından türetilebiliyor. Türetilemezse orijinal kalır.
+ */
+export function wikimediaThumb(url: string, width = 1600): string {
+  const match = /^(https:\/\/upload\.wikimedia\.org\/wikipedia\/[^/]+)\/([0-9a-f])\/([0-9a-f]{2})\/([^/]+)$/.exec(url);
+  if (!match || !IMAGE_EXTENSIONS.test(match[4])) return url;
+  const [, root, first, second, file] = match;
+  return `${root}/thumb/${first}/${second}/${file}/${width}px-${file}`;
+}
+
+async function searchOpenverse(query: string): Promise<LicensedMediaAsset[]> {
+  const params = new URLSearchParams({
+    q: query,
+    license: "cc0,pdm,by,by-sa",
+    orientation: "landscape",
+    size: "large",
+    page_size: "20",
+  });
+  const response = await fetch(`https://api.openverse.org/v1/images/?${params.toString()}`, {
+    headers: { "User-Agent": "gelecekfinans/1.0 (+https://gelecekfinans.com)" },
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!response.ok) return [];
+  const payload = await response.json() as { results?: OpenverseResult[] };
+  const terms = query.toLocaleLowerCase("tr-TR").split(/\s+/).filter((term) => term.length >= 4);
+  return (payload.results || []).flatMap((result) => {
+    const license = openverseLicense(result);
+    const title = (result.title || "").trim();
+    if (!license || !result.url || !result.foreign_landing_url || !title) return [];
+    // Anahtarsız kaynakta alakasız görsel bol; sorgu terimlerinden en az biri
+    // başlıkta geçmiyorsa aday hiç listeye girmesin.
+    const hay = title.toLocaleLowerCase("tr-TR");
+    if (terms.length && !terms.some((term) => hay.includes(term))) return [];
+    return [{
+      provider: "openverse",
+      assetId: result.id,
+      licenseId: license.id,
+      licenseName: license.name,
+      downloadUrl: wikimediaThumb(result.url),
+      sourceUrl: result.foreign_landing_url,
+      attribution: `Fotoğraf: ${result.creator || result.source || "Openverse"} / ${license.name}`,
+      caption: title.slice(0, 180),
+      width: Number(result.width || 0),
+      height: Number(result.height || 0),
+    }];
+  });
+}
+
 async function searchPixabay(query: string): Promise<LicensedMediaAsset[]> {
   const key = process.env.PIXABAY_API_KEY;
   if (!key) return [];
@@ -294,6 +385,14 @@ export interface PickOptions {
   seed?: string;
   /** Kullanılmış varlıklar: assetId → son kullanım zamanı. */
   used?: Record<string, number>;
+  /** Adayın başlığında geçmesi gereken en az sorgu terimi sayısı. */
+  minTermMatches?: number;
+}
+
+function countTermMatches(text: string, query: string): number {
+  const hay = text.toLocaleLowerCase("tr-TR");
+  const terms = query.toLocaleLowerCase("tr-TR").split(/\s+/).filter((term) => term.length >= 4);
+  return terms.filter((term) => hay.includes(term)).length;
 }
 
 export function pickBestCandidate(
@@ -303,9 +402,11 @@ export function pickBestCandidate(
 ): LicensedMediaAsset | null {
   const now = Date.now();
   const used = options.used || {};
+  const minMatches = options.minTermMatches ?? 0;
   const scored = assets
     .map<ScoredAsset>((asset) => ({ ...asset, score: scoreCandidate(asset, query) }))
     .filter((asset) => asset.score >= MIN_SCORE)
+    .filter((asset) => countTermMatches(asset.caption, query) >= minMatches)
     .sort((a, b) => b.score - a.score || a.assetId.localeCompare(b.assetId));
   if (!scored.length) return null;
   // Kullanılmışları ele; hepsi tükenmişse en iyiyi tekrar kullanmak,
@@ -322,8 +423,12 @@ export function pickBestCandidate(
   return asset;
 }
 
+/**
+ * Görsel arama her zaman mümkündür: Openverse anahtar istemiyor.
+ * Pexels/Pixabay anahtarı yalnızca sıralamayı ve kalite havuzunu büyütür.
+ */
 export function stockMediaConfigured(): boolean {
-  return Boolean(process.env.PEXELS_API_KEY || process.env.PIXABAY_API_KEY);
+  return true;
 }
 
 export interface StockSearchResult {
@@ -344,7 +449,10 @@ export async function searchStockMedia(
   const cacheKey = `query:${query.toLocaleLowerCase("tr-TR")}`;
   const cached = cache.queries?.[cacheKey];
   if (cached && Date.now() - cached.at < CACHE_TTL_MS) {
-    const picked = pickBestCandidate(cached.assets, query, { seed: input.headline, used: cache.used });
+    const minTermMatches = query.split(/\s+/).filter((term) => term.length >= 4).length >= 2 ? 2 : 1;
+    const picked = pickBestCandidate(cached.assets, query, {
+      seed: input.headline, used: cache.used, minTermMatches,
+    });
     if (picked) {
       cache.used = { ...cache.used, [`${picked.provider}:${picked.assetId}`]: Date.now() };
       await writeCache(cache);
@@ -352,9 +460,12 @@ export async function searchStockMedia(
     }
   }
 
-  const providers: Array<{ name: string; run: (q: string) => Promise<LicensedMediaAsset[]>; limit: number }> = [
-    { name: "pexels", run: searchPexels, limit: 190 },
-    { name: "pixabay", run: searchPixabay, limit: 900 },
+  const providers: Array<{ name: string; run: (q: string) => Promise<LicensedMediaAsset[]>; limit: number; minTermMatches: number }> = [
+    { name: "pexels", run: searchPexels, limit: 190, minTermMatches: 0 },
+    { name: "pixabay", run: searchPixabay, limit: 900, minTermMatches: 0 },
+    // Anahtarsız kaynakta sonuç havuzu gürültülü: "Spice Market Istanbul"
+    // "stock market" sorgusuna düşebiliyor. Bu yüzden en az iki terim aranır.
+    { name: "openverse", run: searchOpenverse, limit: 150, minTermMatches: 2 },
   ];
 
   for (const provider of providers) {
@@ -369,7 +480,9 @@ export async function searchStockMedia(
     } catch {
       candidates = [];
     }
-    const picked = pickBestCandidate(candidates, query, { seed: input.headline, used: cache.used });
+    const picked = pickBestCandidate(candidates, query, {
+      seed: input.headline, used: cache.used, minTermMatches: provider.minTermMatches,
+    });
     attempts.push({ provider: provider.name, candidates: candidates.length, picked: Boolean(picked) });
     if (picked) {
       if (candidates.length) {

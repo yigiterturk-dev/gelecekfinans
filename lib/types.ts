@@ -13,11 +13,19 @@ export interface ArticleExtras {
   faq?: ArticleFaq[];      // 3 soru-cevap (FAQPage JSON-LD'ye de basılır)
 }
 
+/** Lisanslı stok görselin sayfada görünmesi gereken künyesi. */
+export interface ImageCredit {
+  text: string;
+  url: string;
+}
+
 export interface Article {
   title: string; meta: string; keyword: string; category: string;
   content: string; image_path: string | null; source: string;
   created_at: string; slug: string; filename: string; wp_post_id?: number;
   imageUrl?: string | null;
+  /** CC BY / BY-SA gibi atıf isteyen lisanslarda zorunlu künye. */
+  imageCredit?: ImageCredit | null;
   views?: number;
   updatedAt?: string;
   premium?: boolean;

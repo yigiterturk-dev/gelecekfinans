@@ -12,7 +12,7 @@ test("doğrudan fiyat hareketi gerçek veri grafiğine gider", () => {
   assert.equal(brief.mode, "DATA_CHART");
   assert.match(brief.rationale, /gerçek veri/i);
 });
-test("sağlayıcı yokken haber sentetik fotoğraf yerine markalı karta gider", () => {
+test("anahtar olmasa da anahtarsız kaynakla lisanslı medya denenir", () => {
   const previousEndpoint = process.env.LICENSED_MEDIA_SEARCH_ENDPOINT;
   const previousKey = process.env.LICENSED_MEDIA_API_KEY;
   const previousPexels = process.env.PEXELS_API_KEY;
@@ -26,7 +26,7 @@ test("sağlayıcı yokken haber sentetik fotoğraf yerine markalı karta gider",
     keyword: "politika faizi",
     category: "ekonomi",
   });
-  assert.equal(brief.mode, "BRANDED_CARD");
+  assert.equal(brief.mode, "LICENSED_MEDIA");
   assert.match(brief.mustAvoid.join(" "), /sentetik kişi/i);
   if (previousEndpoint) process.env.LICENSED_MEDIA_SEARCH_ENDPOINT = previousEndpoint;
   if (previousKey) process.env.LICENSED_MEDIA_API_KEY = previousKey;

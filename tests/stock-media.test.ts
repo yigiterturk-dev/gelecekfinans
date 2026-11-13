@@ -6,6 +6,7 @@ import {
   pickBestCandidate,
   scoreCandidate,
   stockMediaConfigured,
+  wikimediaThumb,
 } from "../lib/bot/stock-media";
 import type { LicensedMediaAsset } from "../lib/bot/media-types";
 
@@ -64,12 +65,36 @@ test("geçerli aday yoksa null döner", () => {
   assert.equal(pickBestCandidate([asset({ caption: "piggy bank" })], "stock market"), null);
 });
 
-test("anahtar yokken stok yapılandırılmamış sayılır", () => {
+test("anahtarsız Openverse sayesinde görsel arama hep açık", () => {
   const pexels = process.env.PEXELS_API_KEY;
   const pixabay = process.env.PIXABAY_API_KEY;
   delete process.env.PEXELS_API_KEY;
   delete process.env.PIXABAY_API_KEY;
-  assert.equal(stockMediaConfigured(), false);
+  assert.equal(stockMediaConfigured(), true);
   if (pexels) process.env.PEXELS_API_KEY = pexels;
   if (pixabay) process.env.PIXABAY_API_KEY = pixabay;
+});
+
+test("wikimedia dosyası küçük resme çevrilir, svg olduğu gibi kalır", () => {
+  const jpg = "https://upload.wikimedia.org/wikipedia/commons/6/66/NASDAQ_stock_market_display.jpg";
+  assert.match(wikimediaThumb(jpg), /\/thumb\/6\/66\/NASDAQ_stock_market_display\.jpg\/1600px-/);
+  const svg = "https://upload.wikimedia.org/wikipedia/commons/1/11/Chart.svg";
+  assert.equal(wikimediaThumb(svg), svg);
+});
+
+test("son 60 günde kullanılan görsel atlanır", () => {
+  const used = { "pexels:1": Date.now() };
+  const picked = pickBestCandidate(
+    [asset({ assetId: "1" }), asset({ assetId: "2", width: 1800, height: 1100 })],
+    "stock market",
+    { used },
+  );
+  assert.equal(picked?.assetId, "2");
+});
+
+test("aynı başlık her çalıştırmada aynı adayı seçer", () => {
+  const pool = ["1", "2", "3"].map((id) => asset({ assetId: id }));
+  const first = pickBestCandidate(pool, "stock market", { seed: "bist yükseldi" });
+  const second = pickBestCandidate(pool, "stock market", { seed: "bist yükseldi" });
+  assert.equal(first?.assetId, second?.assetId);
 });
