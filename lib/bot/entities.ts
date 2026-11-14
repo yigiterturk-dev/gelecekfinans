@@ -32,7 +32,24 @@ const GENERIC_TERMS = new Set([
   "bitcoin", "ethereum", "kripto para", "bist", "bist 100", "borsa istanbul endeksi",
   "türk lirası", "tl", "usd", "eur", "faiz", "enflasyon", "abd doları",
   "petrol", "brent", "gümüş", "nasdaq", "s&p 500", "dow jones",
+  // Emtia/ürün: model bunları COMPANY diye döndürüyor ("Motorin nedir, sahibi kim").
+  "benzin", "motorin", "mazot", "doğalgaz", "elektrik", "elektrikli araçlar",
+  "çeyrek altın", "yarım altın", "tam altın", "cumhuriyet altını",
+  // Ülke/bölge: kurum değil, "ABD nedir" sorgusunda yarışılmaz.
+  "türkiye", "abd", "ab", "avrupa birliği", "almanya", "fransa", "çin", "ingiltere",
+  "japonya", "rusya", "ukrayna", "israil", "iran", "avrupa", "wall street",
 ]);
+
+/**
+ * Set içeriği Türkçe karakterle yazılı, karşılaştırılan ad ise normalize
+ * edilmiş ("altın" → "altin"); bu yüzden doğrudan .has() "altın", "gümüş" gibi
+ * adları hiç yakalamıyordu. Karşılaştırma normalize edilmiş kopya üzerinden.
+ */
+const GENERIC_KEYS = new Set([...GENERIC_TERMS].map((t) => normalizeEntityKey(t)));
+
+export function isGenericEntity(name: string): boolean {
+  return GENERIC_KEYS.has(normalizeEntityKey(name));
+}
 
 /**
  * Türkçe'ye duyarlı normalleştirme. "İ" harfinin küçüğü "i" değil "i̇"
@@ -63,7 +80,7 @@ export function isGroundedInEvidence(
   const excerpt = normalizeEntityKey(entity.excerpt);
   const name = normalizeEntityKey(entity.name);
   if (!name || name.length < 2) return false;
-  if (GENERIC_TERMS.has(name)) return false;
+  if (isGenericEntity(name)) return false;
   // Alıntı kanıtta birebir geçmeli. Model kısaltma/yeniden yazma yaptıysa
   // güvenilirliği zaten şüphelidir; sıkı davranmak doğru taraf.
   if (excerpt.length < 10 || !haystack.includes(excerpt)) return false;
@@ -232,6 +249,8 @@ export async function recordEntities(
 export function entityKeywordTerm(name: string, type: string): string {
   const clean = name.trim();
   if (type === "PERSON") return `${clean} kimdir`;
+  // Kurumun "sahibi" olmaz ("Merkez Bankası nedir, sahibi kim" anlamsız).
+  if (type === "INSTITUTION") return `${clean} nedir`;
   return `${clean} nedir, sahibi kim`;
 }
 
@@ -261,6 +280,12 @@ export async function promoteEntitiesToKeywords(
   let skipped = 0;
 
   for (const entity of candidates) {
+    // Filtre düzeltilmeden önce kaydedilmiş jenerik varlıklar terfi etmesin.
+    if (isGenericEntity(entity.name)) {
+      await prisma.entity.update({ where: { id: entity.id }, data: { status: "IGNORED" } });
+      skipped++;
+      continue;
+    }
     const term = entityKeywordTerm(entity.name, entity.type);
     const exists = await prisma.keyword.findUnique({ where: { term }, select: { id: true } });
     if (exists) {

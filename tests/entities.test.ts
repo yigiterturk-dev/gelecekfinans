@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   acronymOf,
   entityKeywordTerm,
+  isGenericEntity,
   isGroundedInEvidence,
   isRecordableEntity,
   isStorySubject,
@@ -96,6 +97,7 @@ test("sorgu kalıbı varlık tipine göre değişir", () => {
   // "sahibi kim" / "kurucu".
   assert.equal(entityKeywordTerm("Egem Eraslan", "PERSON"), "Egem Eraslan kimdir");
   assert.equal(entityKeywordTerm("Midas", "COMPANY"), "Midas nedir, sahibi kim");
+  assert.equal(entityKeywordTerm("Merkez Bankası", "INSTITUTION"), "Merkez Bankası nedir");
 });
 
 /**
@@ -162,4 +164,12 @@ test("manşetin öznesi olan şirket kabul edilir", () => {
     isStorySubject("THY", "THY Yılın İlk Yarısında 18 Milyar Lira Kâr Etti", []),
     true,
   );
+});
+
+test("jenerik varlık: Türkçe karakterli adlar da yakalanır", () => {
+  for (const n of ["Altın", "Gram altın", "Gümüş", "Motorin", "Türkiye", "ABD", "Çin"]) {
+    assert.equal(isGenericEntity(n), true, n);
+  }
+  assert.equal(isGenericEntity("Koç Holding"), false);
+  assert.equal(isGenericEntity("Deutsche Bank"), false);
 });
