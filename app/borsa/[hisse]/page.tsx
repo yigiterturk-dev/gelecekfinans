@@ -43,6 +43,16 @@ export default async function HisseDetail({ params }: { params: Promise<{ hisse:
 
   const [d, related, guides] = await Promise.all([getStock(hisse), safeRelatedArticles("borsa"), getGuides(3, "borsa")]);
   const profile = STOCK_PROFILES[hisse];
+  const series = d?.series ?? null;
+  const stats = series && series.length >= 10
+    ? (() => {
+        const max = Math.max(...series);
+        const min = Math.min(...series);
+        const avg = series.reduce((a, b) => a + b, 0) / series.length;
+        const chg = series[0] > 0 ? ((series[series.length - 1] - series[0]) / series[0]) * 100 : null;
+        return { max, min, avg, chg, n: series.length };
+      })()
+    : null;
   const up = (d?.changePct ?? 0) >= 0;
   const others = Object.entries(BIST_STOCKS).filter(([k]) => k !== hisse).slice(0, 6);
   const baslik = cfg.index ? "BIST 100 Endeksi" : `${cfg.name} (${cfg.ticker}) Hisse Fiyatı`;
@@ -123,6 +133,32 @@ export default async function HisseDetail({ params }: { params: Promise<{ hisse:
 
         <Sparkline data={d?.series ?? null} up={up} label={`${cfg.name} bir aylık fiyat grafiği`} />
         <p className="market-spark-cap">Son bir aylık {cfg.ticker} kapanış seyri</p>
+
+        {stats && (
+          <div className="market-stats-block">
+            <h3 className="market-h3">Son {stats.n} seans özeti</h3>
+            <div className="crypto-table-wrap">
+              <table className="crypto-table">
+                <caption className="sr-only">{cfg.name} son {stats.n} seans kapanış özeti</caption>
+                <thead>
+                  <tr><th>Ölçü</th><th>Değer</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>En yüksek kapanış</td><td>{cfg.index ? `${tl(stats.max, 2)} puan` : `₺${tl(stats.max, 2)}`}</td></tr>
+                  <tr><td>En düşük kapanış</td><td>{cfg.index ? `${tl(stats.min, 2)} puan` : `₺${tl(stats.min, 2)}`}</td></tr>
+                  <tr><td>Ortalama kapanış</td><td>{cfg.index ? `${tl(stats.avg, 2)} puan` : `₺${tl(stats.avg, 2)}`}</td></tr>
+                  {stats.chg != null && (
+                    <tr><td>Dönem değişimi</td><td>{pctText(stats.chg)}</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <p className="market-muted">
+              Tablo, bu sayfadaki bir aylık grafiğin kapanış verisinden hesaplanır; seans içi en yüksek/en düşük
+              değerleri değil, günlük kapanışları gösterir.
+            </p>
+          </div>
+        )}
       </div>
 
       <AdSlot position="inArticle" />
