@@ -172,7 +172,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             });
           });`}
         </Script>
-        <CookieConsent />
+        <ChromeGate>
+          <CookieConsent />
+        </ChromeGate>
       </body>
     </html>
   );

@@ -1,11 +1,12 @@
 import SafeImage from "@/components/SafeImage";
 import { publicImageUrl } from "@/lib/image-url";
-import { getAllArticles } from "@/lib/articles";
+import { getAllArticles, getGuides } from "@/lib/articles";
 import { HeroCard, MedCard, RankedCard, CATS, catColor, Ago } from "@/components/ArticleCard";
 import Newsletter from "@/components/Newsletter";
 import MarketMini from "@/components/MarketMini";
 import MoversRail from "@/components/MoversRail";
 import AdSlot from "@/components/AdSlot";
+import ToolsRail from "@/components/ToolsRail";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { HOME_TITLE } from "@/lib/brand";
@@ -37,7 +38,7 @@ function SectionHeading({ title, href, link = "Tümünü gör" }: { title: strin
 }
 
 export default async function HomePage() {
-  const all = await getAllArticles();
+  const [all, guides] = await Promise.all([getAllArticles(), getGuides(6)]);
   const hero = all[0];
   const secondary = all.slice(1, 4);
   const recent = all.slice(4, 16);
@@ -99,11 +100,23 @@ export default async function HomePage() {
           <AdSlot position="sidebar" />
         </aside>
       </div>
+      {guides.length > 0 && (
+        <section className="edition-latest">
+          <SectionHeading title="Finans rehberleri" href="/rehber" link="Tüm rehberler" />
+          <div className="market-chips">
+            {guides.map((g) => (
+              <Link key={g.slug} href={`/${g.slug}`} className="market-chip">{g.title}</Link>
+            ))}
+          </div>
+        </section>
+      )}
       <AdSlot position="headerBanner" />
       <section className="edition-utilities" aria-labelledby="tools-title">
         <div><span className="edition-eyebrow">RAKAMLARI KENDİNİZ HESAPLAYIN</span><h2 id="tools-title">Paranızın hesabı, elinizin altında.</h2><p>Kredi, mevduat, altın ve enflasyon için ücretsiz araçlar.</p></div>
         <Link href="/araclar">Hesaplama araçlarını açın <span aria-hidden="true">↗</span></Link>
       </section>
+      <ToolsRail title="Hesaplama Araçları" />
+
       <section id="bulten" className="edition-newsletter" aria-label="E-posta bülteni"><Newsletter /></section>
     </div>
   );

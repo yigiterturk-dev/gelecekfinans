@@ -3,6 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import AdSlot from "@/components/AdSlot";
 import MarketFaq from "@/components/MarketFaq";
+import ToolsRail from "@/components/ToolsRail";
+import { toolGuide } from "@/lib/tool-guides";
 import { toolFaq } from "@/lib/market-faq";
 import CurrencyConverter from "@/components/CurrencyConverter";
 import GoldCalculator from "@/components/calculators/GoldCalculator";
@@ -244,7 +246,11 @@ export default async function ToolPage({ params }: { params: Promise<{ tool: str
 
       <AdSlot position="inArticle" />
 
+      {toolGuide(tool)}
+
       <MarketFaq items={toolFaq(tool)} />
+
+      <ToolsRail title="Diğer Hesaplama Araçları" current={`/araclar/${tool}`} />
 
       <section className="section market-links">
         <h2 className="market-h2">İlgili Sayfalar</h2>

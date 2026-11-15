@@ -9,6 +9,7 @@ import { CATS, MedCard } from "@/components/ArticleCard";
 import ReadingProgress from "@/components/ReadingProgress";
 import ShareButtons from "@/components/ShareButtons";
 import AdSlot from "@/components/AdSlot";
+import ToolsRail from "@/components/ToolsRail";
 import { readingTime } from "@/lib/reading-time";
 import { tamGovde, kilitliGovde } from "@/lib/article-body";
 import PremiumBody from "@/components/PremiumBody";
@@ -311,6 +312,8 @@ export default async function ArticlePage({params}:{params:Promise<{slug:string}
           </div>
         </section>
       )}
+
+      <ToolsRail title="İlgili Hesaplama Araçları" />
 
       <nav className="article-discovery" aria-label="Konuyla ilgili finans sayfaları">
         <strong>Konuyu takip et</strong>

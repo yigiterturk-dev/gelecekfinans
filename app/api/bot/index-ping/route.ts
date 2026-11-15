@@ -22,7 +22,15 @@ export const maxDuration = 300;
  * bağlantı ve iç link. Bu yüzden başarısızlık sessizce yutulur.
  */
 const SITE_URL = process.env.SITE_URL || "https://gelecekfinans.com";
-const LIMIT = 180;
+
+/**
+ * Günlük dilim sayısı. Sitemap 200 adresi geçtiği için her koşumda ilk 180'i
+ * bildirmek kuyruğun SONUNDAKİ sayfaları (makaleler) hiç bildirmiyordu.
+ * Şimdi adresler üç dilime bölünüyor ve her gün yalnızca bir dilim gidiyor:
+ * her adres ~3 günde bir sinyal alır, kotanın tamamı boşa yanmaz.
+ */
+const SLICES = 3;
+const LIMIT = 200;
 
 async function sitemapUrls(): Promise<string[]> {
   const res = await fetch(`${SITE_URL}/sitemap.xml`, { cache: "no-store" });
@@ -41,7 +49,8 @@ export async function GET(req: NextRequest) {
   if (!all.length) {
     return NextResponse.json({ skipped: true, reason: "sitemap boş ya da okunamadı" });
   }
-  const urls = all.slice(0, LIMIT);
+  const dayIndex = Math.floor(Date.now() / 86400000);
+  const urls = all.filter((_, i) => i % SLICES === dayIndex % SLICES).slice(0, LIMIT);
 
   let ok = 0;
   const failures: Record<string, number> = {};

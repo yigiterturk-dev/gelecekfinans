@@ -6,6 +6,7 @@ import type { Metadata } from "next";
 import { paylasimMeta } from "@/lib/og";
 import Link from "next/link";
 import MarketFaq from "@/components/MarketFaq";
+import ToolsRail from "@/components/ToolsRail";
 import { getCategoryProfile } from "@/lib/category-profiles";
 
 export const dynamic = "force-dynamic";
@@ -90,6 +91,8 @@ export default async function CatPage({params, searchParams}:{params:Promise<{ca
       )}
 
       {profile && <MarketFaq items={profile.faq} />}
+
+      <ToolsRail title="Hesaplama Araçları" />
 
       {/* Pagination */}
       {totalPages > 1 && (

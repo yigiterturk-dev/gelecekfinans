@@ -37,6 +37,11 @@ test("kategori ve varlık sözlüğü birlikte kullanılır", () => {
   assert.match(buildStockQuery({ title: "Gram altın fiyatı", category: "altin" }), /gold/);
 });
 
+test("varlık ve kategori aynı terimi getirirse sorgu tekrarlanmaz", () => {
+  const query = buildStockQuery({ title: "TCMB faiz kararı", keyword: "merkez bankası", category: "ekonomi" });
+  assert.equal(query.split(" ").filter((term) => term === "bank").length, 1);
+});
+
 test("bilinmeyen kategori jenerik sorguya düşer", () => {
   assert.equal(buildStockQuery({ title: "Bilinmeyen konu", category: "xyz" }), "finance newspaper desk");
 });
@@ -65,12 +70,18 @@ test("geçerli aday yoksa null döner", () => {
   assert.equal(pickBestCandidate([asset({ caption: "piggy bank" })], "stock market"), null);
 });
 
-test("anahtarsız Openverse sayesinde görsel arama hep açık", () => {
+test("anahtar yokken Openverse varsayılan kapalı, açıkça istenirse açılır", () => {
   const pexels = process.env.PEXELS_API_KEY;
   const pixabay = process.env.PIXABAY_API_KEY;
+  const keyless = process.env.STOCK_KEYLESS_OPENVERSE;
   delete process.env.PEXELS_API_KEY;
   delete process.env.PIXABAY_API_KEY;
+  delete process.env.STOCK_KEYLESS_OPENVERSE;
+  assert.equal(stockMediaConfigured(), false);
+  process.env.STOCK_KEYLESS_OPENVERSE = "1";
   assert.equal(stockMediaConfigured(), true);
+  if (keyless === undefined) delete process.env.STOCK_KEYLESS_OPENVERSE;
+  else process.env.STOCK_KEYLESS_OPENVERSE = keyless;
   if (pexels) process.env.PEXELS_API_KEY = pexels;
   if (pixabay) process.env.PIXABAY_API_KEY = pixabay;
 });

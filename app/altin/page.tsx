@@ -4,6 +4,7 @@ import { getAllGold, GOLD_TYPES, tl, pctText, fmtUpdated, safeRelatedArticles } 
 import { MedCard } from "@/components/ArticleCard";
 import AdSlot from "@/components/AdSlot";
 import MarketFaq from "@/components/MarketFaq";
+import ToolsRail from "@/components/ToolsRail";
 import { GOLD_HUB_FAQ } from "@/lib/market-faq";
 import GoldCalculator from "@/components/calculators/GoldCalculator";
 
@@ -89,6 +90,8 @@ export default async function AltinHub() {
       </section>
 
       <MarketFaq items={GOLD_HUB_FAQ} />
+
+      <ToolsRail />
 
       <section className="section market-links">
         <h2 className="market-h2">İlgili Sayfalar</h2>

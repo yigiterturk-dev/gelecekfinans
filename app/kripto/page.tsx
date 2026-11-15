@@ -4,6 +4,7 @@ import { getCryptoMarkets, CRYPTO_COINS, tl, pctText, safeRelatedArticles } from
 import { MedCard } from "@/components/ArticleCard";
 import AdSlot from "@/components/AdSlot";
 import MarketFaq from "@/components/MarketFaq";
+import ToolsRail from "@/components/ToolsRail";
 import { CRYPTO_HUB_FAQ } from "@/lib/market-faq";
 
 export const revalidate = 300;
@@ -97,6 +98,8 @@ export default async function KriptoHub() {
       <AdSlot position="inArticle" />
 
       <MarketFaq items={CRYPTO_HUB_FAQ} />
+
+      <ToolsRail />
 
       <section className="section market-links">
         <h2 className="market-h2">İlgili Sayfalar</h2>

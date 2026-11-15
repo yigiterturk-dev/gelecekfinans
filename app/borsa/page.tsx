@@ -5,6 +5,7 @@ import { MedCard } from "@/components/ArticleCard";
 import AdSlot from "@/components/AdSlot";
 import Sparkline from "@/components/Sparkline";
 import MarketFaq from "@/components/MarketFaq";
+import ToolsRail from "@/components/ToolsRail";
 import { BIST_HUB_FAQ } from "@/lib/market-faq";
 
 export const revalidate = 300;
@@ -123,6 +124,8 @@ export default async function BorsaHub() {
       <AdSlot position="inArticle" />
 
       <MarketFaq items={BIST_HUB_FAQ} />
+
+      <ToolsRail />
 
       <section className="section market-links">
         <h2 className="market-h2">İlgili Sayfalar</h2>

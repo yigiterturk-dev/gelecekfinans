@@ -4,6 +4,7 @@ import { REFERENCE_RATES, safeRelatedArticles } from "@/lib/market";
 import { fetchPolicyRate } from "@/lib/tcmb-evds";
 import { fetchTcmbRates } from "@/lib/tcmb-faiz";
 import MarketFaq from "@/components/MarketFaq";
+import ToolsRail from "@/components/ToolsRail";
 import { FAIZ_FAQ } from "@/lib/market-faq";
 import { MedCard } from "@/components/ArticleCard";
 import AdSlot from "@/components/AdSlot";
@@ -109,6 +110,8 @@ export default async function FaizPage() {
       </section>
 
       <MarketFaq items={FAIZ_FAQ} />
+
+      <ToolsRail />
 
       <section className="section market-links">
         <h2 className="market-h2">İlgili Sayfalar</h2>

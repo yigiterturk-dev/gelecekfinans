@@ -26,9 +26,9 @@ const BASE = "https://gelecekfinans.com";
  */
 const PROFIL_TARIHLERI = {
   hisse: new Date("2026-09-07"),   // lib/stock-profiles.ts
-  varlik: new Date("2026-09-07"),  // lib/asset-profiles.ts (altın + döviz)
+  varlik: new Date("2026-11-15"),  // lib/asset-profiles.ts (altın + döviz) + hub iç bağlantıları
   kripto: new Date("2026-09-07"),  // lib/crypto-profiles.ts
-  arac: new Date("2026-09-04"),    // lib/market-faq.ts (hesaplayıcı SSS'leri)
+  arac: new Date("2026-11-15"),    // lib/market-faq.ts + lib/tool-guides.tsx (araç rehber metinleri)
   kategori: new Date("2026-09-09"),// lib/category-profiles.ts
 } as const;
 
@@ -162,6 +162,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: BASE, lastModified: enYeniMakale, changeFrequency: "hourly", priority: 1 },
     { url: `${BASE}/arsiv`, lastModified: enYeniMakale, changeFrequency: "daily", priority: 0.6 },
     { url: `${BASE}/rehber`, lastModified: enYeniMakale, changeFrequency: "daily", priority: 0.8 },
+    // Gömülebilir araçlar ve basın sayfası: dış bağlantı kampanyasının iniş sayfaları.
+    { url: `${BASE}/gomulu`, lastModified: PROFIL_TARIHLERI.arac, changeFrequency: "monthly", priority: 0.6 },
+    { url: `${BASE}/basin`, lastModified: PROFIL_TARIHLERI.arac, changeFrequency: "monthly", priority: 0.4 },
     { url: `${BASE}/hakkimizda`, lastModified: STATIK_SAYFA_TARIHI, changeFrequency: "monthly", priority: 0.3 },
     { url: `${BASE}/kunye`, lastModified: new Date("2026-11-12"), changeFrequency: "yearly", priority: 0.3 },
     { url: `${BASE}/yazarlar`, lastModified: new Date("2026-11-12"), changeFrequency: "monthly", priority: 0.3 },

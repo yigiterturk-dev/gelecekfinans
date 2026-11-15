@@ -6,7 +6,8 @@ export default function PageTracker() {
   const pathname = usePathname();
 
   useEffect(() => {
-    if (pathname.startsWith("/sys-k3m8p")) return;
+    // /gomulu/* bir iframe içinde açılıyor; sayfa görüntüleme sayacını şişirmemeli.
+    if (pathname.startsWith("/sys-k3m8p") || pathname.startsWith("/gomulu")) return;
     fetch("/api/track", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

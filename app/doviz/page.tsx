@@ -4,6 +4,7 @@ import { getAllFx, FX_PAIRS, tl, pctText, fmtUpdated, safeRelatedArticles } from
 import { MedCard } from "@/components/ArticleCard";
 import AdSlot from "@/components/AdSlot";
 import MarketFaq from "@/components/MarketFaq";
+import ToolsRail from "@/components/ToolsRail";
 import { FX_HUB_FAQ } from "@/lib/market-faq";
 import CurrencyConverter from "@/components/CurrencyConverter";
 
@@ -90,6 +91,8 @@ export default async function DovizHub() {
       </section>
 
       <MarketFaq items={FX_HUB_FAQ} />
+
+      <ToolsRail />
 
       <section className="section market-links">
         <h2 className="market-h2">İlgili Sayfalar</h2>

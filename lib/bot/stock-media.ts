@@ -287,11 +287,13 @@ export function wikimediaThumb(url: string, width = 1600): string {
 }
 
 async function searchOpenverse(query: string): Promise<LicensedMediaAsset[]> {
+  // `size=large` BİLEREK yok: Openverse'te onu eklemek havuzu 20 sonuçtan
+  // 2 sonuca düşürüyor ve genelde portre çıkıyor. Oran/boyut eşiğini zaten
+  // puanlama uyguluyor.
   const params = new URLSearchParams({
     q: query,
     license: "cc0,pdm,by,by-sa",
     orientation: "landscape",
-    size: "large",
     page_size: "20",
   });
   const response = await fetch(`https://api.openverse.org/v1/images/?${params.toString()}`, {
@@ -301,7 +303,12 @@ async function searchOpenverse(query: string): Promise<LicensedMediaAsset[]> {
   if (!response.ok) return [];
   const payload = await response.json() as { results?: OpenverseResult[] };
   const terms = query.toLocaleLowerCase("tr-TR").split(/\s+/).filter((term) => term.length >= 4);
+  const seen = new Set<string>();
   return (payload.results || []).flatMap((result) => {
+    // Openverse aynı dosyayı farklı boyutlarda tekrar tekrar döndürüyor.
+    const dedupeKey = result.foreign_landing_url || result.url || "";
+    if (!dedupeKey || seen.has(dedupeKey)) return [];
+    seen.add(dedupeKey);
     const license = openverseLicense(result);
     const title = (result.title || "").trim();
     if (!license || !result.url || !result.foreign_landing_url || !title) return [];
@@ -424,11 +431,21 @@ export function pickBestCandidate(
 }
 
 /**
- * Görsel arama her zaman mümkündür: Openverse anahtar istemiyor.
- * Pexels/Pixabay anahtarı yalnızca sıralamayı ve kalite havuzunu büyütür.
+ * Anahtarsız Openverse VARSAYILAN OLARAK KAPALI.
+ *
+ * Ölçüldü (2026-11): "gold bullion" aramasının 20 sonucundan 18'i
+ * "Johnnie Walker Gold Bullion Body painting" fotoğraflarıydı; kullanılabilir
+ * tek kare 4:3 olduğu için eşiği geçmiyordu. Finans havuzu için güvenilir
+ * değil. Anahtar yoksa markalı kart, alakasız fotoğraftan iyidir.
  */
+export function openverseEnabled(): boolean {
+  return process.env.STOCK_KEYLESS_OPENVERSE === "1";
+}
+
 export function stockMediaConfigured(): boolean {
-  return true;
+  return Boolean(
+    process.env.PEXELS_API_KEY || process.env.PIXABAY_API_KEY || openverseEnabled(),
+  );
 }
 
 export interface StockSearchResult {
@@ -463,10 +480,12 @@ export async function searchStockMedia(
   const providers: Array<{ name: string; run: (q: string) => Promise<LicensedMediaAsset[]>; limit: number; minTermMatches: number }> = [
     { name: "pexels", run: searchPexels, limit: 190, minTermMatches: 0 },
     { name: "pixabay", run: searchPixabay, limit: 900, minTermMatches: 0 },
+  ];
+  if (openverseEnabled()) {
     // Anahtarsız kaynakta sonuç havuzu gürültülü: "Spice Market Istanbul"
     // "stock market" sorgusuna düşebiliyor. Bu yüzden en az iki terim aranır.
-    { name: "openverse", run: searchOpenverse, limit: 150, minTermMatches: 2 },
-  ];
+    providers.push({ name: "openverse", run: searchOpenverse, limit: 150, minTermMatches: 2 });
+  }
 
   for (const provider of providers) {
     if (!rateBudget(cache, provider.name, provider.limit)) {

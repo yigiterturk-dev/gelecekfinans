@@ -6,7 +6,7 @@ import { buildStockQuery, searchStockMedia, stockMediaConfigured } from "../lib/
 
 async function main() {
   if (!stockMediaConfigured()) {
-    console.log("[adaylar] PEXELS_API_KEY veya PIXABAY_API_KEY yok — hepsi markalı karta düşer.");
+    console.log("[adaylar] stok arama kapalı — hepsi markalı karta düşer.");
     process.exit(0);
   }
 
@@ -18,7 +18,12 @@ async function main() {
     take: limit,
     select: { title: true, keyword: true, category: true, imageStrategy: true },
   });
-  console.log(`[adaylar] ${articles.length} makale · stok: ${process.env.PEXELS_API_KEY ? "pexels " : ""}${process.env.PIXABAY_API_KEY ? "pixabay" : ""}`);
+  const sources = [
+    process.env.PEXELS_API_KEY ? "pexels" : "",
+    process.env.PIXABAY_API_KEY ? "pixabay" : "",
+    "openverse (anahtarsız)",
+  ].filter(Boolean).join(" → ");
+  console.log(`[adaylar] ${articles.length} makale · sıra: ${sources}`);
 
   let found = 0;
   for (const article of articles) {
