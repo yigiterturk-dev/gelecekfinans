@@ -8,6 +8,7 @@ import Sparkline from "@/components/Sparkline";
 import MarketFaq from "@/components/MarketFaq";
 import { bistFaq } from "@/lib/market-faq";
 import { STOCK_PROFILES } from "@/lib/stock-profiles";
+import { getGuides } from "@/lib/articles";
 
 export const revalidate = 300;
 const BASE = "https://gelecekfinans.com";
@@ -40,7 +41,7 @@ export default async function HisseDetail({ params }: { params: Promise<{ hisse:
   const cfg = BIST_STOCKS[hisse];
   if (!cfg) notFound();
 
-  const [d, related] = await Promise.all([getStock(hisse), safeRelatedArticles("borsa")]);
+  const [d, related, guides] = await Promise.all([getStock(hisse), safeRelatedArticles("borsa"), getGuides(3, "borsa")]);
   const profile = STOCK_PROFILES[hisse];
   const up = (d?.changePct ?? 0) >= 0;
   const others = Object.entries(BIST_STOCKS).filter(([k]) => k !== hisse).slice(0, 6);
@@ -150,6 +151,17 @@ export default async function HisseDetail({ params }: { params: Promise<{ hisse:
           <Link href="/doviz/usd-try" className="market-chip">Dolar Kuru</Link>
         </div>
       </section>
+
+      {guides.length > 0 && (
+        <section className="section market-links">
+          <h2 className="market-h2">Borsa Rehberleri</h2>
+          <div className="market-chips">
+            {guides.map((g) => (
+              <Link key={g.slug} href={`/${g.slug}`} className="market-chip">{g.title}</Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       {related.length > 0 && (
         <section className="section">

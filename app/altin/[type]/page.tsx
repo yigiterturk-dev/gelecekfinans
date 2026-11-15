@@ -7,6 +7,7 @@ import AdSlot from "@/components/AdSlot";
 import MarketFaq from "@/components/MarketFaq";
 import { goldFaq } from "@/lib/market-faq";
 import { GOLD_PROFILES } from "@/lib/asset-profiles";
+import { getGuides } from "@/lib/articles";
 import GoldCalculator from "@/components/calculators/GoldCalculator";
 
 export const revalidate = 600;
@@ -36,9 +37,10 @@ export default async function AltinDetail({ params }: { params: Promise<{ type: 
   const cfg = GOLD_TYPES[type];
   if (!cfg) notFound();
 
-  const [d, related] = await Promise.all([
+  const [d, related, guides] = await Promise.all([
     getGold(type),
     safeRelatedArticles("altin"),
+    getGuides(3, "altin"),
   ]);
   const up = (d?.changePct ?? 0) >= 0;
   const others = Object.entries(GOLD_TYPES).filter(([k]) => k !== type);
@@ -139,6 +141,17 @@ export default async function AltinDetail({ params }: { params: Promise<{ type: 
           <Link href="/araclar/altin-hesaplama" className="market-chip">Altın Hesaplama</Link>
         </div>
       </section>
+
+      {guides.length > 0 && (
+        <section className="section market-links">
+          <h2 className="market-h2">Altın Rehberleri</h2>
+          <div className="market-chips">
+            {guides.map((g) => (
+              <Link key={g.slug} href={`/${g.slug}`} className="market-chip">{g.title}</Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       {related.length > 0 && (
         <section className="section">

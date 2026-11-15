@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFx, getFxHistory, FX_PAIRS, tl, pctText, fmtUpdated, safeRelatedArticles } from "@/lib/market";
+import { getGuides } from "@/lib/articles";
 import { MedCard } from "@/components/ArticleCard";
 import AdSlot from "@/components/AdSlot";
 import MarketFaq from "@/components/MarketFaq";
@@ -37,10 +38,11 @@ export default async function DovizDetail({ params }: { params: Promise<{ pair: 
   const cfg = FX_PAIRS[pair];
   if (!cfg) notFound();
 
-  const [d, history, related] = await Promise.all([
+  const [d, history, related, guides] = await Promise.all([
     getFx(pair),
     getFxHistory(cfg.base),
     safeRelatedArticles("doviz"),
+    getGuides(3, "doviz"),
   ]);
   const up = (d?.changePct ?? 0) >= 0;
   const others = Object.entries(FX_PAIRS).filter(([k]) => k !== pair);
@@ -147,6 +149,17 @@ export default async function DovizDetail({ params }: { params: Promise<{ pair: 
           <Link href="/araclar/doviz-cevirici" className="market-chip">Döviz Çevirici</Link>
         </div>
       </section>
+
+      {guides.length > 0 && (
+        <section className="section market-links">
+          <h2 className="market-h2">Döviz Rehberleri</h2>
+          <div className="market-chips">
+            {guides.map((g) => (
+              <Link key={g.slug} href={`/${g.slug}`} className="market-chip">{g.title}</Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       {related.length > 0 && (
         <section className="section">

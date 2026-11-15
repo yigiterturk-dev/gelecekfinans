@@ -302,11 +302,11 @@ export async function getArticlesByCategory(cat: string): Promise<ArticleListIte
  * Bağlantı hatası boş liste değildir; ISR'nin son başarılı arşivi koruması
  * için veritabanı hatası yukarı taşınır.
  */
-export async function getGuides(limit = 100): Promise<ArticleListItem[]> {
+export async function getGuides(limit = 100, category?: string): Promise<ArticleListItem[]> {
   let rows: Array<{ slug: string; cluster: string | null }>;
   try {
     rows = await prisma.article.findMany({
-      where: { status: "PUBLISHED", track: "GUIDE" },
+      where: { status: "PUBLISHED", track: "GUIDE", ...(category ? { category } : {}) },
       orderBy: { publishedAt: "desc" },
       take: limit,
       select: { slug: true, cluster: true },

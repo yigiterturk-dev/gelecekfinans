@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCrypto, CRYPTO_COINS, tl, pctText, fmtUpdated, safeRelatedArticles } from "@/lib/market";
+import { getGuides } from "@/lib/articles";
 import { MedCard } from "@/components/ArticleCard";
 import AdSlot from "@/components/AdSlot";
 import MarketFaq from "@/components/MarketFaq";
@@ -36,9 +37,10 @@ export default async function KriptoDetail({ params }: { params: Promise<{ coin:
   const cfg = CRYPTO_COINS[coin];
   if (!cfg) notFound();
 
-  const [d, related] = await Promise.all([
+  const [d, related, guides] = await Promise.all([
     getCrypto(coin),
     safeRelatedArticles("kripto"),
+    getGuides(3, "kripto"),
   ]);
   const up = (d?.changePct ?? 0) >= 0;
   const others = Object.entries(CRYPTO_COINS).filter(([k]) => k !== coin).slice(0, 6);
@@ -144,6 +146,17 @@ export default async function KriptoDetail({ params }: { params: Promise<{ coin:
           <Link href="/altin" className="market-chip">Altın Fiyatları</Link>
         </div>
       </section>
+
+      {guides.length > 0 && (
+        <section className="section market-links">
+          <h2 className="market-h2">Kripto Rehberleri</h2>
+          <div className="market-chips">
+            {guides.map((g) => (
+              <Link key={g.slug} href={`/${g.slug}`} className="market-chip">{g.title}</Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       {related.length > 0 && (
         <section className="section">
