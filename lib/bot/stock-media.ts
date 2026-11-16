@@ -156,7 +156,7 @@ export const STOCK_SUBJECTS: Array<{ pattern: RegExp; query: string; tags: strin
   { pattern: /bitcoin|\bbtc\b/i, query: "bitcoin coin", tags: ["bitcoin", "btc"] },
   { pattern: /ethereum/i, query: "ethereum coin", tags: ["ethereum"] },
   { pattern: /kripto/i, query: "cryptocurrency coins", tags: ["cryptocurrency", "bitcoin", "crypto"] },
-  { pattern: /altın/i, query: "gold bars bullion", tags: ["gold bars", "gold bar", "bullion", "gold bullion"] },
+  { pattern: /(^|[^a-zçğıöşü])altın([^a-zçğıöşü]|$)|altına dayalı|altın(ı|ın) /i, query: "gold bars bullion", tags: ["gold bars", "gold bar", "bullion", "gold bullion"] },
   { pattern: /petrol|akaryakıt|motorin|benzin/i, query: "oil refinery", tags: ["refinery", "oil refinery", "oil rig", "oil industry", "petroleum"] },
   { pattern: /doğal ?gaz/i, query: "natural gas pipeline", tags: ["pipeline", "gas pipeline", "natural gas"] },
   { pattern: /elektri/i, query: "power lines electricity", tags: ["power lines", "power line", "power pole", "pylon", "high voltage"] },

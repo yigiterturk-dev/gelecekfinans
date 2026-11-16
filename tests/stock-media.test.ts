@@ -117,6 +117,8 @@ test("soyut konu stok foto almaz, somut konu hassas sorguyla aranır", () => {
   assert.equal(matchStockSubject({ title: "Cari Açık Nedir?" }), null);
   assert.equal(matchStockSubject({ title: "Gümrük Denetimleriyle Vergi Kaybının Önlenmesi" })?.query, "container ship port");
   assert.equal(matchStockSubject({ title: "Gram altın Eylül eşiğinde" })?.query, "gold bars bullion");
+  assert.equal(matchStockSubject({ title: "Hazine'den altına dayalı kira sertifikası" })?.query, "gold bars bullion");
+  assert.equal(matchStockSubject({ title: "Mevduat faizinde 37 eşiğinin altına iniş" }), null);
 });
 
 test("etiket birebir eşleşmeli: alt-dize ve virgüllü engel kaçağı", () => {
