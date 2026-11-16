@@ -83,6 +83,11 @@ const DEFAULT_QUERY = "finance newspaper desk";
  * Kategori taban sorgusunun önüne eklenir; eşleşme yoksa taban sorgu kalır.
  */
 const ENTITIES: Array<{ pattern: RegExp; term: string }> = [
+  // Özgül konular başta: ilk eşleşen varlık sorgunun başına geçer.
+  { pattern: /gümrük/i, term: "customs cargo containers" },
+  { pattern: /ihracat|ithalat|dış ticaret/i, term: "cargo containers port" },
+  { pattern: /elektri/i, term: "electricity power lines" },
+  { pattern: /resesyon|durgunluk/i, term: "recession economy" },
   { pattern: /\bbitcoin|btc\b/i, term: "bitcoin" },
   { pattern: /\bethereum|eth\b/i, term: "ethereum" },
   { pattern: /\bdolar|usd\b/i, term: "us dollar" },
@@ -91,7 +96,6 @@ const ENTITIES: Array<{ pattern: RegExp; term: string }> = [
   { pattern: /\baltın|gram altın|ons\b/i, term: "gold" },
   { pattern: /\bbist|borsa istanbul\b/i, term: "istanbul stock exchange" },
   { pattern: /\bfed|federal reserve\b/i, term: "federal reserve" },
-  { pattern: /\btcmb|merkez bankası\b/i, term: "central bank" },
   { pattern: /\benflasyon\b/i, term: "inflation" },
   { pattern: /\bfaiz\b/i, term: "interest rate" },
   { pattern: /\bkonut|kira\b/i, term: "housing" },
@@ -127,11 +131,50 @@ const BLOCKED_TERMS = [
   "despair",
   "bankruptcy",
   "success",
+  "mumbai",
+  "bombay",
+  "india",
 ];
 
 export function isBlockedCandidate(text: string): boolean {
-  const hay = text.toLocaleLowerCase("tr-TR");
+  // Pixabay etiketleri virgülle gelir ("piggy, bank"); ayırıcı boşluğa
+  // çevrilmezse "piggy bank" engeli hiç tutmuyordu (11-17).
+  const hay = text.toLocaleLowerCase("tr-TR").replace(/\s*,\s*/g, " ");
   return BLOCKED_TERMS.some((term) => hay.includes(term));
+}
+
+/**
+ * Stok fotoğrafın kullanılabileceği SOMUT konular. Etiket içinde alt-dize
+ * eşleşmesi güvenilmez çıktı (11-17: "federal reserve" → "nature reserve"
+ * zürafa, "gold" → şarap kadehi, "central bank" → Mumbai binası). Bu yüzden
+ * her konu kendi hassas sorgusuyla aranır ve aday ancak `tags` listesindeki
+ * etiketlerden biri BİREBİR geçerse kabul edilir. Soyut konular (cari açık,
+ * memur zammı, enflasyon) burada yok → markalı kart kalır.
+ */
+export const STOCK_SUBJECTS: Array<{ pattern: RegExp; query: string; tags: string[] }> = [
+  { pattern: /gümrük|ihracat|ithalat|dış ticaret/i, query: "container ship port", tags: ["container ship", "container port", "cargo containers", "container terminal", "containers", "container"] },
+  { pattern: /bitcoin|\bbtc\b/i, query: "bitcoin coin", tags: ["bitcoin", "btc"] },
+  { pattern: /ethereum/i, query: "ethereum coin", tags: ["ethereum"] },
+  { pattern: /kripto/i, query: "cryptocurrency coins", tags: ["cryptocurrency", "bitcoin", "crypto"] },
+  { pattern: /altın/i, query: "gold bars bullion", tags: ["gold bars", "gold bar", "bullion", "gold bullion"] },
+  { pattern: /petrol|akaryakıt|motorin|benzin/i, query: "oil refinery", tags: ["refinery", "oil refinery", "oil rig", "oil industry", "petroleum"] },
+  { pattern: /doğal ?gaz/i, query: "natural gas pipeline", tags: ["pipeline", "gas pipeline", "natural gas"] },
+  { pattern: /elektri/i, query: "power lines electricity", tags: ["power lines", "power line", "power pole", "pylon", "high voltage"] },
+  { pattern: /konut|kira\b|kira |emlak/i, query: "apartment buildings", tags: ["apartment", "apartments", "apartment building", "residential", "real estate"] },
+  { pattern: /borsa|hisse|bist/i, query: "stock market chart", tags: ["stock market", "stock exchange", "stock trading", "stocks"] },
+  { pattern: /yapay zeka/i, query: "artificial intelligence", tags: ["artificial intelligence"] },
+  { pattern: /\bdolar|\busd\b/i, query: "us dollar banknotes", tags: ["us dollar", "us-dollar", "dollar bills", "dollars", "dollar"] },
+  { pattern: /\beuro\b|\beur\b/i, query: "euro banknotes", tags: ["euro", "euro banknotes", "euros"] },
+];
+
+export function matchStockSubject(input: { title: string; keyword?: string | null }) {
+  const text = `${input.title} ${input.keyword || ""}`.toLocaleLowerCase("tr-TR");
+  return STOCK_SUBJECTS.find((subject) => subject.pattern.test(text)) || null;
+}
+
+export function hasRequiredTag(caption: string, tags: string[]): boolean {
+  const have = new Set(caption.toLocaleLowerCase("en-US").split(",").map((t) => t.trim()));
+  return tags.some((tag) => have.has(tag));
 }
 
 /** Türkçe başlık + kategori → İngilizce stok arama sorgusu. */
@@ -458,16 +501,22 @@ export interface StockSearchResult {
 export async function searchStockMedia(
   input: { query: string; category: string; headline: string },
 ): Promise<StockSearchResult> {
-  const query = input.query || buildStockQuery({ title: input.headline, category: input.category });
+  // Brief sorgusu Türkçe ("sonradan kontrol denetimleri Gümrük ...") ve
+  // stok sağlayıcılar İngilizce arıyor: "kontrol" → "control" eşleşip gümrük
+  // yazısına ses mikseri geldi (11-17). Sorgu HER ZAMAN İngilizce sözlükten
+  // kurulur; Türkçe metin yalnızca varlık yakalamak için anahtar kelimeye girer.
+  const subject = matchStockSubject({ title: input.headline, keyword: input.query });
   const attempts: StockSearchResult["attempts"] = [];
-  if (!stockMediaConfigured()) return { asset: null, attempts };
+  if (!subject || !stockMediaConfigured()) return { asset: null, attempts };
+  const query = subject.query;
+  const onTopic = (assets: LicensedMediaAsset[]) => assets.filter((a) => hasRequiredTag(a.caption, subject.tags));
 
   const cache = await readCache();
   const cacheKey = `query:${query.toLocaleLowerCase("tr-TR")}`;
   const cached = cache.queries?.[cacheKey];
   if (cached && Date.now() - cached.at < CACHE_TTL_MS) {
     const minTermMatches = query.split(/\s+/).filter((term) => term.length >= 4).length >= 2 ? 2 : 1;
-    const picked = pickBestCandidate(cached.assets, query, {
+    const picked = pickBestCandidate(onTopic(cached.assets), query, {
       seed: input.headline, used: cache.used, minTermMatches,
     });
     if (picked) {
@@ -479,7 +528,9 @@ export async function searchStockMedia(
 
   const providers: Array<{ name: string; run: (q: string) => Promise<LicensedMediaAsset[]>; limit: number; minTermMatches: number }> = [
     { name: "pexels", run: searchPexels, limit: 190, minTermMatches: 0 },
-    { name: "pixabay", run: searchPixabay, limit: 900, minTermMatches: 0 },
+    // Pixabay etiketleri İngilizce; en az bir sorgu terimi etikette geçmeli,
+    // yoksa alakasız ama "yüksek puanlı" (boyut/oran) foto seçiliyor.
+    { name: "pixabay", run: searchPixabay, limit: 900, minTermMatches: 1 },
   ];
   if (openverseEnabled()) {
     // Anahtarsız kaynakta sonuç havuzu gürültülü: "Spice Market Istanbul"
@@ -499,7 +550,7 @@ export async function searchStockMedia(
     } catch {
       candidates = [];
     }
-    const picked = pickBestCandidate(candidates, query, {
+    const picked = pickBestCandidate(onTopic(candidates), query, {
       seed: input.headline, used: cache.used, minTermMatches: provider.minTermMatches,
     });
     attempts.push({ provider: provider.name, candidates: candidates.length, picked: Boolean(picked) });

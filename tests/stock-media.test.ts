@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildStockQuery,
+  hasRequiredTag,
+  matchStockSubject,
   isBlockedCandidate,
   pickBestCandidate,
   scoreCandidate,
@@ -108,4 +110,18 @@ test("aynı başlık her çalıştırmada aynı adayı seçer", () => {
   const first = pickBestCandidate(pool, "stock market", { seed: "bist yükseldi" });
   const second = pickBestCandidate(pool, "stock market", { seed: "bist yükseldi" });
   assert.equal(first?.assetId, second?.assetId);
+});
+
+test("soyut konu stok foto almaz, somut konu hassas sorguyla aranır", () => {
+  assert.equal(matchStockSubject({ title: "Fed, Enflasyon Güvenilirliğini Yeniden Kazanmalı" }), null);
+  assert.equal(matchStockSubject({ title: "Cari Açık Nedir?" }), null);
+  assert.equal(matchStockSubject({ title: "Gümrük Denetimleriyle Vergi Kaybının Önlenmesi" })?.query, "container ship port");
+  assert.equal(matchStockSubject({ title: "Gram altın Eylül eşiğinde" })?.query, "gold bars bullion");
+});
+
+test("etiket birebir eşleşmeli: alt-dize ve virgüllü engel kaçağı", () => {
+  assert.equal(hasRequiredTag("wine, glasses, toast, gold", ["gold bars", "bullion"]), false);
+  assert.equal(hasRequiredTag("giraffes, safari, nature reserve", ["federal reserve"]), false);
+  assert.equal(hasRequiredTag("gold, bars, gold bars, bullion", ["gold bars"]), true);
+  assert.equal(isBlockedCandidate("piggy, bank, money, save"), true);
 });
