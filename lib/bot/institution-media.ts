@@ -83,7 +83,6 @@ export function matchInstitution(text: string) {
 }
 
 function toAsset(instId: string, f: CommonsFile, thumb: (url: string) => string): LicensedMediaAsset {
-  const free = f.license === PD || f.license === "CC0";
   return {
     provider: "commons",
     assetId: `${instId}:${f.file}`,
@@ -91,7 +90,8 @@ function toAsset(instId: string, f: CommonsFile, thumb: (url: string) => string)
     licenseName: f.license,
     downloadUrl: thumb(f.url),
     sourceUrl: `https://commons.wikimedia.org/wiki/File:${encodeURI(f.file)}`,
-    attribution: free ? `Fotoğraf: ${f.author} / Wikimedia Commons` : `Fotoğraf: ${f.author} / ${f.license} / Wikimedia Commons`,
+    // Lisans adı burada YOK: sayfa (coerceImageCredit) licenseName'i zaten ekliyor.
+    attribution: `Fotoğraf: ${f.author} / Wikimedia Commons`,
     caption: f.caption,
     width: f.width,
     height: f.height,
