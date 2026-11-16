@@ -383,7 +383,9 @@ async function searchPixabay(query: string): Promise<LicensedMediaAsset[]> {
     image_type: "photo",
     orientation: "horizontal",
     min_width: String(MIN_WIDTH),
-    per_page: "20",
+    // Birebir etiket kuralından 20 adayın 3-5'i geçiyordu → aynı foto 4-6
+    // yazıda tekrar ediyordu (11-17). Pixabay'in izin verdiği üst sınır 200.
+    per_page: "200",
     safesearch: "true",
   });
   const response = await fetch(`https://pixabay.com/api/?${params.toString()}`, {
@@ -437,6 +439,8 @@ export interface PickOptions {
   used?: Record<string, number>;
   /** Adayın başlığında geçmesi gereken en az sorgu terimi sayısı. */
   minTermMatches?: number;
+  /** false: taze aday yoksa null döner (tekrar foto yerine kart). */
+  allowReuse?: boolean;
 }
 
 function countTermMatches(text: string, query: string): number {
@@ -467,6 +471,7 @@ export function pickBestCandidate(
   });
   // En iyi üçten biri seçilir: kalite eşiğini geçen adaylar arasında dönmek
   // aynı kategoriye düşen iki haberin aynı fotoğrafı taşımasını engeller.
+  if (!fresh.length && options.allowReuse === false) return null;
   const pool = (fresh.length ? fresh : scored).slice(0, 3);
   const index = options.seed ? stableHash(options.seed) % pool.length : 0;
   const { score: _score, ...asset } = pool[index];
@@ -517,7 +522,7 @@ export async function searchStockMedia(
   if (cached && Date.now() - cached.at < CACHE_TTL_MS) {
     const minTermMatches = query.split(/\s+/).filter((term) => term.length >= 4).length >= 2 ? 2 : 1;
     const picked = pickBestCandidate(onTopic(cached.assets), query, {
-      seed: input.headline, used: cache.used, minTermMatches,
+      seed: input.headline, used: cache.used, minTermMatches, allowReuse: false,
     });
     if (picked) {
       cache.used = { ...cache.used, [`${picked.provider}:${picked.assetId}`]: Date.now() };
@@ -551,7 +556,7 @@ export async function searchStockMedia(
       candidates = [];
     }
     const picked = pickBestCandidate(onTopic(candidates), query, {
-      seed: input.headline, used: cache.used, minTermMatches: provider.minTermMatches,
+      seed: input.headline, used: cache.used, minTermMatches: provider.minTermMatches, allowReuse: false,
     });
     attempts.push({ provider: provider.name, candidates: candidates.length, picked: Boolean(picked) });
     if (picked) {

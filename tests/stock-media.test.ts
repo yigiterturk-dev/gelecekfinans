@@ -127,3 +127,10 @@ test("etiket birebir eşleşmeli: alt-dize ve virgüllü engel kaçağı", () =>
   assert.equal(hasRequiredTag("gold, bars, gold bars, bullion", ["gold bars"]), true);
   assert.equal(isBlockedCandidate("piggy, bank, money, save"), true);
 });
+
+test("allowReuse:false iken taze aday yoksa tekrar foto yerine null", () => {
+  const asset = { provider: "pixabay", assetId: "1", caption: "gold bars, bullion", downloadUrl: "https://x/a.jpg", sourceUrl: "https://x/a", width: 1920, height: 1080 } as Parameters<typeof scoreCandidate>[0];
+  const used = { "pixabay:1": Date.now() };
+  assert.equal(pickBestCandidate([asset], "gold bars bullion", { used, allowReuse: false }), null);
+  assert.notEqual(pickBestCandidate([asset], "gold bars bullion", { used }), null);
+});
