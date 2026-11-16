@@ -34,7 +34,8 @@ export function Ago(d:string){
 }
 
 function ViewCount({n}:{n?:number}){
-  if(!n || n < 1) return null;
+  // 1-2 okunma "kimse okumuyor" sinyali veriyordu; düşük sayılar gizli (11-17).
+  if(!n || n < 100) return null;
   const txt = n >= 1000 ? `${(n/1000).toFixed(1).replace(".0","")}K` : String(n);
   return <span style={{fontSize:12,color:"var(--muted)"}}>{txt} okunma</span>;
 }
