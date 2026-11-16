@@ -90,7 +90,7 @@ test("anahtar yokken Openverse varsayılan kapalı, açıkça istenirse açılı
 
 test("wikimedia dosyası küçük resme çevrilir, svg olduğu gibi kalır", () => {
   const jpg = "https://upload.wikimedia.org/wikipedia/commons/6/66/NASDAQ_stock_market_display.jpg";
-  assert.match(wikimediaThumb(jpg), /\/thumb\/6\/66\/NASDAQ_stock_market_display\.jpg\/1600px-/);
+  assert.match(wikimediaThumb(jpg), /\/thumb\/6\/66\/NASDAQ_stock_market_display\.jpg\/1280px-/);
   const svg = "https://upload.wikimedia.org/wikipedia/commons/1/11/Chart.svg";
   assert.equal(wikimediaThumb(svg), svg);
 });

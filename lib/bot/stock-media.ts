@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { LicensedMediaAsset } from "./media-types";
+import { pickInstitutionPhoto } from "./institution-media";
 
 /**
  * Ücretsiz stok görsel sağlayıcıları — Pexels (birincil) ve Pixabay (yedek).
@@ -318,11 +319,13 @@ function openverseLicense(result: OpenverseResult): { id: string; name: string }
 const IMAGE_EXTENSIONS = /\.(jpe?g|png|webp)$/i;
 
 /**
- * Wikimedia dosya URL'ini 1600px küçük resme çevirir.
+ * Wikimedia dosya URL'ini 1280px küçük resme çevirir.
+ * Wikimedia yalnızca standart genişlikleri (…960, 1280, 1920…) servis ediyor;
+ * 1600px 400 dönüyordu (11-17) → Openverse yolu da sessizce bozuktu.
  * Orijinal 4000px dosyayı indirmek disk ve bant genişliği israfı; küçük resim
  * yolu dosya adından türetilebiliyor. Türetilemezse orijinal kalır.
  */
-export function wikimediaThumb(url: string, width = 1600): string {
+export function wikimediaThumb(url: string, width = 1280): string {
   const match = /^(https:\/\/upload\.wikimedia\.org\/wikipedia\/[^/]+)\/([0-9a-f])\/([0-9a-f]{2})\/([^/]+)$/.exec(url);
   if (!match || !IMAGE_EXTENSIONS.test(match[4])) return url;
   const [, root, first, second, file] = match;
@@ -510,8 +513,22 @@ export async function searchStockMedia(
   // stok sağlayıcılar İngilizce arıyor: "kontrol" → "control" eşleşip gümrük
   // yazısına ses mikseri geldi (11-17). Sorgu HER ZAMAN İngilizce sözlükten
   // kurulur; Türkçe metin yalnızca varlık yakalamak için anahtar kelimeye girer.
-  const subject = matchStockSubject({ title: input.headline, keyword: input.query });
   const attempts: StockSearchResult["attempts"] = [];
+  // Kurum konusu (Fed, ECB, TCMB, TBMM, Borsa İstanbul) önce: binanın kendi
+  // fotoğrafı, "dolar" geçse bile banknot stokundan daha isabetli.
+  const institution = pickInstitutionPhoto(
+    `${input.headline} ${input.query}`,
+    (await readCache()).used,
+    stableHash(input.headline),
+    wikimediaThumb,
+  );
+  if (institution) {
+    const cache = await readCache();
+    cache.used = { ...cache.used, [`${institution.provider}:${institution.assetId}`]: Date.now() };
+    await writeCache(cache);
+    return { asset: institution, attempts: [{ provider: "commons", candidates: 1, picked: true }] };
+  }
+  const subject = matchStockSubject({ title: input.headline, keyword: input.query });
   if (!subject || !stockMediaConfigured()) return { asset: null, attempts };
   const query = subject.query;
   const onTopic = (assets: LicensedMediaAsset[]) => assets.filter((a) => hasRequiredTag(a.caption, subject.tags));

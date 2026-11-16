@@ -35,7 +35,11 @@ export async function storeImageBytes(bytes: Buffer, prefix: string, contentType
 
 export async function storeRemoteImage(src: string, prefix: string, allowExternalFallback: boolean): Promise<string | null> {
   try {
-    const response = await fetch(src, { signal: AbortSignal.timeout(20000) });
+    // Wikimedia UA'sız istekleri reddedebiliyor (bot politikası).
+    const response = await fetch(src, {
+      signal: AbortSignal.timeout(20000),
+      headers: { "User-Agent": "GelecekFinansBot/1.0 (+https://gelecekfinans.com)" },
+    });
     if (!response.ok) return allowExternalFallback ? src : null;
     const contentType = response.headers.get("content-type")?.split(";")[0] || "image/jpeg";
     return storeImageBytes(Buffer.from(await response.arrayBuffer()), prefix, contentType);
