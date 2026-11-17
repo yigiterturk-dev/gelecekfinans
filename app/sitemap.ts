@@ -116,6 +116,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     "/doviz": PROFIL_TARIHLERI.varlik,
     "/altin": PROFIL_TARIHLERI.varlik,
     "/borsa": PROFIL_TARIHLERI.hisse,
+    "/borsa/temettu-takvimi": new Date("2026-11-17"),
     "/kripto": PROFIL_TARIHLERI.kripto,
     "/faiz": PROFIL_TARIHLERI.arac,
     "/araclar": PROFIL_TARIHLERI.arac,

@@ -167,6 +167,7 @@ const TOOLS: Record<string, ToolDef> = {
       "Sahip olduğunuz hisse adedini ve hisse başına brüt temettüyü girerek stopaj sonrası net temettü gelirinizi ve temettü verimini hesaplayın.",
     component: "temettu",
     related: [
+      { href: "/borsa/temettu-takvimi", label: "Temettü Takvimi" },
       { href: "/borsa", label: "Borsa İstanbul" },
       { href: "/araclar/hisse-kar-zarar-hesaplama", label: "Hisse Kâr/Zarar" },
       { href: "/araclar", label: "Tüm Araçlar" },

@@ -130,6 +130,7 @@ export default async function BorsaHub() {
       <section className="section market-links">
         <h2 className="market-h2">İlgili Sayfalar</h2>
         <div className="market-chips">
+          <Link href="/borsa/temettu-takvimi" className="market-chip">Temettü Takvimi</Link>
           <Link href="/doviz" className="market-chip">Döviz Kurları</Link>
           <Link href="/altin" className="market-chip">Altın Fiyatları</Link>
           <Link href="/kripto" className="market-chip">Kripto Fiyatları</Link>
