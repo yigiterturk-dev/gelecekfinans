@@ -1,7 +1,7 @@
 import React from "react";
 import { ImageResponse } from "next/og";
 import { storeImageBytes, storeRemoteImage } from "@/lib/local-images";
-import { getBistHistory, getCrypto, getFxHistory, getGoldUsdHistory, CRYPTO_COINS } from "@/lib/market";
+import { getYahooSeriesUntil, CRYPTO_COINS, type DatedPoint } from "@/lib/market";
 import { createVisualBrief, type VisualBrief } from "./visual-director";
 import { searchLicensedMedia, type LicensedMediaAsset } from "./licensed-media";
 
@@ -19,6 +19,8 @@ export interface ArticleImageInput {
   recentConcepts?: string[];
   maxAttempts?: number;
   evidenceSourceCount?: number;
+  /** Grafiğin bittiği gün = makalenin yayın günü. Verilmezse bugün. */
+  asOf?: Date | string | null;
 }
 
 export interface VisualAudit {
@@ -46,7 +48,7 @@ export async function getArticleImageResult(article: ArticleImageInput): Promise
   if (brief.mode === "DATA_CHART") {
     const chart = await buildMarketSeries(article.category, article);
     if (chart) {
-      const card = await createChartCard(article, downsample(chart.series, 60), chart.label, chart.unit);
+      const card = await createChartCard(article, chart);
       const stored = await storeImageBytes(card, article.slug || `chart-${article.category}`, "image/png");
       if (stored) return {
         url: stored,
@@ -55,7 +57,7 @@ export async function getArticleImageResult(article: ArticleImageInput): Promise
         audit: {
           approved: true,
           method: "REAL_DATA",
-          reasons: [`${chart.label} serisi (${chart.series.length} kapanış) markalı şablona çizildi`],
+          reasons: [`${chart.label} serisi (${chart.points.length} kapanış, ${chart.points[0].date}→${chart.points.at(-1)!.date}) markalı şablona çizildi`],
         },
         attempts: 1,
         licensedAsset: null,
@@ -110,36 +112,45 @@ export async function getArticleImageResult(article: ArticleImageInput): Promise
   return { url: null, strategy: "NONE", brief, audit: null, attempts: 0, licensedAsset: null };
 }
 
-interface MarketSeries { series: number[]; label: string; unit: string }
+export interface MarketSeries { points: DatedPoint[]; label: string; unit: string; source: string }
 
-async function buildMarketSeries(cat: string, article: ArticleImageInput): Promise<MarketSeries | null> {
+/**
+ * Kategoriye göre GERÇEK günlük kapanış serisi, makalenin yayın gününde biter.
+ * Tek kaynak Yahoo (tarih aralığı verebilen tek ücretsiz kaynak): kripto için
+ * eskiden CoinGecko'nun "son 7 gün" sparkline'ı kullanılıyordu, o da tarih
+ * alamadığı için geçmiş makalelere bugünün grafiğini basıyordu.
+ */
+export async function buildMarketSeries(cat: string, article: ArticleImageInput): Promise<MarketSeries | null> {
   const text = `${article.title} ${article.keyword || ""}`.toLocaleLowerCase("tr-TR");
+  const asOf = article.asOf ? new Date(article.asOf) : new Date();
+  const end = Number.isNaN(asOf.getTime()) ? new Date() : asOf;
+  const pick = async (symbol: string, label: string, unit: string): Promise<MarketSeries | null> => {
+    const points = await getYahooSeriesUntil(symbol, end);
+    return points ? { points, label, unit, source: "Yahoo Finance, günlük kapanış" } : null;
+  };
   if (cat === "kripto") {
-    const data = await getCrypto(pickCryptoSlug(text));
-    if (!data?.sparkline || data.sparkline.length < 5) return null;
-    return { series: data.sparkline, label: `${data.name} — Son 7 Gün`, unit: "₺" };
+    const slug = pickCryptoSlug(text);
+    const cfg = CRYPTO_COINS[slug === "tether" ? "bitcoin" : slug] || CRYPTO_COINS.bitcoin;
+    return pick(`${cfg.symbol}-USD`, `${cfg.label} / USD`, "$");
   }
   if (cat === "doviz") {
     const base = pickFxBase(text);
-    const series = await getFxHistory(base);
-    if (!series || series.length < 5) return null;
-    return { series, label: `${base}/TRY — Son 30 Gün`, unit: "₺" };
+    return pick(`${base}TRY=X`, `${base}/TRY`, "₺");
   }
   if (cat === "borsa") {
-    const series = await getBistHistory();
-    if (!series || series.length < 5) return null;
-    return { series, label: "BIST 100 — Son 1 Ay", unit: "" };
+    if (/\bbanka/.test(text)) {
+      const bank = await pick("XBANK.IS", "BIST Banka Endeksi", "");
+      if (bank) return bank;
+    }
+    return pick("XU100.IS", "BIST 100 Endeksi", "");
   }
   if (cat === "altin") {
     /**
-     * TL cinsinden gram altın çizilmiyor: onu üretmek için ons/USD serisini
-     * tarihsel USD/TRY ile gün gün çarpmak gerekir ve iki serinin tatil
-     * günleri örtüşmediği için sonuç sessizce yanlış çıkıyordu. Bunun yerine
+     * TL cinsinden gram altın çizilmiyor: ons/USD × tarihsel USD/TRY gün gün
+     * çarpılınca tatil günleri örtüşmüyor, sonuç sessizce yanlış çıkıyordu.
      * GERÇEK olan seri, birimi açıkça yazılarak çiziliyor: ons altın / USD.
      */
-    const series = await getGoldUsdHistory();
-    if (!series || series.length < 5) return null;
-    return { series, label: "Ons Altın — Son 1 Ay", unit: "$" };
+    return pick("GC=F", "Ons Altın / USD", "$");
   }
   return null;
 }
@@ -156,16 +167,6 @@ function pickFxBase(text: string): string {
   if (text.includes("sterlin") || text.includes("gbp")) return "GBP";
   return "USD";
 }
-
-function downsample(values: number[], max: number): number[] {
-  if (values.length <= max) return values;
-  const output: number[] = [];
-  const step = values.length / max;
-  for (let index = 0; index < max; index++) output.push(values[Math.floor(index * step)]);
-  output.push(values.at(-1)!);
-  return output;
-}
-
 
 function greedyWrap(words: string[], max: number): string[] {
   const lines: string[] = [];
@@ -228,98 +229,115 @@ export function accentForCategory(category: string) {
   return CATEGORY_ACCENTS[category.toLocaleLowerCase("tr-TR")] ?? DEFAULT_ACCENT;
 }
 
+const TR_MONTHS = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
+function shortDate(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  return `${d} ${TR_MONTHS[m - 1]} ${y}`;
+}
+
 /**
  * Gerçek piyasa serisini MARKALI kartın içine gömer.
  *
- * Önceki hâl: quickchart.io'dan gelen çıplak PNG doğrudan kapak yapılıyordu.
- * Veri gerçekti ama görselde ne logo, ne kaynak, ne tarih vardı — sosyal
- * paylaşımda kimin ürettiği belirsizdi ve "hangi tarihe ait" sorusunun cevabı
- * yoktu. Artık aynı seri kendi şablonumuzda çiziliyor: dış servise bağımlılık
- * da kalkıyor (quickchart bozulursa kapak üretimi durmuyor).
- *
- * Çizim sütunlarla yapılır; satori (`ImageResponse`) SVG path'i değil ama
- * flex kutularını güvenilir basıyor. 60 ince sütun çizgi grafik izlenimi verir.
+ * 17 Kasım 2026 yenilemesi: eski kart 60 sütunluk tek tip bar grafikti ve
+ * başlık küçücük alttaydı; aynı kategori sayfasında kartlar ayırt edilemiyordu.
+ * Artık: haber başlığı en üstte büyük (asıl ayırt edici), altında gerçek çizgi
+ * + alan grafiği (SVG), yatay kılavuz çizgileri ve değerleri, başlangıç/bitiş
+ * TARİHİ ve kaynak satırı. Seri makalenin yayın gününde biter.
  */
-export async function createChartCard(
-  article: ArticleImageInput,
-  series: number[],
-  label: string,
-  unit: string,
-): Promise<Buffer> {
+export async function createChartCard(article: ArticleImageInput, chart: MarketSeries): Promise<Buffer> {
   const palette = accentForCategory(article.category);
-  const min = Math.min(...series);
-  const max = Math.max(...series);
-  const span = max - min || 1;
-  const last = series.at(-1)!;
-  const first = series[0];
+  const values = chart.points.map((p) => p.close);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const pad = (max - min) * 0.12 || max * 0.01 || 1;
+  const lo = min - pad;
+  const hi = max + pad;
+  const last = values.at(-1)!;
+  const first = values[0];
   const changePct = ((last - first) / first) * 100;
-  const yukseldi = changePct >= 0;
+  const up = changePct >= 0;
+  const lineColor = up ? "#34d399" : "#f87171";
+  const decimals = last >= 1000 ? 0 : last >= 10 ? 2 : 4;
   const format = (value: number) =>
-    `${unit}${value.toLocaleString("tr-TR", { maximumFractionDigits: value >= 100 ? 0 : 2 })}`;
+    `${chart.unit}${value.toLocaleString("tr-TR", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
 
-  const element = React.createElement(
-    "div",
-    {
-      style: {
-        width: "100%", height: "100%", display: "flex", flexDirection: "column",
-        background: "#08111f", color: "#f8fafc", fontFamily: "Geist", padding: "56px 72px",
-      },
+  const W = 1056;
+  const H = 250;
+  const plotW = W - 110; // sağda değer etiketleri
+  const x = (i: number) => (i / (values.length - 1)) * plotW;
+  const y = (v: number) => H - ((v - lo) / (hi - lo)) * H;
+  const line = values.map((v, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+  const area = `${line} L${plotW},${H} L0,${H} Z`;
+  const grid = [0, 1, 2, 3].map((k) => lo + ((hi - lo) * (k + 0.5)) / 4);
+
+  const h = React.createElement;
+  const svg = h("svg", { width: W, height: H, viewBox: `0 0 ${W} ${H}` },
+    h("defs", null,
+      h("linearGradient", { id: "fill", x1: "0", y1: "0", x2: "0", y2: "1" },
+        h("stop", { offset: "0%", stopColor: lineColor, stopOpacity: 0.35 }),
+        h("stop", { offset: "100%", stopColor: lineColor, stopOpacity: 0 }),
+      ),
+    ),
+    ...grid.map((g, k) => h("line", {
+      key: `g${k}`, x1: 0, x2: plotW, y1: y(g), y2: y(g), stroke: "#1e293b", strokeWidth: 1, strokeDasharray: "4 6",
+    })),
+    h("path", { d: area, fill: "url(#fill)" }),
+    h("path", { d: line, fill: "none", stroke: lineColor, strokeWidth: 4, strokeLinejoin: "round", strokeLinecap: "round" }),
+    h("circle", { cx: x(values.length - 1), cy: y(last), r: 9, fill: lineColor, stroke: "#08111f", strokeWidth: 4 }),
+  );
+
+  const element = h("div", {
+    style: {
+      width: "100%", height: "100%", display: "flex", flexDirection: "column",
+      background: "#08111f", color: "#f8fafc", fontFamily: "Geist", padding: "44px 72px 36px",
     },
-    React.createElement("div", { style: { display: "flex", alignItems: "center" } },
-      React.createElement("div", {
-        style: { display: "flex", fontSize: 22, fontWeight: 700, color: palette.accent, letterSpacing: 3 },
-      }, "GELECEK FİNANS"),
-      React.createElement("div", {
-        style: { display: "flex", marginLeft: "auto", fontSize: 20, color: "#94a3b8" },
+  },
+    h("div", { style: { display: "flex", alignItems: "center", fontSize: 19 } },
+      h("div", { style: { display: "flex", fontWeight: 700, color: palette.accent, letterSpacing: 3 } }, "GELECEK FİNANS"),
+      h("div", {
+        style: {
+          display: "flex", marginLeft: "auto", color: "#cbd5e1", border: "1px solid #334155",
+          borderRadius: 999, padding: "4px 14px", letterSpacing: 2,
+        },
       }, article.category.toLocaleUpperCase("tr-TR")),
     ),
-    React.createElement("div", {
-      style: { display: "flex", marginTop: 26, fontSize: 40, fontWeight: 700, letterSpacing: -1 },
-    }, label),
-    React.createElement("div", { style: { display: "flex", alignItems: "flex-end", marginTop: 10 } },
-      React.createElement("div", {
-        style: { display: "flex", fontSize: 62, fontWeight: 700, letterSpacing: -2 },
-      }, format(last)),
-      React.createElement("div", {
+    h("div", {
+      style: {
+        display: "flex", flexDirection: "column", marginTop: 20, fontSize: 42, fontWeight: 700,
+        lineHeight: 1.15, letterSpacing: -1, color: "#f8fafc",
+      },
+    }, ...wrapHeadline(article.title, 46).slice(0, 2).map((text, index) =>
+      h("div", { key: `t-${index}`, style: { display: "flex" } }, text))),
+    h("div", { style: { display: "flex", alignItems: "flex-end", marginTop: 18 } },
+      h("div", { style: { display: "flex", flexDirection: "column" } },
+        h("div", { style: { display: "flex", fontSize: 20, color: "#94a3b8" } }, chart.label),
+        h("div", { style: { display: "flex", fontSize: 46, fontWeight: 700, letterSpacing: -1 } }, format(last)),
+      ),
+      h("div", {
         style: {
-          display: "flex", marginLeft: 22, marginBottom: 14, fontSize: 28, fontWeight: 700,
-          color: yukseldi ? "#34d399" : "#f87171",
+          display: "flex", marginLeft: 20, marginBottom: 8, fontSize: 24, fontWeight: 700, color: lineColor,
+          background: up ? "rgba(52,211,153,0.12)" : "rgba(248,113,113,0.12)", borderRadius: 8, padding: "4px 12px",
         },
-      }, `${yukseldi ? "▲" : "▼"} %${Math.abs(changePct).toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`),
+      }, `${up ? "▲" : "▼"} %${Math.abs(changePct).toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`),
+      h("div", { style: { display: "flex", marginLeft: "auto", marginBottom: 10, fontSize: 18, color: "#64748b" } },
+        `${values.length} işlem günü`),
     ),
-    /**
-     * Haber başlığı grafiğin ALTINDA: paylaşım önizlemesinde rakam ve yön
-     * bir bakışta okunur, başlık bağlamı verir. Başlıksız grafik "hangi haber"
-     * sorusunu cevapsız bırakıyordu.
-     */
-    React.createElement("div", {
-      style: {
-        display: "flex", alignItems: "flex-end", marginTop: 24,
-        height: 230, width: "100%", gap: 3,
-      },
-    }, ...series.map((value, index) => React.createElement("div", {
-      key: index,
-      style: {
-        display: "flex", flexGrow: 1,
-        height: `${8 + ((value - min) / span) * 92}%`,
-        background: palette.accent,
-        opacity: 0.35 + (index / series.length) * 0.65,
-        borderRadius: 2,
-      },
-    }))),
-    React.createElement("div", {
-      style: {
-        display: "flex", flexDirection: "column", marginTop: 22, width: 1000,
-        fontSize: 30, fontWeight: 700, lineHeight: 1.2, letterSpacing: -0.5, color: "#e2e8f0",
-      },
-    }, ...wrapHeadline(article.title, 52).slice(0, 2).map((line, index) =>
-      React.createElement("div", { key: `t-${index}`, style: { display: "flex" } }, line))),
-    React.createElement("div", {
-      style: { display: "flex", marginTop: "auto", alignItems: "center", fontSize: 18, color: "#64748b" },
-    },
-      React.createElement("div", { style: { display: "flex" } },
-        `En düşük ${format(min)} · En yüksek ${format(max)}`),
-      React.createElement("div", { style: { display: "flex", marginLeft: "auto" } }, "gelecekfinans.com"),
+    h("div", { style: { display: "flex", position: "relative", marginTop: 14, width: W, height: H } },
+      svg,
+      ...grid.map((g, k) => h("div", {
+        key: `l${k}`,
+        style: {
+          display: "flex", position: "absolute", right: 0, top: y(g) - 11, fontSize: 16, color: "#64748b",
+        },
+      }, format(g))),
+    ),
+    h("div", { style: { display: "flex", marginTop: 8, width: W - 110, fontSize: 16, color: "#94a3b8" } },
+      h("div", { style: { display: "flex" } }, shortDate(chart.points[0].date)),
+      h("div", { style: { display: "flex", marginLeft: "auto" } }, shortDate(chart.points.at(-1)!.date)),
+    ),
+    h("div", { style: { display: "flex", marginTop: "auto", fontSize: 15, color: "#475569" } },
+      h("div", { style: { display: "flex" } }, `Kaynak: ${chart.source}`),
+      h("div", { style: { display: "flex", marginLeft: "auto" } }, "gelecekfinans.com"),
     ),
   );
   const response = new ImageResponse(element, { width: 1200, height: 675 });

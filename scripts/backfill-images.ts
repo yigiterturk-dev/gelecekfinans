@@ -13,12 +13,16 @@ async function main() {
     where: onlyPublished ? { status: "PUBLISHED" } : {},
     orderBy: { createdAt: "desc" },
     take: limit,
-    select: { id: true, title: true, slug: true, keyword: true, category: true, automationMeta: true },
+    select: { id: true, title: true, slug: true, keyword: true, category: true, automationMeta: true, publishedAt: true, createdAt: true, imageStrategy: true },
   });
   console.log(`[backfill] ${articles.length} makale işlenecek (${onlyPublished ? "sadece yayında" : "tümü"})`);
 
+  // --charts-only: yalnız grafik kapaklı makaleleri yenile (17 Kas: hepsi aynı
+  // "bugünün son 1 ayı" grafiğini almıştı; artık seri yayın gününde biter).
+  const chartsOnly = process.argv.includes("--charts-only");
   let ok = 0, fail = 0;
   for (const a of articles) {
+    if (chartsOnly && a.imageStrategy !== "MARKET_CHART") continue;
     try {
       // Kanıt sayısı geçilmezse markalı kart "kaynakla doğrulandı" rozetini
       // basamaz; eskiden bu durumda YAYINDAKİ makaleye "Editoryal inceleme
@@ -30,6 +34,7 @@ async function main() {
       // Dosya adı ayrıca görsel aramada sıralama sinyali.
       const result = await getArticleImageResult({
         title: a.title, slug: a.slug, keyword: a.keyword || "", category: a.category, evidenceSourceCount,
+        asOf: a.publishedAt || a.createdAt,
       });
       const url = result.url;
       if (!url) { fail++; console.log(`[backfill] ✗ görsel üretilemedi: ${a.title.slice(0, 50)}`); continue; }

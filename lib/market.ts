@@ -229,6 +229,57 @@ export async function getYahooCloseSeries(
   }
 }
 
+export interface DatedPoint { date: string; close: number }
+
+/**
+ * Belirli bir tarihte BİTEN günlük kapanış serisi (Yahoo period1/period2).
+ *
+ * Neden: kapak grafiği eskiden "bugünün son 1 ayı" ile çiziliyordu; aynı gün
+ * yenilenen her borsa makalesi birebir aynı görseli alıyordu ve 3 Eylül
+ * makalesinin kapağında Kasım verisi duruyordu. Artık seri makalenin yayın
+ * gününde biter: görsel hem makaleye özgü hem o güne doğru.
+ */
+export async function getYahooSeriesUntil(
+  symbol: string,
+  end: Date,
+  days = 45,
+): Promise<DatedPoint[] | null> {
+  const period2 = Math.floor(end.getTime() / 1000) + 86400;
+  const period1 = period2 - days * 86400;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  try {
+    const res = await fetch(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?period1=${period1}&period2=${period2}&interval=1d`,
+      {
+        next: { revalidate: 3600 },
+        signal: controller.signal,
+        headers: { Accept: "application/json", "User-Agent": "Mozilla/5.0 (compatible; GelecekFinansBot/1.0)" },
+      },
+    );
+    if (!res.ok) return null;
+    const data = (await res.json()) as {
+      chart?: { result?: Array<{ timestamp?: number[]; indicators?: { quote?: Array<{ close?: Array<number | null> }> } }> };
+    };
+    const result = data.chart?.result?.[0];
+    const stamps = result?.timestamp;
+    const closes = result?.indicators?.quote?.[0]?.close;
+    if (!Array.isArray(stamps) || !Array.isArray(closes)) return null;
+    const points: DatedPoint[] = [];
+    stamps.forEach((ts, index) => {
+      const close = closes[index];
+      if (typeof close === "number" && close > 0) {
+        points.push({ date: new Date(ts * 1000).toISOString().slice(0, 10), close });
+      }
+    });
+    return points.length > 4 ? points : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** BIST 100 endeksinin son ~1 aylık günlük kapanışları. */
 export async function getBistHistory(): Promise<number[] | null> {
   return getYahooCloseSeries("XU100.IS");
