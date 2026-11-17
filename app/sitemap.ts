@@ -51,6 +51,7 @@ const TOOL_SLUGS = [
   "hisse-kar-zarar-hesaplama",
   "kira-artis-hesaplama",
   "emekli-zammi-hesaplama",
+  "memur-zammi-hesaplama",
   "temettu-hesaplama",
 ];
 

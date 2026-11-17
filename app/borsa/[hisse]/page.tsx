@@ -9,6 +9,8 @@ import MarketFaq from "@/components/MarketFaq";
 import { bistFaq } from "@/lib/market-faq";
 import { STOCK_PROFILES } from "@/lib/stock-profiles";
 import { getGuides } from "@/lib/articles";
+import { getStockDividends } from "@/lib/dividends";
+import StockDividends from "@/components/StockDividends";
 
 export const revalidate = 300;
 const BASE = "https://gelecekfinans.com";
@@ -41,7 +43,7 @@ export default async function HisseDetail({ params }: { params: Promise<{ hisse:
   const cfg = BIST_STOCKS[hisse];
   if (!cfg) notFound();
 
-  const [d, related, guides] = await Promise.all([getStock(hisse), safeRelatedArticles("borsa"), getGuides(3, "borsa")]);
+  const [d, related, guides, divs] = await Promise.all([getStock(hisse), safeRelatedArticles("borsa"), getGuides(3, "borsa"), getStockDividends(hisse)]);
   const profile = STOCK_PROFILES[hisse];
   const series = d?.series ?? null;
   const stats = series && series.length >= 10
@@ -175,6 +177,8 @@ export default async function HisseDetail({ params }: { params: Promise<{ hisse:
           taşımaz. Güncel gelişmeler için <Link href="/kategori/borsa">borsa haberleri</Link> sayfamızı takip edin.
         </p>
       </section>
+
+      {divs && <StockDividends data={divs} />}
 
       <MarketFaq items={[...(profile?.faq ?? []), ...bistFaq(cfg.name, cfg.ticker, cfg.index === true)]} />
 

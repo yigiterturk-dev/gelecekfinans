@@ -15,6 +15,7 @@ import CompoundCalculator from "@/components/calculators/CompoundCalculator";
 import StockPnlCalculator from "@/components/calculators/StockPnlCalculator";
 import RentIncreaseCalculator from "@/components/calculators/RentIncreaseCalculator";
 import PensionRaiseCalculator from "@/components/calculators/PensionRaiseCalculator";
+import MemurRaiseCalculator from "@/components/calculators/MemurRaiseCalculator";
 import CpiTable from "@/components/CpiTable";
 import { getCpiSnapshot, monthLabel, nextMonth } from "@/lib/tufe";
 import DividendCalculator from "@/components/calculators/DividendCalculator";
@@ -29,7 +30,7 @@ interface ToolDef {
   metaTitle: string;
   desc: string;
   intro: string;
-  component: "doviz" | "altin" | "kredi" | "mevduat" | "enflasyon" | "bilesik" | "hissekz" | "kira" | "emekli" | "temettu";
+  component: "doviz" | "altin" | "kredi" | "mevduat" | "enflasyon" | "bilesik" | "hissekz" | "kira" | "emekli" | "memur" | "temettu";
   related: { href: string; label: string }[];
 }
 
@@ -154,6 +155,21 @@ const TOOLS: Record<string, ToolDef> = {
       "Mevcut aylığınızı ve beklediğiniz ya da açıklanan zam oranını girerek zam tutarını, yeni aylığı ve yıllık farkı görün.",
     component: "emekli",
     related: [
+      { href: "/araclar/memur-zammi-hesaplama", label: "Memur Zammı Hesaplama" },
+      { href: "/araclar/enflasyon-hesaplama", label: "Enflasyon Hesaplama" },
+      { href: "/araclar", label: "Tüm Araçlar" },
+    ],
+  },
+  "memur-zammi-hesaplama": {
+    title: "Memur Zammı Hesaplama",
+    h1: "Memur Zammı Hesaplama — Ocak 2027 Memur ve Memur Emeklisi Zammı",
+    metaTitle: "Memur Zammı Hesaplama 2027 — Ocak Zammı ve Enflasyon Farkı",
+    desc: "Toplu sözleşme oranı ve TÜİK'in 6 aylık enflasyonuyla memur ve memur emeklisi zammını, enflasyon farkını ve yeni maaşı hesaplayın.",
+    intro:
+      "Maaşınızı girin; araç 8. Dönem Toplu Sözleşme oranını ve TÜİK'in şimdiye kadar açıkladığı 6 aylık enflasyonu kullanarak enflasyon farkını, toplam zam oranını ve yeni maaşınızı hesaplar. SSK ve Bağ-Kur emeklilerinin aynı dönem zammını da gösterir.",
+    component: "memur",
+    related: [
+      { href: "/araclar/emekli-zammi-hesaplama", label: "Emekli Zammı Hesaplama" },
       { href: "/araclar/enflasyon-hesaplama", label: "Enflasyon Hesaplama" },
       { href: "/araclar", label: "Tüm Araçlar" },
     ],
@@ -206,6 +222,7 @@ function Calculator({ kind, cpi }: { kind: ToolDef["component"]; cpi: Cpi }) {
     case "kira": return <RentIncreaseCalculator rates={cpi ? cpi.rows.filter((r) => r.avg12 !== null).slice(-12).reverse()
       .map((r) => ({ renewal: monthLabel(nextMonth(r.ym)), source: r.label, avg12: r.avg12! })) : undefined} />;
     case "emekli": return <PensionRaiseCalculator half={cpi?.half ?? null} />;
+    case "memur": return <MemurRaiseCalculator half={cpi?.half ?? null} />;
     case "temettu": return <DividendCalculator />;
   }
 }
@@ -214,7 +231,7 @@ export default async function ToolPage({ params }: { params: Promise<{ tool: str
   const { tool } = await params;
   const t = TOOLS[tool];
   if (!t) notFound();
-  const cpi = t.component === "kira" || t.component === "emekli" ? await getCpiSnapshot() : null;
+  const cpi = t.component === "kira" || t.component === "emekli" || t.component === "memur" ? await getCpiSnapshot() : null;
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -252,8 +269,8 @@ export default async function ToolPage({ params }: { params: Promise<{ tool: str
         <Calculator kind={t.component} cpi={cpi} />
       </section>
 
-      {cpi && (t.component === "kira" || t.component === "emekli") && (
-        <CpiTable rows={cpi.rows} mode={t.component} />
+      {cpi && (t.component === "kira" || t.component === "emekli" || t.component === "memur") && (
+        <CpiTable rows={cpi.rows} mode={t.component === "kira" ? "kira" : "emekli"} />
       )}
 
       <AdSlot position="inArticle" />

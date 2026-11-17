@@ -15,6 +15,7 @@ const TOOLS = [
   { slug: "hisse-kar-zarar-hesaplama", title: "Hisse Kâr/Zarar Hesaplama", desc: "Komisyon dahil hisse işleminin net kâr/zararını ve getirisini hesaplayın.", icon: "📊" },
   { slug: "kira-artis-hesaplama", title: "Kira Artışı Hesaplama", desc: "TÜFE 12 aylık ortalama oranıyla yeni kira bedelini hesaplayın.", icon: "🏠" },
   { slug: "emekli-zammi-hesaplama", title: "Emekli Zammı Hesaplama", desc: "Zam oranına göre yeni emekli aylığınızı ve yıllık farkı görün.", icon: "👴" },
+  { slug: "memur-zammi-hesaplama", title: "Memur Zammı Hesaplama", desc: "Toplu sözleşme + enflasyon farkıyla memur ve memur emeklisi zammını hesaplayın.", icon: "🏛️" },
   { slug: "temettu-hesaplama", title: "Temettü Hesaplama", desc: "Stopaj sonrası net temettü gelirini ve temettü verimini hesaplayın.", icon: "💵" },
 ];
 

@@ -78,3 +78,17 @@ export async function getAllDividends(now = new Date()): Promise<StockDividends[
   }));
   return rows.filter((r): r is StockDividends => r !== null);
 }
+
+/** Tek hisse (hisse sayfası bloğu). Endeks veya veri yoksa null. */
+export async function getStockDividends(slug: string, now = new Date()): Promise<StockDividends | null> {
+  const cfg = BIST_STOCKS[slug];
+  if (!cfg || cfg.index) return null;
+  const d = await fetchDividends(cfg.ticker);
+  if (!d) return null;
+  const cutoff = new Date(now.getTime() - 365 * 86400000).toISOString().slice(0, 10);
+  const trailing12 = d.dividends.filter((x) => x.date > cutoff).reduce((s, x) => s + x.amount, 0);
+  return {
+    slug, ticker: cfg.ticker, name: cfg.name, price: d.price, dividends: d.dividends, trailing12,
+    yieldPct: trailing12 > 0 ? (trailing12 / d.price) * 100 : 0,
+  };
+}

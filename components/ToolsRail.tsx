@@ -24,6 +24,7 @@ const TOOLS = [
   { href: "/araclar/hisse-kar-zarar-hesaplama", label: "Hisse Kâr/Zarar" },
   { href: "/araclar/kira-artis-hesaplama", label: "Kira Artışı" },
   { href: "/araclar/emekli-zammi-hesaplama", label: "Emekli Zammı" },
+  { href: "/araclar/memur-zammi-hesaplama", label: "Memur Zammı" },
   { href: "/araclar/temettu-hesaplama", label: "Temettü" },
 ];
 

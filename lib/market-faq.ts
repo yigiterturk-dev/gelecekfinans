@@ -251,6 +251,20 @@ const ARAC_FAQ: Record<string, FaqItem[]> = {
       a: "Hayır. Araç yalnızca girdiğiniz oranla aritmetik hesap yapar. Uyuşmazlık durumunda sözleşmenizi ve güncel mevzuatı bir avukata danışarak değerlendirin.",
     },
   ],
+  "memur-zammi-hesaplama": [
+    {
+      q: "Ocak 2027 memur zammı ne kadar olacak?",
+      a: "Toplu sözleşme zammı %5'tir; buna Temmuz–Aralık 2026 enflasyonunun %7'yi aşan kısmı kadar enflasyon farkı eklenir. Kesin oran, TÜİK'in Aralık 2026 enflasyonunu açıklamasıyla (Ocak 2027'nin ilk iş günleri) netleşir.",
+    },
+    {
+      q: "Enflasyon farkı nasıl hesaplanır?",
+      a: "(1 + altı aylık TÜFE) ÷ (1 + önceki dönem toplu sözleşme zammı) − 1. Enflasyon önceki dönem zammının altında kalırsa fark sıfırdır; maaş geri düşmez.",
+    },
+    {
+      q: "Memur emeklisi de aynı zammı alır mı?",
+      a: "Evet. 4/C memur emeklileri, memurlarla aynı toplu sözleşme zammı ve enflasyon farkını alır. SSK ve Bağ-Kur emeklileri ise altı aylık TÜFE oranında zam alır.",
+    },
+  ],
   "emekli-zammi-hesaplama": [
     {
       q: "Emekli zammı nasıl hesaplanır?",

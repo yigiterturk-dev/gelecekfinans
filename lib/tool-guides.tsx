@@ -63,6 +63,24 @@ const GUIDES: Record<string, Block[]> = {
     },
   ],
 
+  "memur-zammi-hesaplama": [
+    {
+      h: "Memur zammı nasıl hesaplanır?",
+      p: [
+        "Memur maaşları her yıl ocak ve temmuzda iki kalemle artar: toplu sözleşmede belirlenen dönem zammı ve enflasyon farkı. 8. Dönem Toplu Sözleşme'de (Kamu Görevlileri Hakem Kurulu kararı, Resmî Gazete 27 Ağustos 2025) oranlar 2026 için ilk altı ay %11, ikinci altı ay %7; 2027 için ilk altı ay %5, ikinci altı ay %4 olarak belirlendi.",
+        "Enflasyon farkı, önceki altı ayda gerçekleşen TÜFE'nin o dönem verilen toplu sözleşme zammını aşan kısmıdır. Formül: (1 + altı aylık TÜFE) ÷ (1 + önceki dönem zammı) − 1. Ocak 2027 için önceki dönem zammı %7'dir; Temmuz–Aralık 2026 enflasyonu %7'nin üzerinde kalırsa aradaki fark ocakta maaşa eklenir.",
+        "Toplam zam iki oranın çarpımıyla bulunur: (1 + dönem zammı) × (1 + enflasyon farkı) − 1. Bu yüzden toplam oran, iki oranın basit toplamından biraz yüksektir.",
+      ],
+    },
+    {
+      h: "Memur emeklisi ile SSK/Bağ-Kur emeklisi farkı",
+      p: [
+        "Memur emeklileri (4/C) memurlarla aynı oranda zam alır: toplu sözleşme zammı ve enflasyon farkı. SSK ve Bağ-Kur emeklilerinin aylıkları ise yalnızca altı aylık TÜFE kadar artırılır. Enflasyon toplu sözleşme oranının altında kalırsa memur emeklisi daha yüksek, üstünde kalırsa iki grup birbirine yakın zam alır.",
+        "Ocak zammının dayanağı Temmuz–Aralık TÜFE'sidir ve Aralık verisi TÜİK tarafından ocağın ilk iş günlerinde açıklanır. Araç, bu pencerenin şimdiye kadar açıklanmış aylarını kullanır; kalan aylar için tahmin yapmaz. Kendi beklediğiniz oranı enflasyon alanına yazarak senaryo görebilirsiniz.",
+      ],
+    },
+  ],
+
   "emekli-zammi-hesaplama": [
     {
       h: "Emekli maaşı zammı nasıl belirlenir?",
