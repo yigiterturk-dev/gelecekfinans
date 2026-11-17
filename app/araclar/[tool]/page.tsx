@@ -15,9 +15,12 @@ import CompoundCalculator from "@/components/calculators/CompoundCalculator";
 import StockPnlCalculator from "@/components/calculators/StockPnlCalculator";
 import RentIncreaseCalculator from "@/components/calculators/RentIncreaseCalculator";
 import PensionRaiseCalculator from "@/components/calculators/PensionRaiseCalculator";
+import CpiTable from "@/components/CpiTable";
+import { getCpiSnapshot, monthLabel, nextMonth } from "@/lib/tufe";
 import DividendCalculator from "@/components/calculators/DividendCalculator";
 
-export const revalidate = 86400;
+// 1 saat: TÜİK açıklama günü (her ayın 3'ü 10:00) yeni oran en geç 1 saatte görünür.
+export const revalidate = 3600;
 const BASE = "https://gelecekfinans.com";
 
 interface ToolDef {
@@ -188,7 +191,9 @@ export async function generateMetadata({ params }: { params: Promise<{ tool: str
   };
 }
 
-function Calculator({ kind }: { kind: ToolDef["component"] }) {
+type Cpi = Awaited<ReturnType<typeof getCpiSnapshot>>;
+
+function Calculator({ kind, cpi }: { kind: ToolDef["component"]; cpi: Cpi }) {
   switch (kind) {
     case "doviz": return <CurrencyConverter defaultFrom="USD" />;
     case "altin": return <GoldCalculator />;
@@ -197,8 +202,9 @@ function Calculator({ kind }: { kind: ToolDef["component"] }) {
     case "enflasyon": return <InflationCalculator />;
     case "bilesik": return <CompoundCalculator />;
     case "hissekz": return <StockPnlCalculator />;
-    case "kira": return <RentIncreaseCalculator />;
-    case "emekli": return <PensionRaiseCalculator />;
+    case "kira": return <RentIncreaseCalculator rates={cpi ? cpi.rows.filter((r) => r.avg12 !== null).slice(-12).reverse()
+      .map((r) => ({ renewal: monthLabel(nextMonth(r.ym)), source: r.label, avg12: r.avg12! })) : undefined} />;
+    case "emekli": return <PensionRaiseCalculator half={cpi?.half ?? null} />;
     case "temettu": return <DividendCalculator />;
   }
 }
@@ -207,6 +213,7 @@ export default async function ToolPage({ params }: { params: Promise<{ tool: str
   const { tool } = await params;
   const t = TOOLS[tool];
   if (!t) notFound();
+  const cpi = t.component === "kira" || t.component === "emekli" ? await getCpiSnapshot() : null;
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -241,8 +248,12 @@ export default async function ToolPage({ params }: { params: Promise<{ tool: str
       <p className="market-lede">{t.intro}</p>
 
       <section className="section">
-        <Calculator kind={t.component} />
+        <Calculator kind={t.component} cpi={cpi} />
       </section>
+
+      {cpi && (t.component === "kira" || t.component === "emekli") && (
+        <CpiTable rows={cpi.rows} mode={t.component} />
+      )}
 
       <AdSlot position="inArticle" />
 
