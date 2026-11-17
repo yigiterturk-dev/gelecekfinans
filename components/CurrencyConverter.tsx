@@ -14,6 +14,14 @@ const OPTIONS = [
   { code: "USD", label: "Dolar (USD)", pair: "usd-try" },
   { code: "EUR", label: "Euro (EUR)", pair: "eur-try" },
   { code: "GBP", label: "Sterlin (GBP)", pair: "gbp-try" },
+  { code: "CHF", label: "İsviçre Frangı (CHF)", pair: "chf-try" },
+  { code: "SAR", label: "Suudi Arabistan Riyali (SAR)", pair: "sar-try" },
+  { code: "AED", label: "Birleşik Arap Emirlikleri Dirhemi (AED)", pair: "aed-try" },
+  { code: "RUB", label: "Rus Rublesi (RUB)", pair: "rub-try" },
+  { code: "AZN", label: "Azerbaycan Manatı (AZN)", pair: "azn-try" },
+  { code: "JPY", label: "Japon Yeni (JPY)", pair: "jpy-try" },
+  { code: "CNY", label: "Çin Yuanı (CNY)", pair: "cny-try" },
+  { code: "CAD", label: "Kanada Doları (CAD)", pair: "cad-try" },
   { code: "TRY", label: "Türk Lirası (TRY)", pair: null as string | null },
 ];
 

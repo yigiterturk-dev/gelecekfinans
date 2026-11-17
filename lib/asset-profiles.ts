@@ -151,4 +151,92 @@ export const FX_PROFILES: Record<string, AssetProfile> = {
       },
     ],
   },
+
+  "chf-try": {
+    paragraphs: [
+      "İsviçre Frangı, İsviçre ve Lihtenştayn'ın para birimidir; para politikasını İsviçre Ulusal Bankası yürütür. Frank, uzun süredir küresel piyasalarda \"güvenli liman\" para birimi olarak anılır: siyasi istikrar, düşük enflasyon geçmişi, güçlü cari fazla ve köklü bankacılık sistemi, belirsizlik dönemlerinde yatırımcıların frangı talep etmesine yol açar. Bu nedenle küresel risk iştahı azaldığında frank, pek çok para birimi karşısında değer kazanma eğilimi gösterir.",
+      "Türkiye'de frank, özellikle geçmiş yıllarda frank cinsinden kullanılan konut ve taşıt kredileri, İsviçre'de yaşayan vatandaşların gönderdiği havaleler ve İsviçre ile yapılan ticaret nedeniyle takip edilir. Frank/TL kuru, frangın dolar karşısındaki değeri ile dolar/TL kurunun bileşiminden oluşur; İsviçre Ulusal Bankası'nın faiz kararları ve zaman zaman frangın aşırı değerlenmesini önlemek için yaptığı döviz müdahaleleri kuru etkileyen başlıca etkenlerdir.",
+    ],
+    faq: [
+      { q: "İsviçre frangına neden güvenli liman deniyor?", a: "İsviçre'nin siyasi istikrarı, tarihsel olarak düşük enflasyonu, güçlü dış ticaret fazlası ve sağlam bankacılık sistemi nedeniyle piyasalarda belirsizlik arttığında yatırımcılar frangı tercih eder. Bu talep, kriz dönemlerinde frangın değer kazanmasına yol açar." },
+      { q: "Frank kuru Türkiye'de kimleri ilgilendirir?", a: "İsviçre ile ticaret yapan şirketleri, İsviçre'de yaşayan ve Türkiye'ye para gönderen vatandaşları, geçmişte frank cinsinden kredi kullananları ve İsviçre'de eğitim veya sağlık harcaması yapanları doğrudan ilgilendirir." },
+    ],
+  },
+
+  "sar-try": {
+    paragraphs: [
+      "Suudi Arabistan Riyali, Suudi Arabistan'ın resmî para birimidir ve uzun yıllardır sabit bir oranla Amerikan Dolarına bağlıdır. Bu sabit kur rejimi, Suudi Merkez Bankası'nın (SAMA) güçlü döviz rezervleriyle korunur. Sonuç olarak riyalin TL karşısındaki değeri neredeyse tamamen dolar/TL kurunu izler; riyal/TL'deki günlük hareket, dolar/TL'deki hareketle aynı yönde ve oranda gerçekleşir.",
+      "Türkiye'de riyal kurunun en çok takip edildiği dönemler hac ve umre sezonlarıdır: Suudi Arabistan'daki konaklama, ulaşım ve alışveriş harcamaları riyal üzerinden yapılır. Bunun yanında Körfez bölgesinde çalışan vatandaşların gelirleri ve Suudi Arabistan ile yapılan müteahhitlik ve ihracat işleri de riyal kurunu gündeme getirir. Döviz bürolarında riyal alış-satış makası, dolar ve euroya göre genellikle daha geniştir.",
+    ],
+    faq: [
+      { q: "Riyal kuru neden dolarla aynı hareket ediyor?", a: "Suudi Arabistan riyali sabit bir oranla dolara bağlıdır. Bu yüzden riyalin TL karşısındaki değişimi, dolar/TL kurundaki değişimle neredeyse aynıdır; riyal kurunu tahmin etmek için dolar kurunu izlemek yeterlidir." },
+      { q: "Umre ve hac için riyal mi dolar mı almak daha uygun?", a: "Riyal dolara sabitlendiği için kur riski açısından ikisi arasında belirgin fark yoktur. Asıl fark alış-satış makasındadır: Türkiye'de dolar makası genellikle daha dardır, riyal makası ise büroya göre değişir. Harcama yapılacak yerde döviz bozdurma koşulları da karar için önemlidir." },
+    ],
+  },
+
+  "aed-try": {
+    paragraphs: [
+      "Birleşik Arap Emirlikleri Dirhemi, BAE'nin para birimidir ve riyal gibi sabit bir oranla Amerikan Dolarına bağlıdır. BAE Merkez Bankası bu bağı yüksek döviz rezervleriyle korur. Bu nedenle dirhem/TL kuru pratikte dolar/TL kurunun bir yansımasıdır: dolar TL karşısında değer kazandığında dirhem de aynı oranda değer kazanır.",
+      "Dubai ve Abu Dabi'nin ticaret, turizm ve gayrimenkul merkezi olması dirhemi Türkiye'de giderek daha sık takip edilen bir para birimi hâline getirdi. Dubai'de gayrimenkul alımı, şirket kuruluşu, turistik seyahatler ve Körfez'e yapılan ihracat ödemeleri dirhem üzerinden hesaplanır. BAE ile Türkiye arasında yerel para birimleriyle ticaret ve swap anlaşmaları da dirhemin önemini artırmıştır.",
+    ],
+    faq: [
+      { q: "Dirhem kuru dolardan bağımsız hareket eder mi?", a: "Hayır. BAE dirhemi sabit bir oranla dolara bağlı olduğu için dirhem/TL kuru dolar/TL ile aynı yönde ve aynı oranda hareket eder. Kurdaki değişimin kaynağı neredeyse tamamen TL'nin dolar karşısındaki seyridir." },
+      { q: "Dubai'de harcama yaparken nelere dikkat edilmeli?", a: "Kartla yapılan harcamalarda bankanın uyguladığı döviz çevrim kuru ve ek komisyonlar, nakit dirhem bozdurmaya göre farklı sonuç verebilir. Seyahat öncesi bankanızın yurt dışı işlem ücretini ve uyguladığı kuru kontrol etmek, toplam maliyeti netleştirir." },
+    ],
+  },
+
+  "rub-try": {
+    paragraphs: [
+      "Rus Rublesi, Rusya Federasyonu'nun para birimidir; para politikasını Rusya Merkez Bankası yürütür. Rublenin değeri büyük ölçüde enerji fiyatlarına bağlıdır: Rusya'nın ihracat gelirlerinin önemli bölümü petrol ve doğalgazdan geldiği için emtia fiyatlarındaki yükseliş rubleyi destekler, düşüş ise baskı altına alır. Uluslararası yaptırımlar ve sermaye kontrolleri de son yıllarda rublenin seyrini belirleyen başlıca etkenler arasındadır.",
+      "Türkiye açısından ruble; turizm, enerji ithalatı, inşaat ve tarım ürünleri ticareti nedeniyle önem taşır. Rusya, Türkiye'ye en çok turist gönderen ülkeler arasında yer aldığından rublenin değeri sezon gelirlerini doğrudan etkiler. Yaptırımlar nedeniyle uluslararası ödeme kanallarının sınırlanması, iki ülke arasındaki ticarette ruble ve TL ile ödeme yapılmasının önünü açmıştır.",
+    ],
+    faq: [
+      { q: "Ruble kurunu en çok ne etkiler?", a: "Petrol ve doğalgaz fiyatları, Rusya Merkez Bankası'nın faiz kararları, uluslararası yaptırımlar ve sermaye kontrolleri rublenin değerini belirleyen başlıca etkenlerdir. Enerji fiyatları yükseldiğinde Rusya'nın döviz geliri artar ve ruble genellikle güçlenir." },
+      { q: "Ruble kuru Türkiye'de neden takip ediliyor?", a: "Rusya, Türkiye'nin en büyük turist kaynaklarından ve enerji tedarikçilerinden biridir. Turizm gelirleri, Rusya'ya yapılan ihracat ve iki ülke arasındaki inşaat projeleri rublenin değerinden doğrudan etkilenir." },
+    ],
+  },
+
+  "azn-try": {
+    paragraphs: [
+      "Azerbaycan Manatı, Azerbaycan'ın resmî para birimidir ve Azerbaycan Merkez Bankası tarafından yönetilir. Manat, uzun süredir dolar karşısında sabit tutulan, yönetilen bir kur rejimi altında işlem görür. Bu nedenle manat/TL kuru büyük ölçüde dolar/TL kurunu izler; kurdaki günlük hareketin kaynağı çoğunlukla TL'nin dolar karşısındaki seyridir.",
+      "Azerbaycan ekonomisi ağırlıklı olarak petrol ve doğalgaz ihracatına dayanır; enerji fiyatlarındaki sert düşüşler geçmişte manatın devalüe edilmesine yol açmıştır. Türkiye ile Azerbaycan arasındaki yakın ekonomik ilişkiler — enerji boru hatları, müteahhitlik projeleri, ticaret ve iki ülke arasındaki yoğun öğrenci ve turist trafiği — manat kurunu Türkiye'de düzenli olarak takip edilen kurlardan biri yapar.",
+    ],
+    faq: [
+      { q: "Manat kuru neden dolara yakın seyrediyor?", a: "Azerbaycan Merkez Bankası manatı dolar karşısında sabit tutan yönetilen bir kur politikası uygular. Bu yüzden manat/TL kurundaki değişim, dolar/TL kurundaki değişimle büyük ölçüde örtüşür." },
+      { q: "Manatın değerini ne tehdit eder?", a: "Azerbaycan'ın döviz gelirlerinin büyük kısmı petrol ve doğalgazdan geldiği için enerji fiyatlarındaki uzun süreli düşüşler rezervleri azaltır ve sabit kurun korunmasını zorlaştırır. Geçmişte bu nedenle manatın değeri düşürülmüştür." },
+    ],
+  },
+
+  "jpy-try": {
+    paragraphs: [
+      "Japon Yeni, Japonya'nın para birimidir ve dolar ile euronun ardından dünyada en çok işlem gören para birimleri arasında yer alır. Para politikasını Japonya Merkez Bankası yürütür. Japonya uzun yıllar boyunca sıfıra yakın, hatta negatif faiz uyguladığı için yen, düşük faizle borçlanıp yüksek faizli varlıklara yatırım yapılan \"carry trade\" işlemlerinin temel finansman para birimi olmuştur.",
+      "Yen, frank gibi belirsizlik dönemlerinde talep gören bir güvenli liman olarak da bilinir: küresel piyasalarda risk iştahı azaldığında carry trade pozisyonları kapanır ve yen hızla değer kazanabilir. Yen tek birim olarak küçük bir değer taşıdığı için kur genellikle \"100 yen kaç TL\" biçiminde de ifade edilir. Türkiye'de yen; Japon otomotiv ve makine ithalatı, Japon finans kuruluşlarıyla yapılan kredi anlaşmaları ve turizm nedeniyle takip edilir.",
+    ],
+    faq: [
+      { q: "Yen neden genellikle 100 birim üzerinden gösterilir?", a: "Tek bir yenin değeri küçük olduğu için karşılaştırmayı kolaylaştırmak amacıyla kur sıklıkla 100 yen üzerinden ifade edilir. Bu sayfadaki değer 1 yenin TL karşılığıdır; 100 yen için değeri yüzle çarpmanız yeterlidir." },
+      { q: "Japonya'nın faiz politikası yeni nasıl etkiler?", a: "Japonya Merkez Bankası'nın uzun süre uyguladığı çok düşük faiz yeni zayıflatmış ve onu carry trade işlemlerinde finansman para birimi yapmıştır. Faiz artırımı sinyalleri ya da küresel risk iştahındaki düşüş, bu pozisyonların kapanmasına ve yenin hızla değer kazanmasına yol açabilir." },
+    ],
+  },
+
+  "cny-try": {
+    paragraphs: [
+      "Çin Yuanı (renminbi), Çin Halk Cumhuriyeti'nin para birimidir ve Çin Halk Bankası tarafından yönetilir. Yuan serbest dalgalı değildir: merkez bankası her işlem günü bir orta kur belirler ve yuanın gün içinde bu kurun etrafında belirli bir bant içinde hareket etmesine izin verir. Çin'in ihracat odaklı ekonomisi ve sermaye kontrolleri, yuanın değerini belirleyen başlıca unsurlardır.",
+      "Çin, Türkiye'nin en büyük ithalat kaynaklarından biridir; elektronik, makine, tekstil hammaddesi ve tüketim ürünlerinin önemli bölümü Çin'den gelir. Bu nedenle yuan kuru ithalatçılar ve e-ticaret satıcıları için doğrudan maliyet kalemidir. Türkiye ile Çin arasındaki swap anlaşması ve yuanın IMF'nin rezerv para sepetine dahil edilmesi, yuanın uluslararası ticaretteki kullanımını artırmıştır.",
+    ],
+    faq: [
+      { q: "Yuan kuru serbestçe mi belirleniyor?", a: "Tam olarak değil. Çin Halk Bankası her gün bir referans orta kur açıklar ve yuanın bu kurun etrafında sınırlı bir bantta işlem görmesine izin verir. Bu yönetilen rejim, yuanın büyük para birimlerine göre daha kontrollü hareket etmesini sağlar." },
+      { q: "Yuan kuru Türkiye'de kimleri etkiler?", a: "Çin'den mal ithal eden şirketleri, Çin kaynaklı ürün satan e-ticaret işletmelerini ve Çin ile ihracat bağlantısı olan üreticileri doğrudan etkiler. Yuan değer kazandığında Çin'den ithal edilen ürünlerin TL maliyeti artar." },
+    ],
+  },
+
+  "cad-try": {
+    paragraphs: [
+      "Kanada Doları, Kanada'nın para birimidir ve para politikasını Kanada Merkez Bankası yürütür. Kanada dünyanın önde gelen petrol, maden ve tarım ürünü ihracatçıları arasında yer aldığı için Kanada Doları bir \"emtia para birimi\" olarak kabul edilir: özellikle petrol fiyatlarının yükseldiği dönemlerde değer kazanma eğilimi gösterir. Kanada ekonomisinin ABD ile yakın ticari bağları da Kanada Dolarını Amerikan Dolarındaki gelişmelere duyarlı kılar.",
+      "Türkiye'de Kanada Doları kuru başta eğitim, göç ve iş başvuruları nedeniyle takip edilir: Kanada'da okul ücretleri, yaşam masrafları ve vize başvurularında gösterilmesi gereken mali yeterlilik Kanada Doları cinsindendir. Kanada Doları/TL kuru, Kanada Dolarının ABD Doları karşısındaki değeri ile dolar/TL kurunun bileşiminden oluşur.",
+    ],
+    faq: [
+      { q: "Kanada Doları neden petrol fiyatlarıyla birlikte hareket eder?", a: "Kanada'nın ihracat gelirlerinin önemli bölümü petrol ve diğer emtialardan gelir. Petrol fiyatları yükseldiğinde ülkeye giren döviz artar ve Kanada Doları genellikle güçlenir; fiyatlar düştüğünde ise tersi yaşanır." },
+      { q: "Kanada'da eğitim veya göç planlayanlar kuru neden izlemeli?", a: "Okul ücretleri, konaklama ve vize başvurusunda istenen mali yeterlilik Kanada Doları cinsinden belirlenir. Kurdaki değişim, aynı planın TL cinsinden maliyetini doğrudan değiştirir; ödemeleri parçalara bölmek kur riskini dağıtmanın bir yoludur." },
+    ],
+  },
 };

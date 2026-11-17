@@ -58,6 +58,14 @@ export const FX_PAIRS: Record<
   "usd-try": { base: "USD", label: "Dolar", symbol: "$", flag: "🇺🇸", long: "Amerikan Doları" },
   "eur-try": { base: "EUR", label: "Euro", symbol: "€", flag: "🇪🇺", long: "Euro" },
   "gbp-try": { base: "GBP", label: "Sterlin", symbol: "£", flag: "🇬🇧", long: "İngiliz Sterlini" },
+  "chf-try": { base: "CHF", label: "İsviçre Frangı", symbol: "Fr", flag: "🇨🇭", long: "İsviçre Frangı" },
+  "sar-try": { base: "SAR", label: "Riyal", symbol: "﷼", flag: "🇸🇦", long: "Suudi Arabistan Riyali" },
+  "aed-try": { base: "AED", label: "Dirhem", symbol: "د.إ", flag: "🇦🇪", long: "Birleşik Arap Emirlikleri Dirhemi" },
+  "rub-try": { base: "RUB", label: "Ruble", symbol: "₽", flag: "🇷🇺", long: "Rus Rublesi" },
+  "azn-try": { base: "AZN", label: "Manat", symbol: "₼", flag: "🇦🇿", long: "Azerbaycan Manatı" },
+  "jpy-try": { base: "JPY", label: "Japon Yeni", symbol: "¥", flag: "🇯🇵", long: "Japon Yeni" },
+  "cny-try": { base: "CNY", label: "Yuan", symbol: "¥", flag: "🇨🇳", long: "Çin Yuanı" },
+  "cad-try": { base: "CAD", label: "Kanada Doları", symbol: "C$", flag: "🇨🇦", long: "Kanada Doları" },
 };
 
 interface ErApiResp {
