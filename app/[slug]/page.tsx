@@ -13,6 +13,7 @@ import ToolsRail from "@/components/ToolsRail";
 import { readingTime } from "@/lib/reading-time";
 import { tamGovde, kilitliGovde } from "@/lib/article-body";
 import PremiumBody from "@/components/PremiumBody";
+import { pickRelated } from "@/lib/related";
 
 /**
  * 🔑 ISR (2026-09-09). Sayfa ARTIK önbellekleniyor.
@@ -116,9 +117,7 @@ export default async function ArticlePage({params}:{params:Promise<{slug:string}
 
   // Related articles (same category, exclude current)
   const allArticles = await getAllArticles();
-  const related = allArticles
-    .filter(r => r.category === a.category && r.slug !== a.slug)
-    .slice(0, 4);
+  const { related, prev, next } = pickRelated(a, allArticles);
 
   const tags = a.keyword ? a.keyword.split(/[,;]/).map(k => k.trim()).filter(Boolean) : [];
 
@@ -313,6 +312,16 @@ export default async function ArticlePage({params}:{params:Promise<{slug:string}
         </section>
       )}
 
+      {(prev || next) && (
+        <nav className="article-discovery" aria-label="Aynı kategoride önceki ve sonraki yazı">
+          <strong>{cfg.l} kategorisinde</strong>
+          <div className="market-chips">
+            {prev && <Link href={`/${prev.slug}`} className="market-chip">← Önceki: {prev.title}</Link>}
+            {next && <Link href={`/${next.slug}`} className="market-chip">Sonraki: {next.title} →</Link>}
+          </div>
+        </nav>
+      )}
+
       <ToolsRail title="İlgili Hesaplama Araçları" />
 
       <nav className="article-discovery" aria-label="Konuyla ilgili finans sayfaları">
@@ -325,6 +334,7 @@ export default async function ArticlePage({params}:{params:Promise<{slug:string}
           {a.category === "kripto" && <Link href="/kripto" className="market-chip">Kripto fiyatları</Link>}
           <Link href="/araclar" className="market-chip">Finans hesaplama araçları</Link>
           <Link href="/arsiv" className="market-chip">Haber arşivi</Link>
+          <Link href="/basin" className="market-chip">Veri ve metodoloji</Link>
         </div>
       </nav>
 

@@ -54,7 +54,8 @@ export default async function HisseDetail({ params }: { params: Promise<{ hisse:
       })()
     : null;
   const up = (d?.changePct ?? 0) >= 0;
-  const others = Object.entries(BIST_STOCKS).filter(([k]) => k !== hisse).slice(0, 6);
+  // Tümü: eskiden ilk 6 hisse sabitti, son hisseler yalnız /borsa'dan link alıyordu (17 Kas ölçümü).
+  const others = Object.entries(BIST_STOCKS).filter(([k]) => k !== hisse);
   const baslik = cfg.index ? "BIST 100 Endeksi" : `${cfg.name} (${cfg.ticker}) Hisse Fiyatı`;
 
   const jsonLd = {

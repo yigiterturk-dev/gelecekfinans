@@ -65,6 +65,7 @@ export default function SiteFooter() {
             <Link href="/kunye" className="footer-link">Künye</Link>
             <Link href="/yazarlar" className="footer-link">Yazarlar</Link>
             <Link href="/yayincilik-ilkeleri" className="footer-link">Yayıncılık İlkeleri</Link>
+            <Link href="/basin" className="footer-link">Basın ve Veri</Link>
             <Link href="/iletisim" className="footer-link">İletişim</Link>
             <Link href="/gizlilik-politikasi" className="footer-link">Gizlilik Politikası</Link>
             <Link href="/cerez-politikasi" className="footer-link">Çerez Politikası</Link>
