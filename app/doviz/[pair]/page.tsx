@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getFx, getFxHistory, FX_PAIRS, tl, pctText, fmtUpdated, safeRelatedArticles } from "@/lib/market";
+import { getFx, getFxHistory, getTcmbFx, FX_PAIRS, tl, pctText, fmtUpdated, safeRelatedArticles } from "@/lib/market";
 import { getGuides } from "@/lib/articles";
 import { MedCard } from "@/components/ArticleCard";
 import AdSlot from "@/components/AdSlot";
@@ -22,8 +22,8 @@ export async function generateMetadata({ params }: { params: Promise<{ pair: str
   const { pair } = await params;
   const cfg = FX_PAIRS[pair];
   if (!cfg) return {};
-  const title = `${cfg.label} Kuru — 1 ${cfg.base} Kaç TL? Canlı ${cfg.base}/TRY`;
-  const description = `Güncel ${cfg.long} kuru. 1 ${cfg.base} kaç TL, günlük değişim, 30 günlük grafik ve canlı ${cfg.base}/TRY fiyatı. ${cfg.label} alış satış takibi.`;
+  const title = `${cfg.label} Kuru — 1 ${cfg.base} Kaç TL? Canlı Alış Satış (${cfg.base}/TRY)`;
+  const description = `Güncel ${cfg.long} kuru. 1 ${cfg.base} kaç TL? TCMB ve serbest piyasa ${cfg.label} alış satış, günlük değişim, 30 günlük grafik ve canlı ${cfg.base}/TRY fiyatı.`;
   return {
     title,
     description,
@@ -38,14 +38,20 @@ export default async function DovizDetail({ params }: { params: Promise<{ pair: 
   const cfg = FX_PAIRS[pair];
   if (!cfg) notFound();
 
-  const [d, history, related, guides] = await Promise.all([
+  const [d, history, related, guides, tcmb] = await Promise.all([
     getFx(pair),
     getFxHistory(cfg.base),
     safeRelatedArticles("doviz"),
     getGuides(3, "doviz"),
+    getTcmbFx(cfg.base),
   ]);
   const up = (d?.changePct ?? 0) >= 0;
   const others = Object.entries(FX_PAIRS).filter(([k]) => k !== pair);
+  const spread =
+    tcmb?.forexBuying && tcmb?.forexSelling
+      ? ((tcmb.forexSelling - tcmb.forexBuying) / tcmb.forexBuying) * 100
+      : null;
+  const hasTcmb = Boolean(tcmb && (tcmb.forexBuying || tcmb.forexSelling || tcmb.banknoteBuying));
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -89,8 +95,8 @@ export default async function DovizDetail({ params }: { params: Promise<{ pair: 
         <div className="market-hero-head">
           <span className="market-flag market-flag-lg" aria-hidden>{cfg.flag}</span>
           <div>
-            <h1 className="market-hero-title">{cfg.long} ({cfg.base}/TRY)</h1>
-            <p className="market-hero-sub">Canlı {cfg.label} kuru ve günlük değişim</p>
+            <h1 className="market-hero-title">{cfg.label} ({cfg.base}/TRY) Kuru</h1>
+            <p className="market-hero-sub">1 {cfg.base} kaç TL? Canlı {cfg.label} alış satış ve günlük değişim</p>
           </div>
         </div>
 
@@ -114,6 +120,64 @@ export default async function DovizDetail({ params }: { params: Promise<{ pair: 
         <Sparkline data={history} up={up} label={`${cfg.label} 30 günlük kur grafiği`} />
         <p className="market-spark-cap">Son 30 günlük {cfg.base}/TRY seyri</p>
       </div>
+
+      {hasTcmb && (
+        <section className="section">
+          <h2 className="market-h2">{cfg.label} Alış Satış — TCMB ve Serbest Piyasa</h2>
+          <p className="market-prose">
+            Aşağıdaki tablo, {cfg.label} için TCMB günlük bültenindeki döviz ve efektif alış-satış
+            kurlarını bu sayfadaki serbest piyasa kuruyla karşılaştırır. Bankalar ve döviz büfeleri
+            kendi makaslarını eklediği için gişede gördüğünüz fiyat bu değerlerden farklı olabilir;
+            alış kurları sizden döviz alırken, satış kurları size döviz satarken uygulanır.
+          </p>
+          <div className="crypto-table-wrap">
+            <table className="crypto-table">
+              <thead>
+                <tr>
+                  <th>Kur</th>
+                  <th className="num">1 {cfg.base} = TL</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Serbest piyasa (bu sayfa)</td>
+                  <td className="num">{d ? `₺${tl(d.rate, 4)}` : "—"}</td>
+                </tr>
+                <tr>
+                  <td>TCMB döviz alış</td>
+                  <td className="num">{tcmb?.forexBuying ? `₺${tl(tcmb.forexBuying, 4)}` : "—"}</td>
+                </tr>
+                <tr>
+                  <td>TCMB döviz satış</td>
+                  <td className="num">{tcmb?.forexSelling ? `₺${tl(tcmb.forexSelling, 4)}` : "—"}</td>
+                </tr>
+                {tcmb?.banknoteBuying || tcmb?.banknoteSelling ? (
+                  <>
+                    <tr>
+                      <td>TCMB efektif alış</td>
+                      <td className="num">{tcmb?.banknoteBuying ? `₺${tl(tcmb.banknoteBuying, 4)}` : "—"}</td>
+                    </tr>
+                    <tr>
+                      <td>TCMB efektif satış</td>
+                      <td className="num">{tcmb?.banknoteSelling ? `₺${tl(tcmb.banknoteSelling, 4)}` : "—"}</td>
+                    </tr>
+                  </>
+                ) : null}
+                {spread != null && (
+                  <tr>
+                    <td>Döviz alış-satış makası</td>
+                    <td className="num muted">%{spread.toFixed(2)}</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          <p className="market-spark-cap">
+            Kaynak: TCMB günlük döviz bülteni{tcmb?.date ? ` (${tcmb.date})` : ""}. Serbest piyasa
+            kuru yaklaşık 10 dakikada bir, TCMB kurları iş günü bülteniyle güncellenir.
+          </p>
+        </section>
+      )}
 
       <AdSlot position="inArticle" />
 

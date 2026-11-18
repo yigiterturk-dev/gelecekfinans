@@ -97,6 +97,9 @@ export default async function DovizHub() {
       <section className="section market-links">
         <h2 className="market-h2">İlgili Sayfalar</h2>
         <div className="market-chips">
+          <Link href="/doviz/usd-try" className="market-chip">Dolar alış satış</Link>
+          <Link href="/doviz/usd-try" className="market-chip">1 dolar kaç TL?</Link>
+          <Link href="/doviz/eur-try" className="market-chip">Euro alış satış</Link>
           <Link href="/altin" className="market-chip">Altın Fiyatları</Link>
           <Link href="/kripto" className="market-chip">Kripto Para</Link>
           <Link href="/faiz" className="market-chip">Faiz Oranları</Link>

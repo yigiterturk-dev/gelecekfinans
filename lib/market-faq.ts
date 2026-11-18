@@ -119,6 +119,10 @@ const DOVIZ_OZEL: Record<string, FaqItem[]> = {
       q: "1 dolar kaç TL sorusunun cevabı gün içinde neden değişiyor?",
       a: "Döviz kuru sabit değil, sürekli işlem gören bir fiyattır. Piyasa saatleri içinde her alım satım emri fiyatı bir miktar oynatır; veri açıklamaları ve merkez bankası duyuruları gibi anlarda hareket belirginleşir. Bu sayfada gösterilen değer son güncelleme anındaki referans kurudur.",
     },
+    {
+      q: "Dolar alış ve satış kuru ne anlama gelir?",
+      a: "Alış kuru, bankanın veya döviz büfesinin sizden dolar alırken uyguladığı fiyattır; satış kuru ise size dolar satarken uyguladığı fiyattır. Satış kuru her zaman alış kurundan yüksektir, aradaki farka makas denir ve kurumun kazancını oluşturur. Bu sayfada serbest piyasa kuru ile TCMB döviz ve efektif alış-satış kurları karşılaştırmalı olarak gösterilir.",
+    },
   ],
   "eur-try": [
     {

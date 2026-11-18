@@ -37,6 +37,25 @@ async function safeFetch<T>(
   }
 }
 
+/** XML/düz metin fetch'i — JSON olmayan uçlar (TCMB kurları) için. Hata → null. */
+async function safeFetchText(url: string, revalidate: number, timeoutMs = 6000): Promise<string | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      next: { revalidate },
+      signal: controller.signal,
+      headers: { Accept: "application/xml,text/xml,*/*" },
+    });
+    if (!res.ok) return null;
+    return await res.text();
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /* ----------------------------------------------------------------------------
  * DÖVİZ
  * ------------------------------------------------------------------------- */
@@ -194,6 +213,51 @@ export async function getFxHistory(base: string): Promise<number[] | null> {
     .map((day) => data.rates![day]?.TRY)
     .filter((v): v is number => typeof v === "number" && v > 0);
   return points.length > 1 ? points : null;
+}
+
+export interface TcmbFx {
+  code: string;
+  unit: number;
+  forexBuying: number | null;
+  forexSelling: number | null;
+  banknoteBuying: number | null;
+  banknoteSelling: number | null;
+  date: string | null;
+}
+
+function xmlTag(block: string, tag: string): string | null {
+  const m = block.match(new RegExp(`<${tag}>([^<]*)</${tag}>`));
+  return m ? m[1].trim() : null;
+}
+
+function xmlNum(v: string | null, unit = 1): number | null {
+  if (!v) return null;
+  const n = Number(v.replace(",", "."));
+  return Number.isFinite(n) && n > 0 ? n / unit : null;
+}
+
+/** TCMB günlük döviz bülteninden (today.xml) bir para biriminin döviz/efektif
+ *  alış-satış değerlerini çeker. Bülten iş günleri yayımlanır; hafta sonu son
+ *  iş günü değeri döner. Ulaşılamazsa null (sayfa serbest piyasa kuruyla çalışır). */
+export async function getTcmbFx(code: string): Promise<TcmbFx | null> {
+  const xml = await safeFetchText("https://www.tcmb.gov.tr/kurlar/today.xml", 1800);
+  if (!xml) return null;
+  const date = xml.match(/<Tarih_Date[^>]*Tarih="([^"]+)"/)?.[1] ?? null;
+  const blockRe = /<Currency[^>]*CurrencyCode="([^"]+)"[^>]*>([\s\S]*?)<\/Currency>/g;
+  for (let m = blockRe.exec(xml); m; m = blockRe.exec(xml)) {
+    if (m[1] !== code) continue;
+    const unit = Number(xmlTag(m[2], "Unit")) || 1;
+    return {
+      code,
+      unit,
+      forexBuying: xmlNum(xmlTag(m[2], "ForexBuying"), unit),
+      forexSelling: xmlNum(xmlTag(m[2], "ForexSelling"), unit),
+      banknoteBuying: xmlNum(xmlTag(m[2], "BanknoteBuying"), unit),
+      banknoteSelling: xmlNum(xmlTag(m[2], "BanknoteSelling"), unit),
+      date,
+    };
+  }
+  return null;
 }
 
 /**
