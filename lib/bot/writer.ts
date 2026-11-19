@@ -144,6 +144,13 @@ function deepseek(): OpenAI {
  * denenir; ikincisi de tutmazsa hata yükselir (sessizce bozuk makale üretmek
  * yerine koşuyu düşürmek doğru davranış).
  */
+/** Kod bloğu/ön metin sarmalını atar; ilk '{' ile son '}' arasını döndürür. */
+export function extractJsonObject(content: string): string {
+  const start = content.indexOf("{");
+  const end = content.lastIndexOf("}");
+  return start >= 0 && end > start ? content.slice(start, end + 1) : content;
+}
+
 async function deepseekJson<T>(args: {
   model: string;
   system: string;
@@ -164,7 +171,10 @@ async function deepseekJson<T>(args: {
   ].join("\n");
 
   let lastError: unknown;
-  for (let attempt = 0; attempt < 2; attempt++) {
+  // 2026-11-19: Ollama DeepSeek 1.3 sıcaklıkta zaman zaman bozuk JSON veriyor
+  // ("Expected ',' or ']'"). Ayrıştırma hatasından sonra sıcaklık düşürülüyor.
+  let jsonBroken = false;
+  for (let attempt = 0; attempt < 3; attempt++) {
     const response = await deepseek().chat.completions.create({
       model: args.model,
       max_tokens: args.maxTokens,
@@ -173,7 +183,9 @@ async function deepseekJson<T>(args: {
       // DeepSeek'in kendi önerisi yaratıcı/yeniden yazım işleri için 1.3.
       // Doğrulayıcı çağrısında yüksek sıcaklık istemiyoruz: orada iş kanıt
       // karşılaştırmak, tutarlılık lazım.
-      temperature: Number(process.env.DEEPSEEK_TEMPERATURE || (args.name.includes("article") ? 1.3 : 0.3)),
+      temperature: jsonBroken
+        ? 0.7
+        : Number(process.env.DEEPSEEK_TEMPERATURE || (args.name.includes("article") ? 1.3 : 0.3)),
       response_format: { type: "json_object" },
       // Aynı uç Gemini'nin OpenAI uyumlu adresine de bağlanıyor. gemini-2.5-flash
       // düşünme token'larını max_tokens'tan yiyor: hakem çağrısında (300) 243'ü
@@ -204,9 +216,10 @@ async function deepseekJson<T>(args: {
     }
     if (!content) { lastError = new Error("DeepSeek boş yanıt döndürdü"); continue; }
     try {
-      return args.schema.parse(JSON.parse(content)) as T;
+      return args.schema.parse(JSON.parse(extractJsonObject(content))) as T;
     } catch (error) {
       lastError = error;
+      if (error instanceof SyntaxError) jsonBroken = true;
     }
   }
   throw new Error(`DeepSeek şemaya uygun çıktı üretemedi: ${(lastError as Error)?.message || "bilinmeyen hata"}`);
@@ -262,7 +275,9 @@ function articleInstructions(targetWords: number): string {
     // evidenceIds kalite kapısında pakettekilerle birebir karşılaştırılıyor.
     // Küçük modeller "ev-1" gibi kısaltılmış kimlik uyduruyor ve makale düşüyor.
     "Her somut iddiayı claims alanında yaz ve destekleyen evidenceIds değerlerini belirt. evidenceIds değerleri KANIT PAKETİ'nde köşeli parantez içinde verilen kimliklerin birebir kopyası olmalı (ör. tamamını olduğu gibi yaz); kısaltma, numaralandırma veya yeni kimlik uydurma.",
-    "Kanıtlar çatışıyorsa kesin hüküm verme; metinde çatışmayı açıkça belirt.",
+    // KAYNAK ANLATIMI YASAĞI ile çelişiyordu; DeepSeek çatışmayı "kaynaklar
+    // farklılık gösteriyor" diye anlatıp doğrulayıcıya takılıyordu (11-19).
+    "Kanıtlar bir olguda çatışıyorsa o olgu için kesin hüküm verme: en kesin/en yeni rakamı tek başına kullan ya da o olguyu hiç yazma. Okura kaynakların ne dediğini veya kanıtta neyin olmadığını anlatma.",
     "Doğrudan alıntı kullanma. Uzman görüşü, neden-sonuç, oran, tarih, unvan veya Türkiye etkisi uydurma.",
     // İntihal kapısı (plagiarism.ts) kaynakla %25 örtüşmeyi veya 14 kelimelik
     // kesintisiz eşleşmeyi reddediyor. Küçük modeller kanıt metnini olduğu gibi
@@ -1426,7 +1441,11 @@ function entityInstructions(targetWords: number, context: {
     "KANIT KURALI (bu şeritte mutlak):",
     "Konu GERÇEK bir kişi/kurumdur. Yalnızca KANIT PAKETİ'nde açıkça yazan olguları kullan.",
     "Doğum tarihi, eğitim, unvan, ortaklık yapısı, kuruluş yılı, sermaye, çalışan sayısı gibi bilgileri kanıtta GEÇMİYORSA YAZMA — belleğinden tamamlama, tahmin etme, 'muhtemelen' deme.",
-    "Bilgi eksikse bunu açıkça söyle: 'kamuya açık haber kaynaklarında bu bilgiye yer verilmedi' gibi. Eksiği belirtmek hata değil, doğru davranıştır.",
+    // 2026-11-19: eskiden "eksiği açıkça söyle" deniyordu; doğrulayıcı bu
+    // cümleleri ("kaynaklarda yer verilmedi", "resmî kaynaklara bakılmalı")
+    // kanıtsız genelleme diye reddediyor, Fed/BofA profilleri bu kilitte öldü.
+    // Eksik bilgi artık hiç anılmıyor: konu başlığı da açılmıyor.
+    "Bilgi eksikse o konuyu HİÇ YAZMA: o konuya bölüm veya SSS açma, 'kaynaklarda yer verilmedi', 'kanıtta geçmiyor', 'resmî kaynaklara bakılmalı' gibi kaynak/kanıt hakkında cümle kurma. Metin yalnızca kanıtta olan olgulardan oluşsun.",
     "Her somut iddiayı claims alanında yaz ve evidenceIds değerlerini KANIT PAKETİ'ndeki kimliklerin birebir kopyası olarak ver; köşeli parantez ekleme, kimlik uydurma.",
     "Olumsuz, suçlayıcı veya itibar zedeleyici bir ifadeyi kanıtta birebir dayanağı yoksa asla yazma.",
     "",
