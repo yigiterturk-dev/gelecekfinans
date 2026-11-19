@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { paylasimMeta } from "@/lib/og";
 import Link from "next/link";
 import { getAllDividends } from "@/lib/dividends";
 import { tl } from "@/lib/market";
@@ -20,8 +21,7 @@ export async function generateMetadata(): Promise<Metadata> {
     title,
     description,
     alternates: { canonical: URL },
-    openGraph: { type: "website", url: URL, title, description, siteName: "GelecekFinans" },
-    twitter: { card: "summary_large_image", title, description },
+    ...paylasimMeta({ url: URL, title, description }),
   };
 }
 

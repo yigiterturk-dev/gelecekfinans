@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { paylasimMeta } from "@/lib/og";
 import Link from "next/link";
 import { getBistAll, BIST_INDEX_SLUG, tl, pctText, fmtUpdated, safeRelatedArticles } from "@/lib/market";
 import { MedCard } from "@/components/ArticleCard";
@@ -19,8 +20,7 @@ export async function generateMetadata(): Promise<Metadata> {
     title,
     description,
     alternates: { canonical: `${BASE}/borsa` },
-    openGraph: { type: "website", url: `${BASE}/borsa`, title, description, siteName: "GelecekFinans" },
-    twitter: { card: "summary_large_image", title, description },
+    ...paylasimMeta({ url: `${BASE}/borsa`, title, description }),
   };
 }
 
