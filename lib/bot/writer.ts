@@ -270,6 +270,7 @@ function articleInstructions(targetWords: number): string {
     "Kanıt metnindeki cümleleri KOPYALAMA. Olguları kendi cümlelerinle, kendi cümle kuruluşunla yeniden yaz. Kaynakla 6 kelimeden uzun birebir ortak dizi kalmasın; yalnızca rakamlar, özel adlar ve kurum adları aynı kalabilir.",
     "Uzun hukuki veya teknik tanımları cümle cümle aktarma; sadeleştirerek anlat, terim adını en fazla 6 kelimeyle ver.",
     "YORUM YASAK: Olayı değerlendirme, yorumlama veya tahmin etme. 'dikkat çekici', 'yankı uyandırdı', 'sinyallerini veriyor', 'önemli bir adım', 'piyasalar rahatladı', 'gözler ... çevrildi' gibi ifadeler kullanma. Yalnızca kanıtta yazılan olguları aktar; neden-sonuç ve gelecek çıkarımı yapma.",
+    "KAYNAK ANLATIMI YASAK: Haber kaynaklarını kendi aralarında karşılaştırma veya kaynak sürecini okura anlatma. 'X ayrı yayın organının aktardığı rakamlar', 'başlıklarda ... ifadesi kullanılırken metinlerde ...', 'kaynaklar bu konuda ayrışıyor' gibi cümleler kurma. Kaynaklar rakamı farklı yuvarlıyorsa en kesin rakamı kullan, farkı anlatma. Atıf gerekiyorsa yalnızca 'TCMB verilerine göre' gibi kısa biçimde yap.",
     "Yatırım tavsiyesi, teknik analiz, destek/direnç, fiyat hedefi ve gelecek tahmini yazma.",
     /**
      * ⚠️ ÇIPA ETKİSİ (ölçüldü 2026-09-04): istem "EN AZ 320" derken yayındaki

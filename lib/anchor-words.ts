@@ -51,6 +51,14 @@ const GENERIC_ANCHOR_WORDS = new Set([
   "mayısta", "haziranda", "temmuzda", "ağustosta", "eylülde", "ekimde",
   "kasımda", "aralıkta", "bugün", "dün", "yarın", "hafta", "haftalık", "aylık",
   "günlük", "yıllık", "çeyrek", "sabah", "akşam",
+  // Miktar/birim ifadeleri konu değildir. 19 Kasım 2026: "dolarlık" 8 harf
+  // olduğu için ayırt edici sayıldı; TCMB rezerv haberindeki "milyar dolarlık"
+  // öbeği rüzgâr enerjisi haberine bağlandı.
+  "milyar", "milyarlık", "milyon", "milyonluk", "trilyon", "trilyonluk",
+  "dolarlık", "liralık", "euroluk", "avroluk", "yüzde", "yüzdelik", "puanlık",
+  "seviye", "seviyesi", "seviyesinde", "seviyesine", "düzeyi", "düzeyinde",
+  "düzeyine", "oranında", "oranı", "rahatlama", "artış", "düşüş", "yükseliş",
+  "geriledi", "geriliyor", "rekor",
 ]);
 
 export const MIN_SINGLE_WORD_ANCHOR = 7;
