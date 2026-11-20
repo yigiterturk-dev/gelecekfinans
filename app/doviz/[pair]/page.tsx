@@ -1,3 +1,4 @@
+import { datasetDescription } from "@/lib/dataset-desc";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -59,7 +60,7 @@ export default async function DovizDetail({ params }: { params: Promise<{ pair: 
       {
         "@type": "Dataset",
         name: `${cfg.long} (${cfg.base}/TRY) Kuru`,
-        description: `${cfg.long} için güncel Türk Lirası kuru ve geçmiş veri.`,
+        description: datasetDescription(`${cfg.long} için güncel Türk Lirası kuru ve geçmiş veri.`),
         url: `${BASE}/doviz/${pair}`,
         creator: { "@type": "Organization", name: "GelecekFinans" },
         ...(d

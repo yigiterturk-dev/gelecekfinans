@@ -1,3 +1,4 @@
+import { datasetDescription } from "@/lib/dataset-desc";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -66,7 +67,7 @@ export default async function HisseDetail({ params }: { params: Promise<{ hisse:
       {
         "@type": "Dataset",
         name: baslik,
-        description: cfg.about,
+        description: datasetDescription(cfg.about),
         url: `${BASE}/borsa/${hisse}`,
         creator: { "@type": "Organization", name: "GelecekFinans" },
         ...(d

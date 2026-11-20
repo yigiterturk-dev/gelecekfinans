@@ -1,3 +1,4 @@
+import { datasetDescription } from "@/lib/dataset-desc";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -52,7 +53,7 @@ export default async function KriptoDetail({ params }: { params: Promise<{ coin:
       {
         "@type": "Dataset",
         name: `${cfg.label} (${cfg.symbol}/TRY) Fiyatı`,
-        description: `${cfg.label} için güncel Türk Lirası fiyatı ve piyasa verisi.`,
+        description: datasetDescription(`${cfg.label} için güncel Türk Lirası fiyatı ve piyasa verisi.`),
         url: `${BASE}/kripto/${coin}`,
         creator: { "@type": "Organization", name: "GelecekFinans" },
         ...(d

@@ -1,3 +1,4 @@
+import { datasetDescription } from "@/lib/dataset-desc";
 import type { Metadata } from "next";
 import { paylasimMeta } from "@/lib/og";
 import Link from "next/link";
@@ -62,7 +63,7 @@ export default async function TemettuTakvimi() {
       {
         "@type": "Dataset",
         name: "BIST hisseleri temettü geçmişi",
-        description: "Borsa İstanbul hisselerinin hak kullanım tarihli, bedelsiz/bölünme düzeltmeli hisse başı kâr payı tutarları.",
+        description: datasetDescription("Borsa İstanbul hisselerinin hak kullanım tarihli, bedelsiz/bölünme düzeltmeli hisse başı kâr payı tutarları."),
         url: URL,
         creator: { "@type": "Organization", name: "GelecekFinans", url: BASE },
         isAccessibleForFree: true,

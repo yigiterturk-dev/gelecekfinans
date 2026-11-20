@@ -1,3 +1,4 @@
+import { datasetDescription } from "@/lib/dataset-desc";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -51,7 +52,7 @@ export default async function AltinDetail({ params }: { params: Promise<{ type: 
       {
         "@type": "Dataset",
         name: `${cfg.long} Fiyatı (TL)`,
-        description: cfg.desc,
+        description: datasetDescription(cfg.desc),
         url: `${BASE}/altin/${type}`,
         creator: { "@type": "Organization", name: "GelecekFinans" },
         ...(d
