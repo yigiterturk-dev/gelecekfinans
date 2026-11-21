@@ -126,6 +126,17 @@ function writerEffort(): ReasoningEffort {
   return v === "low" || v === "medium" || v === "high" ? v : "minimal";
 }
 
+/**
+ * 2026-11-22: doğrulayıcı "minimal"de itiraz olmayan cümleleri (kaynağın
+ * kendisini özetleyen, "bazı haberler X diyor bazıları demiyor" gibi)
+ * unsupported/conflicting diye döndürüyordu → haber hattı 11-17'den beri 0.
+ * OPENAI_VERIFIER_EFFORT ile yükseltilebilir; varsayılan minimal.
+ */
+function verifierEffort(): ReasoningEffort {
+  const v = process.env.OPENAI_VERIFIER_EFFORT;
+  return v === "low" || v === "medium" || v === "high" ? v : "minimal";
+}
+
 let openaiClient: OpenAI | null = null;
 let anthropicClient: Anthropic | null = null;
 
@@ -654,7 +665,7 @@ async function verifyDraft(topic: Topic, draft: ArticleDraft): Promise<Verificat
       // (2026-08-13'te canlı hata kaydından alındı; 7 günde 9 koşu bu yüzden
       //  düştü.) "minimal" en yakın karşılık: en az akıl yürütme, en hızlı,
       //  en ucuz — davranış "none" ile aynı niyette.
-      ...reasoningParam(config.verifierModel),
+      ...reasoningParam(config.verifierModel, verifierEffort()),
       input: [
         { role: "system", content: system },
         { role: "user", content: userPrompt },
@@ -766,7 +777,7 @@ async function verifyGuideDraft(topic: Topic, draft: ArticleDraft): Promise<Veri
       // "durum: incomplete, eksik: max_output_tokens" (31 Ağu'da 4 rehber
       // koşumunun 2'si böyle öldü). Yazar ve haber doğrulayıcısı zaten
       // "minimal" kullanıyor; bu çağrı atlanmıştı.
-      ...reasoningParam(config.verifierModel),
+      ...reasoningParam(config.verifierModel, verifierEffort()),
       input: [{ role: "system", content: system }, { role: "user", content: user }],
       text: { format: zodTextFormat(VerificationSchema, "gelecekfinans_guide_verification") },
     });
