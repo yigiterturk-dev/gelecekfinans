@@ -383,13 +383,16 @@ function guideInstructions(targetWords: number, context: {
     related,
     "",
     `Gövde EN AZ 900, en fazla 1800 kelime olmalı; hedef ${Math.max(900, Math.min(targetWords, 1800))} kelime.`,
+    // 11-21: gpt-5-mini kelime hedefini yok sayıp 494-571 kelime yazıyordu
+    // (kapı 850). Model sayıya değil YAPIYA uyuyor; uzunluğu yapıyla ver.
+    "UZUNLUK YAPIDAN GELİR: en az 6 bölüm yaz; her bölümde en az 3 paragraf olsun ve her paragraf 4-5 tam cümle (yaklaşık 60-80 kelime) içersin. Tek cümlelik paragraf yazma. Doldurmak için tekrar etme: örnek, hesaplama yöntemi, sık yapılan hata ve okurun dikkat etmesi gereken noktayla derinleştir.",
     // Üst sınır 160: SEO çözümleyicisi 165'in üstünü uzun sayıyor ve arama
     // sonucu zaten ~155'te kırpıyor.
     "Başlık 35-85 karakter olsun. Meta açıklama 145-160 karakter arasında olsun; 165 karakteri KESİNLİKLE geçme.",
     "Her ana bölüme 1-2 adet H3 alt başlık (subsections) ekle; alt başlık da okurun sorduğu bir soru olsun. En az iki bölümde alt başlık bulunsun.",
     `keyword alanı tam olarak "${context.keyword}" olsun ve bu ifade AYNEN hem meta hem de lede içinde geçsin.`,
     "Odak kelime meta açıklamada cümlenin içinde doğal geçmeli; metanın sonuna \"Keyword: ...\" gibi etiket EKLEME.",
-    "4-8 bölüm, 3 özet maddesi ve 4-6 SSS üret. SSS'ler okurun gerçekten arayacağı sorular olsun, cevaplar 2-4 cümle.",
+    "6-8 bölüm, 3 özet maddesi ve 4-6 SSS üret. SSS'ler okurun gerçekten arayacağı sorular olsun, cevaplar 2-4 cümle.",
     "Kaynak metindeki cümleleri KOPYALAMA; kendi cümlelerinle yaz, 10 kelimeden uzun birebir ortak dizi kalmasın.",
     "Yatırım tavsiyesi, getiri vaadi, fiyat hedefi ve 'şunu al' tarzı yönlendirme YASAK.",
     'Disclaimer tam olarak "Bu içerik yalnızca bilgilendirme amaçlıdır, yatırım tavsiyesi değildir." olsun.',
