@@ -7,7 +7,7 @@ import { getGuides } from "@/lib/articles";
 import { MedCard } from "@/components/ArticleCard";
 import AdSlot from "@/components/AdSlot";
 import MarketFaq from "@/components/MarketFaq";
-import { fxFaq } from "@/lib/market-faq";
+import { fxFaq, fxLiveFaq } from "@/lib/market-faq";
 import { FX_PROFILES } from "@/lib/asset-profiles";
 import Sparkline from "@/components/Sparkline";
 import CurrencyConverter from "@/components/CurrencyConverter";
@@ -201,7 +201,15 @@ export default async function DovizDetail({ params }: { params: Promise<{ pair: 
         </p>
       </section>
 
-      <MarketFaq items={[...(FX_PROFILES[pair]?.faq ?? []), ...fxFaq(pair)]} />
+      <MarketFaq
+        items={[
+          ...[fxLiveFaq(pair, cfg.label, cfg.base, d, tcmb?.banknoteSelling ?? null, { tl, when: fmtUpdated })].filter(
+            (x): x is NonNullable<typeof x> => x !== null,
+          ),
+          ...(FX_PROFILES[pair]?.faq ?? []),
+          ...fxFaq(pair),
+        ]}
+      />
 
       <section className="section market-links">
         <h2 className="market-h2">Diğer Döviz Kurları</h2>

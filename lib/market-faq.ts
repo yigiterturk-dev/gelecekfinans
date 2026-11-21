@@ -415,3 +415,32 @@ export const FAIZ_FAQ: FaqItem[] = [
     a: "Hayır. Politika faizi bankaların Merkez Bankası'ndan fonlanma maliyetidir; mevduat faizi ise bankaların mudiye ödediği orandır ve bankadan bankaya, vadeye ve tutara göre değişir. Politika faizi yön verir ama birebir belirlemez.",
   },
 ];
+
+/**
+ * "1 euro ne kadar / dolar bugün kaç TL" sorguları için CANLI soru: cevap,
+ * sayfanın zaten çektiği kurdan üretilir (uydurma rakam yok). Kur yoksa soru
+ * hiç basılmaz. FAQPage JSON-LD görünür SSS'den üretildiği için ikisi aynıdır.
+ */
+export function fxLiveFaq(
+  pair: string,
+  label: string,
+  base: string,
+  fx: { rate: number; changePct: number | null; updatedAt: string | null } | null,
+  tcmbBanknoteSelling: number | null,
+  fmt: { tl: (n: number, d?: number) => string; when: (iso: string | null) => string },
+): FaqItem | null {
+  if (!fx || !Number.isFinite(fx.rate)) return null;
+  const ad = pair === "eur-try" ? "euro (avro)" : label.toLocaleLowerCase("tr-TR");
+  const zaman = fmt.when(fx.updatedAt);
+  const degisim =
+    fx.changePct == null
+      ? ""
+      : ` Önceki kapanışa göre değişim %${Math.abs(fx.changePct).toFixed(2).replace(".", ",")} ${fx.changePct >= 0 ? "yükseliş" : "düşüş"}.`;
+  const tcmb = tcmbBanknoteSelling
+    ? ` Merkez Bankası'nın bugünkü efektif satış kuru ₺${fmt.tl(tcmbBanknoteSelling, 4)}.`
+    : "";
+  return {
+    q: `Bugün 1 ${ad} ne kadar, kaç TL?`,
+    a: `${zaman ? `${zaman} itibarıyla` : "Son güncellemeye göre"} 1 ${base} = ₺${fmt.tl(fx.rate, 4)} (serbest piyasa referans kuru).${degisim}${tcmb} Banka ve döviz bürolarında bu kurun üzerine alış-satış makası eklendiği için gişede göreceğiniz fiyat farklı olabilir.`,
+  };
+}
