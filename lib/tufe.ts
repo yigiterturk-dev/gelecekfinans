@@ -106,3 +106,37 @@ export async function getCpiSnapshot() {
 
 export const pct = (v: number | null, d = 2) =>
   v === null ? "—" : `%${v.toLocaleString("tr-TR", { minimumFractionDigits: d, maximumFractionDigits: d })}`;
+
+type CpiSnapshot = NonNullable<Awaited<ReturnType<typeof getCpiSnapshot>>>;
+
+/**
+ * Kira/emekli/memur araçlarının başlığı son açıklanan TÜFE'den kurulur:
+ * "Aralık 2026 kira artış oranı" gibi aylık sorgular araç sayfasına düşsün,
+ * ayrı ince sayfa açılmasın. Veri yoksa null → statik başlık kalır.
+ */
+export function cpiToolMeta(kind: "kira" | "emekli" | "memur", snap: CpiSnapshot | null) {
+  if (!snap) return null;
+  const { latest, half } = snap;
+  if (kind === "kira") {
+    if (latest.avg12 === null) return null;
+    const ay = monthLabel(nextMonth(latest.ym));
+    return {
+      title: `${ay} Kira Artış Oranı ${pct(latest.avg12)} — Kira Artışı Hesaplama`,
+      desc: `${ay}'da yenilenen kira sözleşmelerinde azami artış ${pct(latest.avg12)} (TÜİK ${latest.label} TÜFE 12 aylık ortalama, TBK 344). Yeni kira bedelini hesaplayın.`,
+    };
+  }
+  if (!half) return null;
+  const donem = `${half.months} aylık enflasyon ${pct(half.pct)} (${half.fromLabel}–${half.toLabel})`;
+  if (kind === "emekli") {
+    return {
+      title: half.complete
+        ? `${half.raiseMonth} Emekli Zammı ${pct(half.pct)} — Emekli Maaşı Zam Hesaplama`
+        : `${half.raiseMonth} Emekli Zammı: ${half.months} Aylık Enflasyon ${pct(half.pct)} — Hesaplama`,
+      desc: `SSK ve Bağ-Kur emeklisinin ${half.raiseMonth} zammı 6 aylık TÜFE'dir. ${half.complete ? "Kesinleşen" : "Şu ana kadarki"} ${donem}, TÜİK. Yeni aylığınızı hesaplayın.`,
+    };
+  }
+  return {
+    title: `${half.raiseMonth} Memur Zammı Hesaplama — ${half.months} Aylık Enflasyon ${pct(half.pct)}`,
+    desc: `Memur ve memur emeklisi ${half.raiseMonth} zammı: toplu sözleşme oranı + enflasyon farkı. ${half.complete ? "Kesinleşen" : "Şu ana kadarki"} ${donem}, TÜİK. Yeni maaşı hesaplayın.`,
+  };
+}

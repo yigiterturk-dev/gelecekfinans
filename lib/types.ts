@@ -26,6 +26,8 @@ export interface Article {
   imageUrl?: string | null;
   /** CC BY / BY-SA gibi atıf isteyen lisanslarda zorunlu künye. */
   imageCredit?: ImageCredit | null;
+  /** automationMeta.seoNoindex: ince/gösterimsiz eski haber → noindex,follow + sitemap dışı. */
+  noindex?: boolean;
   views?: number;
   updatedAt?: string;
   premium?: boolean;

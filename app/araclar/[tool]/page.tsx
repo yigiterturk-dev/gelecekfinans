@@ -17,7 +17,7 @@ import RentIncreaseCalculator from "@/components/calculators/RentIncreaseCalcula
 import PensionRaiseCalculator from "@/components/calculators/PensionRaiseCalculator";
 import MemurRaiseCalculator from "@/components/calculators/MemurRaiseCalculator";
 import CpiTable from "@/components/CpiTable";
-import { getCpiSnapshot, monthLabel, nextMonth } from "@/lib/tufe";
+import { cpiToolMeta, getCpiSnapshot, monthLabel, nextMonth } from "@/lib/tufe";
 import DividendCalculator from "@/components/calculators/DividendCalculator";
 import SalaryCalculator from "@/components/calculators/SalaryCalculator";
 
@@ -215,12 +215,16 @@ export async function generateMetadata({ params }: { params: Promise<{ tool: str
   const { tool } = await params;
   const t = TOOLS[tool];
   if (!t) return {};
+  const cpiKind = t.component === "kira" || t.component === "emekli" || t.component === "memur" ? t.component : null;
+  const dyn = cpiKind ? cpiToolMeta(cpiKind, await getCpiSnapshot()) : null;
+  const metaTitle = dyn?.title ?? t.metaTitle;
+  const desc = dyn?.desc ?? t.desc;
   return {
-    title: t.metaTitle,
-    description: t.desc,
+    title: metaTitle,
+    description: desc,
     alternates: { canonical: `${BASE}/araclar/${tool}` },
-    openGraph: { type: "website", url: `${BASE}/araclar/${tool}`, title: t.metaTitle, description: t.desc, siteName: "GelecekFinans" },
-    twitter: { card: "summary_large_image", title: t.metaTitle, description: t.desc },
+    openGraph: { type: "website", url: `${BASE}/araclar/${tool}`, title: metaTitle, description: desc, siteName: "GelecekFinans" },
+    twitter: { card: "summary_large_image", title: metaTitle, description: desc },
   };
 }
 

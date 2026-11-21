@@ -19,6 +19,7 @@ const MARKET=[
   {h:"/borsa",l:"BIST 100"},
   {h:"/kripto",l:"Kripto Fiyatları"},
   {h:"/faiz",l:"Faiz"},
+  {h:"/enflasyon",l:"Enflasyon"},
   {h:"/araclar",l:"Araçlar"},
   {h:"/rehber",l:"Rehberler"},
 ];

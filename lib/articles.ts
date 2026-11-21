@@ -283,6 +283,7 @@ export const getArticleBySlug = cache(async function getArticleBySlug(
     aiExtras: coerceExtras(r.aiExtras),
     // Stok görselin lisans künyesi (CC BY/BY-SA'da görünmesi zorunlu).
     imageCredit: coerceImageCredit(r.automationMeta),
+    noindex: isSeoNoindex(r.automationMeta),
   };
 });
 
@@ -361,4 +362,14 @@ export function buildTeaser(html: string, maxWords = 200): string {
   // Açık kalan etiketleri kapat
   while (openTags.length) out.push(`</${openTags.pop()}>`);
   return out.join("");
+}
+
+/**
+ * İnce sayfa işareti: automationMeta.seoNoindex === true. Envanter kuralı
+ * (2026-11-21): haber + ≥21 gün + GSC 90 günde 0 gösterim. Sayfa yayında
+ * kalır (iç linkler, okur), yalnız indeks dışı ve sitemap dışı olur.
+ * Geri almak için alanı silmek yeter.
+ */
+export function isSeoNoindex(meta: unknown): boolean {
+  return !!meta && typeof meta === "object" && (meta as Record<string, unknown>).seoNoindex === true;
 }

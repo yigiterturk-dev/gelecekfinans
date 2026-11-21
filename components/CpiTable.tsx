@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { monthLabel, nextMonth, pct, type CpiRow } from "@/lib/tufe";
 
 /**
@@ -35,6 +36,7 @@ export default function CpiTable({ rows, mode }: { rows: CpiRow[]; mode: "kira" 
         Kaynak: TÜİK Tüketici Fiyat Endeksi (Genel, 2003=100), TCMB EVDS üzerinden; oranlar endeksten hesaplanır.
         Son veri: {last[0]?.label}. Her ayın 3&apos;ünde TÜİK açıklamasından sonra en geç 1 saat içinde güncellenir.
         {mode === "kira" && " Kira yenileme ayındaki azami artış, bir önceki ayın TÜFE 12 aylık ortalama değişimidir (TBK m. 344)."}
+        {" "}Tüm aylar ve yıl sonu oranları: <Link href="/enflasyon">enflasyon oranı (TÜFE) sayfası</Link>.
       </p>
     </section>
   );

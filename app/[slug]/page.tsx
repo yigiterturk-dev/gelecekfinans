@@ -63,6 +63,7 @@ export async function generateMetadata({params}:{params:Promise<{slug:string}>})
   return{
     title:a.title,description:a.meta,keywords:a.keyword,
     alternates: { canonical: `${BASE}/${slug}` },
+    ...(a.noindex ? { robots: { index: false, follow: true } } : {}),
     openGraph:{
       title:a.title,description:a.meta,type:"article",publishedTime:a.created_at,
       modifiedTime:a.updatedAt||a.created_at,authors:[`${BASE}/hakkimizda`],section:a.category,

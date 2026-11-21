@@ -1,3 +1,4 @@
+import { isSeoNoindex } from "@/lib/articles";
 import { prisma } from "@/lib/db";
 import { FX_PAIRS, GOLD_TYPES, CRYPTO_COINS, BIST_STOCKS } from "@/lib/market";
 import { absoluteImageUrl } from "@/lib/image-url";
@@ -69,14 +70,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     publishedAt: Date | null;
     updatedAt: Date;
     imageUrl: string | null;
+    automationMeta?: unknown;
   }> = [];
   try {
     articles = await prisma.article.findMany({
       where: { status: "PUBLISHED" },
       orderBy: { publishedAt: "desc" },
       take: 5000,
-      select: { slug: true, category: true, publishedAt: true, updatedAt: true, imageUrl: true },
+      select: { slug: true, category: true, publishedAt: true, updatedAt: true, imageUrl: true, automationMeta: true },
     });
+    // İnce sayfa işaretli (noindex) yazılar sitemap'e girmez.
+    articles = articles.filter((a) => !isSeoNoindex(a.automationMeta));
   } catch (err) {
     console.error("[sitemap] makale sorgusu başarısız, statik girdilerle devam:", err);
   }
@@ -122,6 +126,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     "/borsa/tatil-gunleri": new Date("2026-11-21"),
     "/kripto": PROFIL_TARIHLERI.kripto,
     "/faiz": PROFIL_TARIHLERI.arac,
+    "/enflasyon": new Date("2026-11-21"),
     "/araclar": PROFIL_TARIHLERI.arac,
   };
   const marketHubs = Object.keys(HUB_TARIHI).map((u) => ({
