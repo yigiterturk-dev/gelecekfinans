@@ -25,6 +25,7 @@ const TOOLS = [
   { href: "/araclar/kira-artis-hesaplama", label: "Kira Artışı" },
   { href: "/araclar/emekli-zammi-hesaplama", label: "Emekli Zammı" },
   { href: "/araclar/memur-zammi-hesaplama", label: "Memur Zammı" },
+  { href: "/araclar/brut-net-maas-hesaplama", label: "Brüt Net Maaş" },
   { href: "/araclar/temettu-hesaplama", label: "Temettü" },
 ];
 

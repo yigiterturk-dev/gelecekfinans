@@ -55,8 +55,8 @@ export const HOOK_TOPICS: HookTopic[] = [
   },
   {
     id: "asgari-ucret",
-    toolPath: "/araclar/enflasyon-hesaplama",
-    ctaText: "Enflasyon hesaplama aracıyla maaşınızın alım gücünü görün",
+    toolPath: "/araclar/brut-net-maas-hesaplama",
+    ctaText: "Brüt net maaş hesaplama aracıyla elinize geçecek tutarı hesaplayın",
     signals: ["asgari ücret", "asgari ücrete", "asgari ücretli"],
     exclude: FOREIGN,
   },

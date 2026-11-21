@@ -255,6 +255,24 @@ const ARAC_FAQ: Record<string, FaqItem[]> = {
       a: "Hayır. Araç yalnızca girdiğiniz oranla aritmetik hesap yapar. Uyuşmazlık durumunda sözleşmenizi ve güncel mevzuatı bir avukata danışarak değerlendirin.",
     },
   ],
+  "brut-net-maas-hesaplama": [
+    {
+      q: "2026 asgari ücret net ne kadar?",
+      a: "2026 brüt asgari ücret 33.030,00 TL, net asgari ücret 28.075,50 TL'dir (Asgari Ücret Tespit Komisyonu kararı, Resmî Gazete 26.12.2025). Aradaki fark %14 SGK ve %1 işsizlik primidir; asgari ücretten gelir ve damga vergisi alınmaz.",
+    },
+    {
+      q: "Brüt maaştan hangi kesintiler yapılır?",
+      a: "Brütten %14 SGK işçi payı ve %1 işsizlik sigortası primi düşülür, kalan tutar gelir vergisi matrahıdır. Matraha vergi dilimine göre %15-%40 gelir vergisi, brüte binde 7,59 damga vergisi uygulanır; asgari ücrete isabet eden kısım her iki vergiden istisnadır.",
+    },
+    {
+      q: "Net maaş neden yıl içinde düşüyor?",
+      a: "Gelir vergisi yıllık kümülatif matraha göre hesaplanır. Matrah 2026'da 190.000 TL'yi aşınca oran %15'ten %20'ye, 400.000 TL'yi aşınca %27'ye çıkar; brüt aynı kalsa da sonraki aylarda net azalır. Ocakta kümülatif matrah sıfırlanır.",
+    },
+    {
+      q: "2027 asgari ücret ne kadar olacak?",
+      a: "2027 asgari ücreti henüz açıklanmadı; Asgari Ücret Tespit Komisyonu kararı genellikle aralık ayında Resmî Gazete'de yayımlanır. Karar açıklanınca araç yeni tutar ve 2027 vergi dilimleriyle güncellenir.",
+    },
+  ],
   "memur-zammi-hesaplama": [
     {
       q: "Ocak 2027 memur zammı ne kadar olacak?",

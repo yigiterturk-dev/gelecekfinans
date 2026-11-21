@@ -19,6 +19,7 @@ import MemurRaiseCalculator from "@/components/calculators/MemurRaiseCalculator"
 import CpiTable from "@/components/CpiTable";
 import { getCpiSnapshot, monthLabel, nextMonth } from "@/lib/tufe";
 import DividendCalculator from "@/components/calculators/DividendCalculator";
+import SalaryCalculator from "@/components/calculators/SalaryCalculator";
 
 // 1 saat: TÜİK açıklama günü (her ayın 3'ü 10:00) yeni oran en geç 1 saatte görünür.
 export const revalidate = 3600;
@@ -30,7 +31,7 @@ interface ToolDef {
   metaTitle: string;
   desc: string;
   intro: string;
-  component: "doviz" | "altin" | "kredi" | "mevduat" | "enflasyon" | "bilesik" | "hissekz" | "kira" | "emekli" | "memur" | "temettu";
+  component: "doviz" | "altin" | "kredi" | "mevduat" | "enflasyon" | "bilesik" | "hissekz" | "kira" | "emekli" | "memur" | "temettu" | "maas";
   related: { href: string; label: string }[];
 }
 
@@ -160,6 +161,20 @@ const TOOLS: Record<string, ToolDef> = {
       { href: "/araclar", label: "Tüm Araçlar" },
     ],
   },
+  "brut-net-maas-hesaplama": {
+    title: "Brüt Net Maaş Hesaplama",
+    h1: "Brüt Net Maaş Hesaplama 2026 — Brütten Nete, Netten Brüte",
+    metaTitle: "Brüt Net Maaş Hesaplama 2026 — Aylık Net, Vergi Dilimi, İşveren Maliyeti",
+    desc: "2026 vergi dilimleri ve asgari ücret istisnasıyla brütten nete ve netten brüte maaş hesaplayın; 12 aylık net, gelir vergisi, SGK kesintisi ve işveren maliyeti.",
+    intro:
+      "Brüt ya da net maaşınızı girin; araç 2026 gelir vergisi tarifesi, asgari ücret istisnası, SGK ve işsizlik primi ile damga vergisini uygulayarak her ayın netini, vergi dilimini ve işverene maliyeti gösterir. Kümülatif matrah yükseldikçe yılın son aylarında netin neden düştüğünü tablodan görebilirsiniz.",
+    component: "maas",
+    related: [
+      { href: "/araclar/enflasyon-hesaplama", label: "Enflasyon Hesaplama" },
+      { href: "/araclar/memur-zammi-hesaplama", label: "Memur Zammı Hesaplama" },
+      { href: "/araclar", label: "Tüm Araçlar" },
+    ],
+  },
   "memur-zammi-hesaplama": {
     title: "Memur Zammı Hesaplama",
     h1: "Memur Zammı Hesaplama — Ocak 2027 Memur ve Memur Emeklisi Zammı",
@@ -225,6 +240,7 @@ function Calculator({ kind, cpi }: { kind: ToolDef["component"]; cpi: Cpi }) {
     case "emekli": return <PensionRaiseCalculator half={cpi?.half ?? null} />;
     case "memur": return <MemurRaiseCalculator half={cpi?.half ?? null} />;
     case "temettu": return <DividendCalculator />;
+    case "maas": return <SalaryCalculator />;
   }
 }
 

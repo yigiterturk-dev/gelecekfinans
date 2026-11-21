@@ -63,6 +63,34 @@ const GUIDES: Record<string, Block[]> = {
     },
   ],
 
+  "brut-net-maas-hesaplama": [
+    {
+      h: "Brütten nete maaş nasıl hesaplanır?",
+      p: [
+        "Bordroda ilk adım sosyal güvenlik kesintileridir: brüt ücretin %14'ü SGK işçi payı, %1'i işsizlik sigortası primi olarak düşülür. Prim, prime esas kazanç tavanına (2026'da asgari ücretin 9 katı, 297.270 TL) kadar olan kısım üzerinden hesaplanır; tavanın üstündeki ücrette prim sabit kalır.",
+        "Kalan tutar gelir vergisi matrahıdır. 2026 ücret tarifesinde (Gelir Vergisi Genel Tebliği Seri No 332) yıllık matrahın 190.000 TL'ye kadarı %15, 400.000 TL'ye kadarı %20, 1.500.000 TL'ye kadarı %27, 5.300.000 TL'ye kadarı %35, üstü %40 oranında vergilenir. Damga vergisi brüt ücretin binde 7,59'udur.",
+        "Son adım asgari ücret istisnasıdır: asgari ücrete isabet eden gelir vergisi ve damga vergisi her çalışanın vergisinden düşülür. Bu yüzden asgari ücretli hiç vergi ödemez, daha yüksek ücretlilerin vergisi de asgari ücret kadar kısmın vergisi düşülerek hesaplanır.",
+      ],
+    },
+    {
+      h: "Kümülatif matrah ve vergi dilimi",
+      p: [
+        "Gelir vergisi aylık değil, yıl başından itibaren biriken (kümülatif) matraha göre uygulanır. Matrah bir dilim sınırını geçtiği ay, sınırın üstündeki kısım yeni oranla vergilenir. Brüt maaş değişmese de net maaşın yılın ikinci yarısında düşmesinin nedeni budur.",
+        "Asgari ücret istisnası da kümülatif hesaplanır, ancak asgari ücretin yıllık matrahı ilk dilimi aşmadığı için istisna tutarı yıl boyunca aynı kalır. Yüksek ücretlerde dilim atlaması istisnayla telafi edilmez.",
+      ],
+      ul: [
+        "Ocak ayında kümülatif matrah sıfırlanır; net maaş yeniden yükselir.",
+        "Yıl içinde işyeri değiştirirseniz yeni işveren önceki kümülatif matrahı devralır.",
+        "İkramiye ve prim ödemeleri kümülatif matrahı hızlandırarak dilim atlamasını öne çeker.",
+      ],
+    },
+    {
+      h: "İşverene maliyet nasıl hesaplanır?",
+      p: [
+        "İşveren, brüt ücrete ek olarak %21,75 işveren SGK payı (12 malullük-yaşlılık-ölüm, 7,5 genel sağlık, 2,25 kısa vadeli sigorta kolları) ve %2 işsizlik işveren payı öder. Araçtaki maliyet teşviksiz durum içindir; 5 puanlık (imalat) veya 2 puanlık (diğer sektörler) prim teşviki uygulanan işyerlerinde maliyet daha düşüktür.",
+      ],
+    },
+  ],
   "memur-zammi-hesaplama": [
     {
       h: "Memur zammı nasıl hesaplanır?",
