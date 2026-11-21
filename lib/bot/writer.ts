@@ -600,6 +600,9 @@ async function verifyDraft(topic: Topic, draft: ArticleDraft): Promise<Verificat
       "Taslağı yalnızca verilen kanıtlarla karşılaştır.",
       "Kanıtta açıkça bulunmayan veya kanıttan güvenle çıkarılamayan her iddiayı unsupportedClaims alanına ekle.",
       "Kaynaklar birbiriyle çelişiyorsa conflictingClaims alanına ekle.",
+      // 11-21 canlı: gpt-5-nano "bir kaynak 14 ayın dibi diyor, diğeri yalnız
+      // haftalık kayıp diyor" farkını çelişki sayıp haberi durdurdu.
+      "ÇELİŞKİ yalnızca AYNI olgu için farklı rakam, tarih veya yöndür. Bir kaynağın bir ayrıntıyı vermemesi ya da kaynakların farklı ayrıntılara değinmesi çelişki DEĞİLDİR; bunu yazma.",
       "passed yalnızca tüm iddialar destekleniyor, önemli çelişki yok ve kanıt kimlikleri doğruysa true olabilir.",
       "Eksik bilgiyi tahmin etme; durma kuralın tüm claims maddelerini bir kez incelemektir.",
       /**
