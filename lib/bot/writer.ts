@@ -320,6 +320,8 @@ function articleInstructions(targetWords: number): string {
     // söyleyince model 119 gibi bir karakterle takılıyor. Hedefi aralığın
     // ortasında vermek pay bırakıyor.
     "Başlık 35-85 karakter olsun. Meta açıklama 140-170 karakter arasında olsun (110'un altı veya 180'in üstü kesinlikle kabul edilmez); karakter sayısını yazmadan önce kontrol et.",
+    // Haber = kanca (hook-topics.ts): okur haberden araca geçsin.
+    "Başlıkta kanıttaki en somut rakamı ver ve okura etkisini söyle (örnek kalıp: 'Kasım enflasyonu %X oldu: kira artışı ne kadar?'). İlk paragrafta okurun cebine/maaşına/kirasına etkisini bir cümleyle anlat; rakam yalnız kanıttan gelir, tahmin yazma.",
     // Kalite kapısı (quality.ts) keyword'ü lede ve meta içinde HARFİ HARFİNE arar.
     // Yumuşak "doğal biçimde geçsin" ifadesini GPT-5 kendiliğinden uyguluyordu ama
     // daha küçük modeller eşanlamlı yazıp kapıya takılıyor; kural açık yazıldı.

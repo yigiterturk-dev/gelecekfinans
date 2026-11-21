@@ -7,6 +7,7 @@ import { autoLink } from "@/lib/bot/linker";
 import { ensureExternalLink } from "@/lib/bot/external-link";
 import { getArticleImageResult } from "@/lib/bot/images";
 import { getTopics } from "@/lib/bot/topics";
+import { insertToolCta, matchHookTopic } from "@/lib/bot/hook-topics";
 import { notifyGoogleUrlUpdated } from "@/lib/bot/indexing";
 import { notifyIndexNow } from "@/lib/bot/indexnow";
 
@@ -140,9 +141,17 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
         : [];
     }),
   );
-  const topics = topicCandidates
-    .filter((topic) => !cooledTitles.has(topic.title.trim().toLocaleLowerCase("tr-TR")))
+  // Haber = kanca: yalnız bir araca bağlanabilen Türkiye gündemi (hook-topics.ts).
+  const hookFilter = process.env.NEWS_HOOK_FILTER !== "off";
+  const notCooled = topicCandidates
+    .filter((topic) => !cooledTitles.has(topic.title.trim().toLocaleLowerCase("tr-TR")));
+  const topics = (hookFilter ? notCooled.filter((topic) => matchHookTopic(topic.title)) : notCooled)
     .slice(0, count * 8);
+  if (hookFilter) {
+    await logEvent(run.id, "hook_filter", "Kanca filtresi uygulandı", {
+      candidates: notCooled.length, kept: topics.length,
+    });
+  }
   await prisma.botRun.update({ where: { id: run.id }, data: { articlesFound: topics.length } });
   if (!topics.length) {
     await logEvent(run.id, "topics", "Konu bulunamadı");
@@ -422,6 +431,8 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
         article.keyword,
         topic.sourceUrl,
       );
+      const hook = matchHookTopic(topic.title) || matchHookTopic(article.title);
+      if (hook) article.content = insertToolCta(article.content, hook);
       const image = await getArticleImageResult({
         title: article.title, keyword: article.keyword, category: article.category, slug,
         recentConcepts, maxAttempts: 1,
@@ -453,6 +464,7 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
         plagiarismRepairApplied: article.plagiarismRepairApplied,
         relevanceScore: topic.relevanceScore || null,
         relevanceReasons: topic.relevanceReasons || [],
+        hookTopic: hook?.id || null,
         riskReasons: risk.reasons,
         decisionReasons: publication.reasons,
         seoIssues: seo.issues,

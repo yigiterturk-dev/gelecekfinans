@@ -3535,3 +3535,15 @@ html.dark .edition-utilities > a { color: var(--bg); }
   font-family: var(--mono);
   color: var(--ink2);
 }
+
+/* Haber → araç kancası (lib/bot/hook-topics.ts) */
+.article-prose .tool-cta {
+  margin: 1.5rem 0;
+  padding: 0.9rem 1.1rem;
+  border: 1px solid var(--line, #e5e7eb);
+  border-left: 4px solid var(--accent, #0f766e);
+  border-radius: 8px;
+  background: #fff;
+}
+.article-prose .tool-cta p { margin: 0; }
+.article-prose .tool-cta a { font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }

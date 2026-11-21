@@ -170,7 +170,7 @@ const NEGATIVE_SIGNALS = [
   "ekpss", "yer çekimi", "yangın", "deprem", "app store", "tiktok", "disney", "terörsüz türkiye",
 ];
 
-function normalizeForMatching(value: string): string {
+export function normalizeForMatching(value: string): string {
   return ` ${value
     .normalize("NFKC")
     .toLocaleLowerCase("tr-TR")
@@ -255,7 +255,7 @@ function phrasePattern(phrase: string): RegExp | null {
   return pattern;
 }
 
-function includesPhrase(normalizedText: string, phrase: string): boolean {
+export function includesPhrase(normalizedText: string, phrase: string): boolean {
   const pattern = phrasePattern(phrase);
   if (!pattern) return false;
   const match = normalizedText.match(pattern);
