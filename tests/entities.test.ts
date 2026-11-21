@@ -170,6 +170,9 @@ test("jenerik varlık: Türkçe karakterli adlar da yakalanır", () => {
   for (const n of ["Altın", "Gram altın", "Gümüş", "Motorin", "Türkiye", "ABD", "Çin"]) {
     assert.equal(isGenericEntity(n), true, n);
   }
+  for (const n of ["Erdoğan", "Donald Trump", "Cumhurbaşkanı", "CHP"]) {
+    assert.equal(isGenericEntity(n), true, n);
+  }
   assert.equal(isGenericEntity("Koç Holding"), false);
   assert.equal(isGenericEntity("Deutsche Bank"), false);
 });

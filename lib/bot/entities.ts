@@ -38,6 +38,11 @@ const GENERIC_TERMS = new Set([
   // Ülke/bölge: kurum değil, "ABD nedir" sorgusunda yarışılmaz.
   "türkiye", "abd", "ab", "avrupa birliği", "almanya", "fransa", "çin", "ingiltere",
   "japonya", "rusya", "ukrayna", "israil", "iran", "avrupa", "wall street",
+  // Siyasetçi/parti: finans sitesinde "X kimdir" sayfası açılmaz (Yiğit, 2026-11-21).
+  "erdoğan", "recep tayyip erdoğan", "cumhurbaşkanı", "cumhurbaşkanı erdoğan",
+  "trump", "donald trump", "biden", "putin", "demokratlar", "cumhuriyetçiler",
+  "ak parti", "akp", "chp", "mhp", "dem parti", "iyi parti", "özgür özel",
+  "devlet bahçeli", "kemal kılıçdaroğlu", "ekrem imamoğlu", "mansur yavaş",
 ]);
 
 /**
