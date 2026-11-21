@@ -1,3 +1,4 @@
+import { yahooDailyPrev } from "@/lib/market";
 import { NextResponse } from "next/server";
 import { XMLParser } from "fast-xml-parser";
 
@@ -19,9 +20,9 @@ async function getYahooHistory(symbol: string) {
     const data = await res.json();
     const meta = data?.chart?.result?.[0]?.meta;
     const price = meta?.regularMarketPrice;
-    const prev = meta?.chartPreviousClose;
-    const pct = prev ? ((price - prev) / prev) * 100 : 0;
     const sparkline = data?.chart?.result?.[0]?.indicators?.quote?.[0]?.close?.filter((v: number | null): v is number => v != null) || [];
+    const prev = yahooDailyPrev(meta, sparkline);
+    const pct = prev ? ((price - prev) / prev) * 100 : 0;
     return { pct, sparkline };
   } catch {
     return { pct: 0, sparkline: [] };
@@ -32,8 +33,8 @@ async function getBist(){
   try{
     const res=await fetch("https://query1.finance.yahoo.com/v8/finance/chart/XU100.IS?interval=1d&range=7d",{next:{revalidate:120}});
     const data=await res.json();const meta=data?.chart?.result?.[0]?.meta;if(!meta)return null;
-    const price=meta.regularMarketPrice,prev=meta.chartPreviousClose;
     const sparkline = data?.chart?.result?.[0]?.indicators?.quote?.[0]?.close?.filter((v: number | null): v is number => v != null) || [];
+    const price=meta.regularMarketPrice,prev=yahooDailyPrev(meta, sparkline);
     return{price,pct:prev?((price-prev)/prev)*100:0,sparkline};
   }catch{return null;}
 }
@@ -51,15 +52,15 @@ async function getGold(usdTry: number | null){
     const res=await fetch("https://query1.finance.yahoo.com/v8/finance/chart/GC=F?interval=1d&range=7d",{next:{revalidate:300}});
     const data=await res.json();const meta=data?.chart?.result?.[0]?.meta;if(!meta)throw new Error("no data");
     const priceUsd=meta.regularMarketPrice;
-    const prevUsd=meta.chartPreviousClose;
     const sparklineUsd = data?.chart?.result?.[0]?.indicators?.quote?.[0]?.close?.filter((v: number | null): v is number => v != null) || [];
+    const prevUsd=yahooDailyPrev(meta, sparklineUsd);
     if(usdTry && priceUsd){
       const gramTry=(priceUsd/31.1035)*usdTry;
       const prevGramTry=prevUsd?(prevUsd/31.1035)*usdTry:null;
       const sparkline = sparklineUsd.map((p: number) => (p / 31.1035) * usdTry);
       return{
         price:Math.round(gramTry*100)/100,
-        pct:prevGramTry?((gramTry-prevGramTry)/prevGramTry)*100:((priceUsd-prevUsd)/prevUsd)*100,
+        pct:prevGramTry?((gramTry-prevGramTry)/prevGramTry)*100:prevUsd?((priceUsd-prevUsd)/prevUsd)*100:0,
         sparkline
       };
     }

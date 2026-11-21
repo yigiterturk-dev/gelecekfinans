@@ -406,14 +406,14 @@ export const GOLD_TYPES: Record<
 /** Ons altın USD fiyatını Yahoo'dan (GC=F), olmazsa CoinGecko tether-gold'dan çeker. */
 async function getGoldUsd(): Promise<{ price: number; prev: number | null } | null> {
   const yahoo = await safeFetch<{
-    chart?: { result?: { meta?: { regularMarketPrice?: number; chartPreviousClose?: number } }[] };
+    chart?: { result?: { meta?: { regularMarketPrice?: number; fulldayChange?: number } }[] };
   }>(
     "https://query1.finance.yahoo.com/v8/finance/chart/GC=F?interval=1d&range=2d",
     600,
   );
   const meta = yahoo?.chart?.result?.[0]?.meta;
   if (meta?.regularMarketPrice) {
-    return { price: meta.regularMarketPrice, prev: meta.chartPreviousClose ?? null };
+    return { price: meta.regularMarketPrice, prev: yahooDailyPrev(meta) };
   }
   // Fallback: CoinGecko tether-gold (≈ 1 ons altın)
   const cg = await safeFetch<{
@@ -663,6 +663,7 @@ export interface StockQuote {
   changePct: number | null;
   series: number[] | null;
   updatedAt: string | null;
+  stats: StockStats | null;
 }
 
 export const BIST_INDEX_SLUG = "bist-100";
@@ -695,18 +696,46 @@ export const BIST_STOCKS: Record<string, { ticker: string; name: string; index?:
   ekgyo: { ticker: "EKGYO", name: "Emlak Konut GYO", about: "Konut geliştirme odaklı gayrimenkul yatırım ortaklığı." },
 };
 
-/** Yahoo chart ucundan tek sembol için fiyat + önceki kapanış + seri. */
+/**
+ * Yahoo chart ucunda `chartPreviousClose`, istenen ARALIĞIN başından önceki
+ * kapanıştır (range=1mo → bir ay önceki kapanış). Günlük değişim için
+ * `fulldayChange` kullanılır; yoksa serinin sondan ikinci kapanışı.
+ */
+export function yahooDailyPrev(
+  meta: { regularMarketPrice?: number; fulldayChange?: number } | undefined,
+  closes: number[] = [],
+): number | null {
+  const p = meta?.regularMarketPrice;
+  if (typeof p === "number" && typeof meta?.fulldayChange === "number") {
+    const prev = p - meta.fulldayChange;
+    if (prev > 0) return prev;
+  }
+  return closes.length >= 2 ? closes[closes.length - 2] : null;
+}
+
+export interface StockStats {
+  dayHigh: number | null;
+  dayLow: number | null;
+  w52High: number | null;
+  w52Low: number | null;
+  volume: number | null;
+  /** Dönemsel getiri (%), veri yetmeyen dönem null. */
+  returns: { label: string; pct: number | null }[];
+}
+
+/** Yahoo chart ucundan tek sembol için fiyat + önceki kapanış + seri + istatistik. */
 async function getYahooQuote(symbol: string): Promise<{
   price: number;
   prevClose: number | null;
   series: number[] | null;
   updatedAt: string | null;
+  stats: StockStats | null;
 } | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 8000);
   try {
     const res = await fetch(
-      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=1mo&interval=1d`,
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=1y&interval=1d`,
       {
         next: { revalidate: 300 },
         signal: controller.signal,
@@ -717,24 +746,65 @@ async function getYahooQuote(symbol: string): Promise<{
     const data = (await res.json()) as {
       chart?: {
         result?: Array<{
-          meta?: { regularMarketPrice?: number; chartPreviousClose?: number; regularMarketTime?: number };
+          meta?: {
+            regularMarketPrice?: number;
+            fulldayChange?: number;
+            regularMarketTime?: number;
+            regularMarketDayHigh?: number;
+            regularMarketDayLow?: number;
+            fiftyTwoWeekHigh?: number;
+            fiftyTwoWeekLow?: number;
+            regularMarketVolume?: number;
+          };
+          timestamp?: number[];
           indicators?: { quote?: Array<{ close?: Array<number | null> }> };
         }>;
       };
     };
     const r = data.chart?.result?.[0];
-    const price = r?.meta?.regularMarketPrice;
+    const m = r?.meta;
+    const price = m?.regularMarketPrice;
     if (typeof price !== "number" || !(price > 0)) return null;
-    const closes = (r?.indicators?.quote?.[0]?.close ?? []).filter(
-      (v): v is number => typeof v === "number" && v > 0,
-    );
-    const prev = typeof r?.meta?.chartPreviousClose === "number" ? r.meta.chartPreviousClose : null;
-    const t = r?.meta?.regularMarketTime;
+    const rawCloses = r?.indicators?.quote?.[0]?.close ?? [];
+    const ts = r?.timestamp ?? [];
+    const pts: { t: number; c: number }[] = [];
+    rawCloses.forEach((v, i) => {
+      if (typeof v === "number" && v > 0 && typeof ts[i] === "number") pts.push({ t: ts[i], c: v });
+    });
+    const closes = pts.map((x) => x.c);
+    const monthly = closes.slice(-22);
+    const num = (v: unknown) => (typeof v === "number" && v > 0 ? v : null);
+
+    // Getiri: bugünkü fiyat ↔ N seans önceki kapanış. Son çubuk bugünün seansıdır.
+    const back = (n: number) => {
+      const i = closes.length - 1 - n;
+      return i >= 0 ? ((price - closes[i]) / closes[i]) * 100 : null;
+    };
+    const year = new Date((m?.regularMarketTime ?? Date.now() / 1000) * 1000).getUTCFullYear();
+    const jan1 = Date.UTC(year, 0, 1) / 1000;
+    const lastPrevYear = [...pts].reverse().find((x) => x.t < jan1);
+    const returns = [
+      { label: "1 hafta", pct: back(5) },
+      { label: "1 ay", pct: back(21) },
+      { label: "3 ay", pct: back(63) },
+      { label: "6 ay", pct: back(126) },
+      { label: "Yılbaşından beri", pct: lastPrevYear ? ((price - lastPrevYear.c) / lastPrevYear.c) * 100 : null },
+      { label: "1 yıl", pct: closes.length >= 240 ? ((price - closes[0]) / closes[0]) * 100 : null },
+    ];
+    const t = m?.regularMarketTime;
     return {
       price,
-      prevClose: prev,
-      series: closes.length > 4 ? closes : null,
+      prevClose: yahooDailyPrev(m, closes),
+      series: monthly.length > 4 ? monthly : null,
       updatedAt: typeof t === "number" ? new Date(t * 1000).toISOString() : null,
+      stats: {
+        dayHigh: num(m?.regularMarketDayHigh),
+        dayLow: num(m?.regularMarketDayLow),
+        w52High: num(m?.fiftyTwoWeekHigh),
+        w52Low: num(m?.fiftyTwoWeekLow),
+        volume: num(m?.regularMarketVolume),
+        returns,
+      },
     };
   } catch {
     return null;
@@ -762,6 +832,7 @@ export async function getStock(slug: string): Promise<StockQuote | null> {
     changePct,
     series: q.series,
     updatedAt: q.updatedAt,
+    stats: q.stats,
   };
 }
 

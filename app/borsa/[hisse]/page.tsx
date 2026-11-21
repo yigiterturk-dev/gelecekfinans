@@ -57,6 +57,7 @@ export default async function HisseDetail({ params }: { params: Promise<{ hisse:
       })()
     : null;
   const up = (d?.changePct ?? 0) >= 0;
+  const money = (n: number) => (cfg.index ? `${tl(n, 2)} puan` : `₺${tl(n, 2)}`);
   // Tümü: eskiden ilk 6 hisse sabitti, son hisseler yalnız /borsa'dan link alıyordu (17 Kas ölçümü).
   const others = Object.entries(BIST_STOCKS).filter(([k]) => k !== hisse);
   const baslik = cfg.index ? "BIST 100 Endeksi" : `${cfg.name} (${cfg.ticker}) Hisse Fiyatı`;
@@ -161,6 +162,61 @@ export default async function HisseDetail({ params }: { params: Promise<{ hisse:
               Tablo, bu sayfadaki bir aylık grafiğin kapanış verisinden hesaplanır; seans içi en yüksek/en düşük
               değerleri değil, günlük kapanışları gösterir.
             </p>
+          </div>
+        )}
+
+        {d?.stats && (
+          <div className="market-stats-block">
+            <h2 className="market-h2">{cfg.name} ({cfg.ticker}) {cfg.index ? "Endeks" : "Hisse"} İstatistikleri</h2>
+            <div className="crypto-table-wrap">
+              <table className="crypto-table">
+                <caption className="sr-only">{cfg.name} günlük ve 52 haftalık fiyat aralığı</caption>
+                <thead>
+                  <tr><th>Ölçü</th><th>Değer</th></tr>
+                </thead>
+                <tbody>
+                  {d.stats.dayLow != null && d.stats.dayHigh != null && (
+                    <tr><td>Günlük aralık</td><td>{money(d.stats.dayLow)} – {money(d.stats.dayHigh)}</td></tr>
+                  )}
+                  {d.stats.w52High != null && (
+                    <tr><td>52 haftalık en yüksek</td><td>{money(d.stats.w52High)}</td></tr>
+                  )}
+                  {d.stats.w52Low != null && (
+                    <tr><td>52 haftalık en düşük</td><td>{money(d.stats.w52Low)}</td></tr>
+                  )}
+                  {d.stats.w52High != null && (
+                    <tr><td>52 haftalık zirveye uzaklık</td><td>{pctText(((d.price - d.stats.w52High) / d.stats.w52High) * 100)}</td></tr>
+                  )}
+                  {!cfg.index && d.stats.volume != null && (
+                    <tr><td>Günlük işlem hacmi</td><td>{tl(d.stats.volume, 0)} lot</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {d.stats.returns.some((r) => r.pct != null) && (
+              <>
+                <h2 className="market-h2">{cfg.name} {cfg.index ? "endeksi" : "hissesi"} ne kadar kazandırdı?</h2>
+                <div className="crypto-table-wrap">
+                  <table className="crypto-table">
+                    <caption className="sr-only">{cfg.name} dönemsel getiri</caption>
+                    <thead>
+                      <tr><th>Dönem</th><th>Değişim</th></tr>
+                    </thead>
+                    <tbody>
+                      {d.stats.returns.filter((r) => r.pct != null).map((r) => (
+                        <tr key={r.label}><td>{r.label}</td><td>{pctText(r.pct)}</td></tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="market-muted">
+                  Değişim, güncel fiyatın ilgili dönemin başındaki kapanışa göre farkıdır. Nominal TL getiridir;
+                  temettü ve enflasyon hesaba katılmaz. Geçmiş performans gelecekteki sonuçları göstermez, yatırım
+                  tavsiyesi değildir.
+                </p>
+              </>
+            )}
           </div>
         )}
       </div>
