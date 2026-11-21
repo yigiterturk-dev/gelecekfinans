@@ -184,6 +184,7 @@ const TOOLS: Record<string, ToolDef> = {
     component: "temettu",
     related: [
       { href: "/borsa/temettu-takvimi", label: "Temettü Takvimi" },
+      { href: "/borsa/tatil-gunleri", label: "Borsa Tatil Günleri" },
       { href: "/borsa", label: "Borsa İstanbul" },
       { href: "/araclar/hisse-kar-zarar-hesaplama", label: "Hisse Kâr/Zarar" },
       { href: "/araclar", label: "Tüm Araçlar" },

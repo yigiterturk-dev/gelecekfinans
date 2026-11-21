@@ -247,6 +247,7 @@ export default async function HisseDetail({ params }: { params: Promise<{ hisse:
           ))}
           {hisse !== BIST_INDEX_SLUG && <Link href={`/borsa/${BIST_INDEX_SLUG}`} className="market-chip">BIST 100</Link>}
           <Link href="/borsa/temettu-takvimi" className="market-chip">Temettü Takvimi</Link>
+          <Link href="/borsa/tatil-gunleri" className="market-chip">Borsa Tatil Günleri</Link>
           <Link href="/doviz/usd-try" className="market-chip">Dolar Kuru</Link>
         </div>
       </section>
