@@ -110,8 +110,20 @@ export function supportsReasoningEffort(model: string): boolean {
   return /^(gpt-5|o[134])/.test(model);
 }
 
-function reasoningParam(model: string) {
-  return supportsReasoningEffort(model) ? { reasoning: { effort: "minimal" as const } } : {};
+type ReasoningEffort = "minimal" | "low" | "medium" | "high";
+
+/**
+ * Yazar çağrısı için düşünme seviyesi env'den gelir (OPENAI_WRITER_EFFORT).
+ * 2026-11-21: gpt-5-mini "minimal"de rehberleri 282-420 kelimede bırakıyordu
+ * (varlık alt sınırı 600) → yazar "low"a alınabilsin diye. Doğrulayıcı minimal kalır.
+ */
+function reasoningParam(model: string, effort: ReasoningEffort = "minimal") {
+  return supportsReasoningEffort(model) ? { reasoning: { effort } } : {};
+}
+
+function writerEffort(): ReasoningEffort {
+  const v = process.env.OPENAI_WRITER_EFFORT;
+  return v === "low" || v === "medium" || v === "high" ? v : "minimal";
 }
 
 let openaiClient: OpenAI | null = null;
@@ -555,7 +567,7 @@ async function generateDraft(
       // (2026-08-13'te canlı hata kaydından alındı; 7 günde 9 koşu bu yüzden
       //  düştü.) "minimal" en yakın karşılık: en az akıl yürütme, en hızlı,
       //  en ucuz — davranış "none" ile aynı niyette.
-      ...reasoningParam(config.writerModel),
+      ...reasoningParam(config.writerModel, writerEffort()),
       input: [
         { role: "system", content: instructions },
         { role: "user", content: userPrompt },
