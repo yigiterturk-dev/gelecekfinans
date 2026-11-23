@@ -25,14 +25,15 @@ export default function Hakkimizda() {
         </p>
         <h2>Editoryal Politikamız</h2>
         <p>
-          Haberlerimiz birincil veya güvenilir yayın kaynaklarıyla hazırlanır. Otomatik akıştan gelen bir konu,
-          iki bağımsız kaynak doğrulaması, iddia denetimi ve özgünlük kontrolü tamamlanmadan yayınlanmaz.
-          Kaynaklar yazının sonunda görünür biçimde paylaşılır.
+          Yeni bot haber taslakları birincil veya güvenilir yayın kaynaklarıyla araştırılır; iki bağımsız kaynak,
+          iddia ve özgünlük kontrollerinden geçer ve editör onayı olmadan yayımlanmaz. Geçmişte bazı bot haberleri
+          otomatik kontrollerden sonra tek tek insan editör incelemesi olmadan yayımlandı. Eski içeriklerde kaynak
+          listesi her zaman bulunmayabilir; yeni içeriklerde kaynaklar yazının sonunda gösterilir.
         </p>
         <p>
           Yapay zekâ; araştırma paketini düzenleme, taslak hazırlama ve kalite kontrol adımlarında yardımcı araç
-          olarak kullanılabilir. Sonuç; kaynak sınırı, intihal, finansal iddia ve yayın uygunluğu kontrollerine
-          tabidir. Ayrıntılı süreç için <Link href="/yayincilik-ilkeleri">yayıncılık ilkelerimizi</Link> inceleyebilirsiniz.
+          olarak kullanılabilir. Ayrıntılı süreç için <Link href="/yayincilik-ilkeleri">yayıncılık ilkelerimizi</Link>
+          inceleyebilirsiniz.
         </p>
         <h2>Bağımsızlık ve Şeffaflık</h2>
         <p>

@@ -1,6 +1,7 @@
 "use client";
 import Script from "next/script";
 import { useEffect, useState, useSyncExternalStore } from "react";
+import { getPublicSiteConfig } from "@/lib/public-site-config";
 import {
   readPrivacyConsent, readServerPrivacyConsent, subscribePrivacyConsent,
 } from "@/lib/consent";
@@ -14,11 +15,15 @@ export default function GoogleAnalytics() {
   );
 
   useEffect(() => {
-    fetch("/api/site-config")
-      .then(r => r.json())
-      .then(d => { if (d.ga4Id) setGaId(d.ga4Id); })
+    if (consent !== "accepted") return;
+    let cancelled = false;
+    getPublicSiteConfig()
+      .then((config) => {
+        if (!cancelled) setGaId(config.ga4Id);
+      })
       .catch(() => {});
-  }, []);
+    return () => { cancelled = true; };
+  }, [consent]);
 
   if (!gaId || consent !== "accepted") return null;
 

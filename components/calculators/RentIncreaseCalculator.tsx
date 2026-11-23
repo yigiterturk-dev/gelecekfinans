@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { parseDecimalInput } from "@/lib/parse-decimal-input";
 
 /**
  * Kira artışı: mevcut kira × TÜFE 12 aylık ortalama değişim oranı (TBK 344).
@@ -8,15 +9,21 @@ import { useState } from "react";
  */
 export interface RentRate { renewal: string; source: string; avg12: number }
 const fmt = (v: number) => "₺" + v.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const num = (s: string) => parseFloat(s.replace(",", "."));
+const num = parseDecimalInput;
 
 export default function RentIncreaseCalculator({ rates }: { rates?: RentRate[] }) {
   const [rent, setRent] = useState("20000");
-  const [rate, setRate] = useState(rates?.length ? rates[0].avg12.toFixed(2) : "30");
+  const [rate, setRate] = useState(rates?.length ? rates[0].avg12.toFixed(2) : "");
   const [picked, setPicked] = useState(rates?.length ? rates[0].renewal : "");
   const r = num(rent), p = num(rate);
-  const valid = isFinite(r) && isFinite(p) && r > 0 && p >= 0 && p < 1000;
-  const inc = valid ? (r * p) / 100 : 0;
+  const inputsValid = Number.isFinite(r) && Number.isFinite(p) && r > 0 && p >= 0 && p < 1000;
+  const increaseEstimate = inputsValid ? (r * p) / 100 : null;
+  const newRentEstimate = increaseEstimate === null ? null : r + increaseEstimate;
+  const annualIncreaseEstimate = increaseEstimate === null ? null : increaseEstimate * 12;
+  const annualEstimate = newRentEstimate === null ? null : newRentEstimate * 12;
+  const valid = inputsValid && increaseEstimate !== null && newRentEstimate !== null &&
+    annualIncreaseEstimate !== null && annualEstimate !== null &&
+    [increaseEstimate, newRentEstimate, annualIncreaseEstimate, annualEstimate].every(Number.isFinite);
   return (
     <div className="calc-box">
       <div className="calc-row">
@@ -31,6 +38,11 @@ export default function RentIncreaseCalculator({ rates }: { rates?: RentRate[] }
             onChange={(e) => { setRate(e.target.value); setPicked(""); }} aria-label="TÜFE 12 aylık ortalama artış yüzdesi" />
         </label>
       </div>
+      {(!rates || rates.length === 0) && (
+        <p className="conv-muted" style={{ marginTop: 10 }}>
+          Güncel oran otomatik alınamadı. Hesaplama için yenileme ayınıza ait TÜİK TÜFE 12 aylık ortalama oranını girin.
+        </p>
+      )}
       {rates && rates.length > 0 && (
         <div style={{ marginTop: 14 }}>
           <span className="calc-result-lbl">Kira yenileme ayınız</span>
@@ -53,13 +65,16 @@ export default function RentIncreaseCalculator({ rates }: { rates?: RentRate[] }
         </div>
       )}
       <div className="calc-result calc-result-grid" aria-live="polite">
-        {!valid ? (
+        {!inputsValid ? (
           <span className="conv-muted">Geçerli bir kira tutarı ve oran girin.</span>
+        ) : !valid ? (
+          <span className="conv-muted">Bu değerlerle hesaplanan sonuç sayısal sınırı aşıyor.</span>
         ) : (
           <>
-            <div><span className="calc-result-lbl">Artış Tutarı</span><strong>{fmt(inc)}</strong></div>
-            <div><span className="calc-result-lbl">Yeni Aylık Kira</span><strong className="calc-out">{fmt(r + inc)}</strong></div>
-            <div><span className="calc-result-lbl">Yıllık Toplam Kira</span><strong>{fmt((r + inc) * 12)}</strong></div>
+            <div><span className="calc-result-lbl">Artış Tutarı</span><strong>{fmt(increaseEstimate!)}</strong></div>
+            <div><span className="calc-result-lbl">Yeni Aylık Kira</span><strong className="calc-out">{fmt(newRentEstimate!)}</strong></div>
+            <div><span className="calc-result-lbl">Yıllık Ek Kira</span><strong>{fmt(annualIncreaseEstimate!)}</strong></div>
+            <div><span className="calc-result-lbl">Yıllık Toplam Kira</span><strong>{fmt(annualEstimate!)}</strong></div>
           </>
         )}
       </div>

@@ -15,11 +15,19 @@ import { classifyTopicText, findCorroboratedTopic } from "@/lib/bot/topics";
 import { classifyRisk, scoreSource } from "@/lib/bot/autonomy";
 import { checkPlagiarism } from "@/lib/bot/plagiarism";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { isAIAutomationEnabled } from "@/lib/bot/ai-budget";
+import { z } from "zod";
+
+const PRIVATE_HEADERS = { "Cache-Control": "private, no-store, max-age=0" };
+const researchInputSchema = z.object({
+  title: z.string().trim().min(1).max(500),
+  summary: z.string().trim().max(1_000).optional().default(""),
+}).strict();
 
 function rateLimitResponse(result: ReturnType<typeof rateLimit>) {
   return NextResponse.json(
     { error: "Too many requests", retryAfter: result.retryAfterSec },
-    { status: 429, headers: { "Retry-After": String(result.retryAfterSec) } }
+    { status: 429, headers: { ...PRIVATE_HEADERS, "Retry-After": String(result.retryAfterSec) } }
   );
 }
 
@@ -49,27 +57,38 @@ function splitSource(title: string, feedSource: string): { title: string; source
   return { title: title.trim(), source: feedSource };
 }
 
+function isUniqueConstraintError(error: unknown): boolean {
+  return !!error && typeof error === "object" && "code" in error && error.code === "P2002";
+}
+
 // GET ?q=... → Google News RSS araması, ilk ~20 sonucu döndürür.
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: PRIVATE_HEADERS });
 
   const limit = rateLimit(`admin:research:get:${clientIp(req)}`, { limit: 30, windowMs: 60_000 });
   if (!limit.ok) return rateLimitResponse(limit);
 
   const q = (req.nextUrl.searchParams.get("q") || "").trim();
-  if (!q) return NextResponse.json({ error: "Arama terimi gerekli." }, { status: 400 });
+  const validQuery = z.string().min(1).max(200).safeParse(q);
+  if (!validQuery.success) {
+    return NextResponse.json({ error: "Arama terimi geçersiz." }, { status: 400, headers: PRIVATE_HEADERS });
+  }
 
   const url = `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=tr&gl=TR&ceid=TR:tr`;
 
   try {
     const controller = new AbortController();
     const t = setTimeout(() => controller.abort(), 10000);
-    const res = await fetch(url, {
-      headers: { "User-Agent": UA, Accept: "application/rss+xml, application/xml, text/xml, */*" },
-      signal: controller.signal,
-    });
-    clearTimeout(t);
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        headers: { "User-Agent": UA, Accept: "application/rss+xml, application/xml, text/xml, */*" },
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(t);
+    }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const xml = await res.text();
     const feed = await parser.parseString(xml);
@@ -91,9 +110,9 @@ export async function GET(req: NextRequest) {
       };
     }).filter((r) => r.title);
 
-    return NextResponse.json({ results });
-  } catch (e) {
-    return NextResponse.json({ error: `Haberler getirilemedi: ${(e as Error).message}` }, { status: 502 });
+    return NextResponse.json({ results }, { headers: PRIVATE_HEADERS });
+  } catch {
+    return NextResponse.json({ error: "Haberler şu anda getirilemiyor." }, { status: 502, headers: PRIVATE_HEADERS });
   }
 }
 
@@ -104,26 +123,48 @@ export async function POST(req: NextRequest) {
   if (kokenReddi) return kokenReddi;
 
   const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: PRIVATE_HEADERS });
+
+  // This manual path calls writeArticle directly, outside the shared
+  // orchestrator. Keep it behind the same explicit zero-spend switch.
+  if (!isAIAutomationEnabled()) {
+    return NextResponse.json({
+      error: "AI otomasyonu kapalı; model çağrısı yapılmadı.",
+    }, { status: 503, headers: PRIVATE_HEADERS });
+  }
 
   const limit = rateLimit(`admin:research:post:${clientIp(req)}`, { limit: 5, windowMs: 60_000 });
   if (!limit.ok) return rateLimitResponse(limit);
 
-  const body = await req.json().catch(() => ({}));
-  const title: string = (body.title || "").trim();
-  if (!title) return NextResponse.json({ error: "Başlık gerekli." }, { status: 400 });
-
-  const summary = (body.summary || "").trim();
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Geçersiz JSON gövdesi." }, { status: 400, headers: PRIVATE_HEADERS });
+  }
+  const parsed = researchInputSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Başlık veya özet geçersiz." }, { status: 400, headers: PRIVATE_HEADERS });
+  }
+  const { title, summary } = parsed.data;
   const classification = classifyTopicText(title, summary);
   if (!classification.category) {
-    return NextResponse.json({ error: "Başlık finans/ekonomi konusu olarak doğrulanamadı." }, { status: 422 });
+    return NextResponse.json({ error: "Başlık finans/ekonomi konusu olarak doğrulanamadı." }, { status: 422, headers: PRIVATE_HEADERS });
   }
 
-  const topic = await findCorroboratedTopic(title, classification.category);
+  let topic: Awaited<ReturnType<typeof findCorroboratedTopic>>;
+  try {
+    topic = await findCorroboratedTopic(title, classification.category);
+  } catch {
+    return NextResponse.json(
+      { error: "Bağımsız kaynak doğrulaması şu anda yapılamıyor." },
+      { status: 502, headers: PRIVATE_HEADERS },
+    );
+  }
   if (!topic?.evidencePacket || topic.evidencePacket.status !== "VERIFIED") {
     return NextResponse.json({
       error: "İkinci bağımsız yayıncı bulunamadı. Bu konu için otomatik taslak oluşturulmadı.",
-    }, { status: 422 });
+    }, { status: 422, headers: PRIVATE_HEADERS });
   }
 
   try {
@@ -140,13 +181,16 @@ export async function POST(req: NextRequest) {
       recentDocuments: recent,
     });
     if (!plagiarism.passed) {
-      return NextResponse.json({ error: `Kopya kontrolü geçmedi: ${plagiarism.issues.join("; ")}` }, { status: 422 });
+      return NextResponse.json({ error: `Kopya kontrolü geçmedi: ${plagiarism.issues.join("; ")}` }, { status: 422, headers: PRIVATE_HEADERS });
     }
     const slug = slugify(article.title);
+    if (!slug) {
+      return NextResponse.json({ error: "Üretilen başlıktan geçerli bir makale adresi üretilemedi." }, { status: 422, headers: PRIVATE_HEADERS });
+    }
 
     const existing = await prisma.article.findUnique({ where: { slug } });
     if (existing) {
-      return NextResponse.json({ error: "Bu başlıktan zaten bir makale mevcut.", articleId: existing.id }, { status: 409 });
+      return NextResponse.json({ error: "Bu başlıktan zaten bir makale mevcut.", articleId: existing.id }, { status: 409, headers: PRIVATE_HEADERS });
     }
 
     article.content = await autoLink(article.content, article.category, slug);
@@ -209,8 +253,11 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return NextResponse.json({ ok: true, articleId: created.id, title: created.title, seoScore: seo.score });
-  } catch (e) {
-    return NextResponse.json({ error: `Makale üretilemedi: ${(e as Error).message}` }, { status: 500 });
+    return NextResponse.json({ ok: true, articleId: created.id, title: created.title, seoScore: seo.score }, { headers: PRIVATE_HEADERS });
+  } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      return NextResponse.json({ error: "Bu makale adresi başka bir kayıt tarafından kullanıldı." }, { status: 409, headers: PRIVATE_HEADERS });
+    }
+    return NextResponse.json({ error: "Makale üretilemedi. Lütfen daha sonra tekrar deneyin." }, { status: 500, headers: PRIVATE_HEADERS });
   }
 }

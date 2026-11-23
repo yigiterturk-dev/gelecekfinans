@@ -1,0 +1,3 @@
+# Bot admin paneli yükleme ve yayın durumu
+
+Bot paneli üç başlangıç isteğinde HTTP ve yanıt şeklini doğruluyor; hata durumunda sessizce boş veri göstermek yerine yeniden deneme sunuyor. Oturum 401 ile sona ermişse yönetim girişine doğrudan bağlantı veriliyor. Kategori değişiminde önceki konu isteği iptal edilerek eski sonuçların yeni seçimi ezmesi önlendi; kategoriye özgü hata ve aynı kategoriyi yeniden deneme seçeneği konular panelinde gösteriliyor. Üretim yarıda hata verirse bile güncel çalışma raporu yenileniyor. Otomatik yayınlama seçeneği arayüzden kaldırıldı; bot içeriklerinin taslakta kalması zorunlu akışla tutarlı hale geldi.

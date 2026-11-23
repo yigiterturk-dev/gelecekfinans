@@ -1,11 +1,26 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 
 interface ArticleRow {
   id: string; title: string; slug: string; category: string;
   status: string; articleSource: string; seoScore: number | null;
   publishedAt: string | null; createdAt: string; duplicateOf: string | null;
+}
+
+function isArticleRow(value: unknown): value is ArticleRow {
+  if (!value || typeof value !== "object") return false;
+  const row = value as Record<string, unknown>;
+  return typeof row.id === "string"
+    && typeof row.title === "string"
+    && typeof row.slug === "string"
+    && typeof row.category === "string"
+    && typeof row.status === "string"
+    && typeof row.articleSource === "string"
+    && (row.seoScore === null || typeof row.seoScore === "number")
+    && (row.publishedAt === null || typeof row.publishedAt === "string")
+    && typeof row.createdAt === "string"
+    && (row.duplicateOf === null || typeof row.duplicateOf === "string");
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -20,21 +35,57 @@ export default function ArticleList() {
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [bulkPending, setBulkPending] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const fetchController = useRef<AbortController | null>(null);
 
-  const fetchArticles = useCallback(() => {
+  const fetchArticles = useCallback(async () => {
+    fetchController.current?.abort();
+    const controller = new AbortController();
+    fetchController.current = controller;
+    const { signal } = controller;
     setLoading(true);
+    setLoadError("");
     const params = new URLSearchParams({ page: String(page) });
     if (filter) params.set("status", filter);
     if (search) params.set("q", search);
-    fetch(`/api/admin/articles?${params}`)
-      .then(r => r.json())
-      .then(d => { setArticles(d.articles); setTotal(d.total); setSelected(new Set()); })
-      .finally(() => setLoading(false));
+    try {
+      const response = await fetch(`/api/admin/articles?${params}`, { signal });
+      const data: unknown = await response.json().catch(() => null);
+      if (signal?.aborted) return;
+      if (!response.ok) {
+        const message = data && typeof data === "object" && "error" in data && typeof data.error === "string"
+          ? data.error
+          : "Makaleler yüklenemedi.";
+        setLoadError(message);
+        return;
+      }
+      if (!data || typeof data !== "object") {
+        setLoadError("Sunucudan geçersiz makale listesi geldi.");
+        return;
+      }
+      const payload = data as Record<string, unknown>;
+      if (!Array.isArray(payload.articles) || !payload.articles.every(isArticleRow)
+        || typeof payload.total !== "number" || !Number.isSafeInteger(payload.total) || payload.total < 0) {
+        setLoadError("Sunucudan geçersiz makale listesi geldi.");
+        return;
+      }
+      setArticles(payload.articles);
+      setTotal(payload.total);
+      setSelected(new Set());
+    } catch {
+      if (!signal?.aborted) setLoadError("Bağlantı kurulamadı. Tekrar deneyin.");
+    } finally {
+      if (!signal?.aborted) setLoading(false);
+    }
   }, [page, filter, search]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect -- mount/filtre değişiminde veri çek (kasıtlı)
-  useEffect(() => { fetchArticles(); }, [fetchArticles]);
+  useEffect(() => {
+    void fetchArticles();
+    return () => fetchController.current?.abort();
+  }, [fetchArticles]);
 
   function toggleSelect(id: string) {
     setSelected(prev => {
@@ -50,15 +101,43 @@ export default function ArticleList() {
   }
 
   async function bulkAction(action: string) {
-    if (selected.size === 0) return;
+    if (selected.size === 0 || bulkPending) return;
     if (action === "delete" && !confirm(`${selected.size} makaleyi silmek istediğine emin misin?`)) return;
-    await fetch("/api/admin/articles/bulk", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ids: Array.from(selected), action }),
-    });
-    await fetch("/api/admin/revalidate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
-    fetchArticles();
+    const selectedCount = selected.size;
+    setBulkPending(true);
+    setLoadError("");
+    try {
+      const response = await fetch("/api/admin/articles/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: Array.from(selected), action }),
+      });
+      const result: unknown = await response.json().catch(() => null);
+      if (!response.ok) {
+        const message = result && typeof result === "object" && "error" in result && typeof result.error === "string"
+          ? result.error
+          : "Toplu işlem tamamlanamadı.";
+        setLoadError(message);
+        return;
+      }
+      if (!result || typeof result !== "object" || !("affected" in result) || typeof result.affected !== "number") {
+        setLoadError("Sunucudan geçersiz işlem sonucu geldi.");
+        return;
+      }
+      const publishFailures = "gorselsizKalan" in result && typeof result.gorselsizKalan === "number"
+        ? result.gorselsizKalan
+        : 0;
+      await fetchArticles();
+      if (publishFailures > 0) {
+        setLoadError(`${publishFailures} makale için kapak görseli üretilemedi; bu kayıtların toplu yayın işlemi tamamlanmadı.`);
+      } else if (result.affected < selectedCount) {
+        setLoadError(`İşlem seçilen ${selectedCount} kaydın ${result.affected} tanesinde uygulandı.`);
+      }
+    } catch {
+      setLoadError("Toplu işlem sırasında bağlantı hatası oluştu.");
+    } finally {
+      setBulkPending(false);
+    }
   }
 
   function handleSearch(e: React.FormEvent) {
@@ -79,7 +158,6 @@ export default function ArticleList() {
     setArticles(prev => prev.filter(a => a.id !== id));
     setTotal(t => Math.max(0, t - 1));
     setSelected(prev => { const n = new Set(prev); n.delete(id); return n; });
-    await fetch("/api/admin/revalidate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
   }
 
   return (
@@ -107,13 +185,16 @@ export default function ArticleList() {
         ))}
       </div>
 
+      {loadError && <p role="alert" style={{ marginBottom: 16, color: "var(--dn)", fontSize: 13 }}>{loadError}</p>}
+
       {selected.size > 0 && (
         <div style={{ display: "flex", gap: 8, marginBottom: 16, padding: "10px 14px", background: "var(--paper)", border: "1px solid var(--border)", borderRadius: 8, alignItems: "center" }}>
           <span style={{ fontSize: 12, color: "var(--ink2)" }}>{selected.size} seçili</span>
-          <BulkBtn onClick={() => bulkAction("publish")} color="var(--up)">Yayınla</BulkBtn>
-          <BulkBtn onClick={() => bulkAction("draft")} color="#d97706">Taslak</BulkBtn>
-          <BulkBtn onClick={() => bulkAction("archive")} color="var(--muted)">Arşivle</BulkBtn>
-          <BulkBtn onClick={() => bulkAction("delete")} color="var(--dn)">Sil</BulkBtn>
+          <BulkBtn disabled={bulkPending} onClick={() => bulkAction("publish")} color="var(--up)">Yayınla</BulkBtn>
+          <BulkBtn disabled={bulkPending} onClick={() => bulkAction("draft")} color="#d97706">Taslak</BulkBtn>
+          <BulkBtn disabled={bulkPending} onClick={() => bulkAction("archive")} color="var(--muted)">Arşivle</BulkBtn>
+          <BulkBtn disabled={bulkPending} onClick={() => bulkAction("delete")} color="var(--dn)">Sil</BulkBtn>
+          {bulkPending && <span role="status" style={{ fontSize: 12, color: "var(--muted)" }}>İşlem sürüyor…</span>}
         </div>
       )}
 
@@ -188,9 +269,9 @@ export default function ArticleList() {
   );
 }
 
-function BulkBtn({ onClick, color, children }: { onClick: () => void; color: string; children: React.ReactNode }) {
+function BulkBtn({ onClick, color, children, disabled = false }: { onClick: () => void; color: string; children: React.ReactNode; disabled?: boolean }) {
   return (
-    <button onClick={onClick} style={{ padding: "5px 10px", fontSize: 11, border: `1px solid ${color}`, background: "transparent", color, borderRadius: 6, cursor: "pointer", fontWeight: 600 }}>
+    <button disabled={disabled} onClick={onClick} style={{ padding: "5px 10px", fontSize: 11, border: `1px solid ${color}`, background: "transparent", color, borderRadius: 6, cursor: disabled ? "not-allowed" : "pointer", fontWeight: 600, opacity: disabled ? 0.6 : 1 }}>
       {children}
     </button>
   );

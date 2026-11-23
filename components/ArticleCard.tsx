@@ -1,6 +1,6 @@
 import Link from "next/link";
 import SafeImage from "@/components/SafeImage";
-import { publicImageUrl } from "@/lib/image-url";
+import { articleCoverAlt, articleCoverFallbackUrl, articleCoverUrl, isIllustrativeCover } from "@/lib/article-cover";
 import type { ArticleListItem } from "@/lib/types";
 
 export const CATS: Record<string, {l:string;c:string}> = {
@@ -26,11 +26,17 @@ function Badge({cat}:{cat:string}){
   const color=catColor(cat,c.c);
   return <span className="badge" style={{background:`color-mix(in oklab, ${color} 20%, transparent)`,color}}>{c.l}</span>;
 }
+function IllustrativeBadge(){ return <span className="illustrative-badge">Temsili görsel</span>; }
 export function Ago(d:string){
-  const s=(Date.now()-new Date(d).getTime())/1000;
+  const date = new Date(d);
+  const time = date.getTime();
+  if (!Number.isFinite(time)) return "Tarih bilinmiyor";
+  const s=(Date.now()-time)/1000;
+  if(s<0)return date.toLocaleDateString("tr-TR",{day:"numeric",month:"short",year:"numeric",timeZone:"Europe/Istanbul"});
+  if(s<60)return"Az önce";
   if(s<3600)return`${Math.floor(s/60)} dk`;
   if(s<86400)return`${Math.floor(s/3600)} sa`;
-  return new Date(d).toLocaleDateString("tr-TR",{day:"numeric",month:"short",year:"numeric"});
+  return date.toLocaleDateString("tr-TR",{day:"numeric",month:"short",year:"numeric",timeZone:"Europe/Istanbul"});
 }
 
 function ViewCount({n}:{n?:number}){
@@ -41,7 +47,7 @@ function ViewCount({n}:{n?:number}){
 }
 
 export function HeroCard({article}:{article:ArticleListItem}){
-  const img=publicImageUrl(article.imageUrl);
+  const img=articleCoverUrl(article);
   return(
     <Link href={`/${article.slug}`} className="hero-editorial">
       <div className="hero-text-col">
@@ -60,7 +66,10 @@ export function HeroCard({article}:{article:ArticleListItem}){
       </div>
       <div className="hero-img-col">
         {img
-          ? <SafeImage src={img} alt={article.title} fill sizes="(max-width: 980px) 95vw, 880px" style={{objectFit:"contain"}} priority />
+          ? <>
+              <SafeImage src={img} fallbackSrc={articleCoverFallbackUrl(article)} alt={articleCoverAlt(article)} fill sizes="(max-width: 980px) 95vw, 880px" style={{objectFit:"cover"}} priority />
+              {isIllustrativeCover(article) && <IllustrativeBadge />}
+            </>
           : <div style={{width:"100%",height:"100%",background:"var(--surface2)",minHeight:380}}/>
         }
       </div>
@@ -69,12 +78,13 @@ export function HeroCard({article}:{article:ArticleListItem}){
 }
 
 export function StripCard({article}:{article:ArticleListItem}){
-  const img=publicImageUrl(article.imageUrl);
+  const img=articleCoverUrl(article);
   return(
     <Link href={`/${article.slug}`} className="strip-card">
       {img
         ? <div style={{overflow:"hidden",borderRadius:"var(--radius)",marginBottom:14,position:"relative",aspectRatio:"16/9"}}>
-            <SafeImage src={img} alt={article.title} fill sizes="(max-width:768px) 100vw, 33vw" className="strip-card-img" style={{objectFit:"cover"}} />
+            <SafeImage src={img} fallbackSrc={articleCoverFallbackUrl(article)} alt={articleCoverAlt(article)} fill sizes="(max-width:768px) 100vw, 33vw" className="strip-card-img" style={{objectFit:"cover"}} />
+            {isIllustrativeCover(article) && <IllustrativeBadge />}
           </div>
         : <div style={{width:"100%",aspectRatio:"16/9",background:"var(--surface2)",borderRadius:"var(--radius)",marginBottom:14}}/>
       }
@@ -88,12 +98,13 @@ export function StripCard({article}:{article:ArticleListItem}){
 }
 
 export function MedCard({article}:{article:ArticleListItem}){
-  const img=publicImageUrl(article.imageUrl);
+  const img=articleCoverUrl(article);
   return(
     <Link href={`/${article.slug}`} className="grid-card">
       {img
         ? <div style={{overflow:"hidden",position:"relative",aspectRatio:"16/9"}}>
-            <SafeImage src={img} alt={article.title} fill sizes="(max-width:640px) 100vw, (max-width:1024px) 50vw, 25vw" className="grid-card-img" style={{objectFit:"cover"}} />
+            <SafeImage src={img} fallbackSrc={articleCoverFallbackUrl(article)} alt={articleCoverAlt(article)} fill sizes="(max-width:640px) 100vw, (max-width:1024px) 50vw, 25vw" className="grid-card-img" style={{objectFit:"cover"}} />
+            {isIllustrativeCover(article) && <IllustrativeBadge />}
           </div>
         : <div style={{width:"100%",aspectRatio:"16/9",background:"var(--surface2)"}}/>
       }
@@ -107,7 +118,7 @@ export function MedCard({article}:{article:ArticleListItem}){
 }
 
 export function RankedCard({article,index,last=false}:{article:ArticleListItem;index:number;last?:boolean}){
-  const img=publicImageUrl(article.imageUrl);
+  const img=articleCoverUrl(article);
   const c=CATS[article.category];
   // Boşluklar inline → Tailwind/CSS düşse bile satırlar dip dibe olmaz.
   return(
@@ -130,7 +141,7 @@ export function RankedCard({article,index,last=false}:{article:ArticleListItem;i
         <p className="ranked-row-meta" style={{margin:0}}>{Ago(article.created_at)} <ViewCount n={article.views}/></p>
       </div>
       {img&&<div style={{width:56,height:42,borderRadius:4,overflow:"hidden",flexShrink:0,position:"relative"}}>
-        <SafeImage src={img} alt={article.title} fill sizes="56px" style={{objectFit:"cover"}} />
+        <SafeImage src={img} fallbackSrc={articleCoverFallbackUrl(article)} alt={articleCoverAlt(article)} fill sizes="56px" style={{objectFit:"cover"}} />
       </div>}
     </Link>
   );

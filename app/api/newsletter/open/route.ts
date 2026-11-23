@@ -12,6 +12,7 @@ function pixel() {
     headers: {
       "Content-Type": "image/gif",
       "Cache-Control": "no-store, no-cache, must-revalidate, private",
+      "X-Robots-Tag": "noindex, nofollow",
       "Content-Length": String(PIXEL.length),
     },
   });
@@ -25,7 +26,7 @@ function pixel() {
 export async function GET(req: NextRequest) {
   const c = req.nextUrl.searchParams.get("c");
   const v = req.nextUrl.searchParams.get("v");
-  if (c && (v === "A" || v === "B")) {
+  if (c && c.length <= 64 && /^[a-zA-Z0-9_-]+$/.test(c) && (v === "A" || v === "B")) {
     try {
       await prisma.newsletterCampaign.update({
         where: { id: c },

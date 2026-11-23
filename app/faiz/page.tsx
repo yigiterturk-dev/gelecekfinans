@@ -1,7 +1,7 @@
+import { serializeJsonLd } from "@/lib/json-ld";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { REFERENCE_RATES, safeRelatedArticles } from "@/lib/market";
-import { fetchPolicyRate } from "@/lib/tcmb-evds";
 import { fetchTcmbRates } from "@/lib/tcmb-faiz";
 import MarketFaq from "@/components/MarketFaq";
 import ToolsRail from "@/components/ToolsRail";
@@ -12,6 +12,8 @@ import DepositCalculator from "@/components/calculators/DepositCalculator";
 
 export const revalidate = 3600;
 const BASE = "https://gelecekfinans.com";
+const TCMB_REPO_RATES_URL = "https://www.tcmb.gov.tr/wps/wcm/connect/TR/TCMB+TR/Main+Menu/Temel+Faaliyetler/Para+Politikasi/Merkez+Bankasi+Faiz+Oranlari/1+Hafta+Repo";
+const TCMB_OVERNIGHT_RATES_URL = "https://www.tcmb.gov.tr/wps/wcm/connect/TR/TCMB+TR/Main+Menu/Temel+Faaliyetler/Para+Politikasi/Merkez+Bankasi+Faiz+Oranlari/faiz-oranlari";
 
 export async function generateMetadata(): Promise<Metadata> {
   const title = "Faiz Oranları — TCMB Politika Faizi ve Güncel Faizler";
@@ -27,16 +29,16 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function FaizPage() {
-  // Anahtar varsa canlı politika faizi; yoksa null → sabit tabloya düşer.
-  const [canli, tcmb] = await Promise.all([fetchPolicyRate(), fetchTcmbRates()]);
-  const kartlar = tcmb
-    ? REFERENCE_RATES.rates.map((r, i) => ({ ...r, value: [tcmb.policy, tcmb.borrow, tcmb.lend][i] ?? r.value }))
-    : REFERENCE_RATES.rates;
-  const [yil, ay] = REFERENCE_RATES.asOf.split("-");
-  const AYLAR = ["Ocak","Şubat","Mart","Nisan","Mayıs","Haziran","Temmuz","Ağustos","Eylül","Ekim","Kasım","Aralık"];
-  const donemAdi = `${AYLAR[Number(ay) - 1] ?? ay} ${yil}`;
-
-  const related = await safeRelatedArticles("ekonomi");
+  // Yalnızca TCMB tablosundan birlikte doğrulanan oranlar canlı gösterilir.
+  const [tcmb, related] = await Promise.all([
+    fetchTcmbRates(),
+    safeRelatedArticles("ekonomi"),
+  ]);
+  const liveValues = [tcmb?.policy, tcmb?.borrow, tcmb?.lend];
+  const kartlar = REFERENCE_RATES.rates.map((r, i) => ({
+    ...r,
+    value: liveValues[i] ?? r.value,
+  }));
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -60,7 +62,7 @@ export default async function FaizPage() {
 
   return (
     <div className="container market-page">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }} />
       <nav className="crumbs" aria-label="Breadcrumb">
         <Link href="/">Ana Sayfa</Link> <span>/</span> <span>Faiz</span>
       </nav>
@@ -69,7 +71,7 @@ export default async function FaizPage() {
         TCMB politika faizi ve referans faiz oranları ile mevduat getirisi hesaplayıcı.
       </p>
 
-      {canli || tcmb ? (
+      {tcmb ? (
         <div className="market-hero">
           <div className="market-hero-head">
             <span className="market-flag market-flag-lg" aria-hidden>🏦</span>
@@ -78,26 +80,38 @@ export default async function FaizPage() {
               <p className="market-hero-sub">Bir hafta vadeli repo ihale faiz oranı</p>
             </div>
           </div>
-          <div className="market-headline"><strong>%{(canli?.value ?? tcmb!.policy).toLocaleString("tr-TR")}</strong></div>
-          <div className="market-updated">Kaynak: TCMB · yürürlük tarihi {canli ? canli.date : tcmb!.date}</div>
+          <div className="market-headline"><strong>%{tcmb.policy.toLocaleString("tr-TR")}</strong></div>
+          <div className="market-updated">
+            Kaynak: <a href={TCMB_REPO_RATES_URL} target="_blank" rel="noopener noreferrer">TCMB bir hafta repo tablosu</a>
+            {" "}· yürürlük tarihi {tcmb.date}
+          </div>
         </div>
-      ) : (
-        /* Canlı kaynak bağlı değilken bayatlığı GİZLEMİYORUZ: kullanıcı hangi
-           döneme ait rakama baktığını üstte, gri bir dipnotta değil kutunun
-           içinde görüyor. Yanlış rakamı güncelmiş gibi göstermektense eski
-           olduğunu söylemek yeğdir. */
+      ) : null}
+
+      {!tcmb && (
         <div className="market-na">
-          Aşağıdaki oranlar <strong>{donemAdi}</strong> dönemine ait referans değerlerdir ve otomatik
-          güncellenmemektedir. Bağlayıcı ve güncel oran için TCMB duyurularını esas alın.
+          Faiz verileri otomatik alınamadı. Aşağıdaki oranlar <strong>{REFERENCE_RATES.decisionDate}</strong> tarihli statik referanslardır.{" "}
+          Güncel ve bağlayıcı oran için{" "}
+          <a href={REFERENCE_RATES.sourceUrl} target="_blank" rel="noopener noreferrer">
+            TCMB faiz duyurusunu
+          </a>{" "}
+          esas alın.
         </div>
       )}
 
       <div className="market-grid">
-        {kartlar.map((r) => (
+        {kartlar.map((r, index) => (
           <div key={r.label} className="market-card market-card-static">
             <div className="market-card-name">{r.label}</div>
             <div className="market-card-price">%{r.value.toLocaleString("tr-TR")}</div>
             <p className="market-card-desc">{r.desc}</p>
+            {tcmb && (
+              <a className="market-card-source"
+                href={index === 0 ? TCMB_REPO_RATES_URL : TCMB_OVERNIGHT_RATES_URL}
+                target="_blank" rel="noopener noreferrer">
+                TCMB kaynağı ↗
+              </a>
+            )}
           </div>
         ))}
       </div>

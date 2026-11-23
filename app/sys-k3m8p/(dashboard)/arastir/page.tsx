@@ -55,7 +55,7 @@ export default function Research() {
       const res = await fetch("/api/admin/research", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: r.title, summary: r.snippet, source: r.source, sourceUrl: r.link }),
+        body: JSON.stringify({ title: r.title, summary: r.snippet }),
       });
       const d = await res.json();
       if (res.ok && d.articleId) {
@@ -117,7 +117,7 @@ export default function Research() {
                   <h3 style={{ fontSize: 15, fontWeight: 600, color: "var(--ink)", marginBottom: 6 }}>{r.title}</h3>
                   <div style={{ display: "flex", gap: 10, flexWrap: "wrap", fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>
                     {r.source && <span>{r.source}</span>}
-                    {r.pubDate && <span>{new Date(r.pubDate).toLocaleString("tr-TR")}</span>}
+                    {r.pubDate && <span>{new Date(r.pubDate).toLocaleString("tr-TR", { timeZone: "Europe/Istanbul" })}</span>}
                   </div>
                   {r.snippet && <p style={{ fontSize: 13, color: "var(--ink2)", marginBottom: 10 }}>{r.snippet}</p>}
                   <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>

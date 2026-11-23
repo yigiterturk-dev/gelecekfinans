@@ -29,7 +29,7 @@ export const EMBED_TOOLS: EmbedTool[] = [
   { slug: "kredi-faiz-hesaplama", label: "Kredi Faizi Hesaplama", kind: "kredi", height: 600, desc: "Tutar, faiz ve vadeye göre aylık taksit, toplam geri ödeme ve faiz." },
   { slug: "mevduat-faiz-hesaplama", label: "Mevduat Faizi Hesaplama", kind: "mevduat", height: 600, desc: "Brüt faiz, stopaj ve net getiri." },
   { slug: "bilesik-faiz-hesaplama", label: "Bileşik Faiz Hesaplama", kind: "bilesik", height: 600, desc: "Aylık ek yatırımla dönem sonu değer." },
-  { slug: "enflasyon-hesaplama", label: "Enflasyon Hesaplama", kind: "enflasyon", height: 520, desc: "Paranın alım gücü ve güncel karşılığı." },
+  { slug: "enflasyon-hesaplama", label: "Enflasyon Hesaplama", kind: "enflasyon", height: 560, desc: "Geçmiş tutarın bugünkü karşılığı veya bugünkü tutarın geçmiş alım gücü." },
   { slug: "hisse-kar-zarar-hesaplama", label: "Hisse Kâr/Zarar Hesaplama", kind: "hissekz", height: 560, desc: "Komisyon ve BSMV dahil net kâr/zarar." },
   { slug: "temettu-hesaplama", label: "Temettü Hesaplama", kind: "temettu", height: 540, desc: "Stopaj sonrası net temettü ve verim." },
 ];

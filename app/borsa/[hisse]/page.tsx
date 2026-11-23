@@ -1,3 +1,4 @@
+import { serializeJsonLd } from "@/lib/json-ld";
 import { datasetDescription } from "@/lib/dataset-desc";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -5,13 +6,13 @@ import { notFound } from "next/navigation";
 import { getStock, BIST_STOCKS, BIST_INDEX_SLUG, tl, pctText, fmtUpdated, safeRelatedArticles } from "@/lib/market";
 import { MedCard } from "@/components/ArticleCard";
 import AdSlot from "@/components/AdSlot";
-import Sparkline from "@/components/Sparkline";
 import MarketFaq from "@/components/MarketFaq";
 import { bistFaq } from "@/lib/market-faq";
 import { STOCK_PROFILES } from "@/lib/stock-profiles";
 import { getGuides } from "@/lib/articles";
 import { getStockDividends } from "@/lib/dividends";
 import StockDividends from "@/components/StockDividends";
+import TradingViewChart from "@/components/TradingViewChart";
 
 export const revalidate = 300;
 const BASE = "https://gelecekfinans.com";
@@ -28,8 +29,8 @@ export async function generateMetadata({ params }: { params: Promise<{ hisse: st
     ? "BIST 100 Canlı — Endeks Kaç Puan? Güncel XU100 Değeri"
     : `${cfg.name} (${cfg.ticker}) Hisse Fiyatı — Canlı ${cfg.ticker} Grafiği`;
   const description = cfg.index
-    ? "BIST 100 endeksi şu an kaç puan? Borsa İstanbul ana endeksinin canlı değeri, günlük değişimi ve bir aylık seyri."
-    : `${cfg.name} (${cfg.ticker}) hisse senedi güncel fiyatı, günlük değişim oranı ve bir aylık fiyat grafiği.`;
+    ? "BIST 100 endeksi şu an kaç puan? Borsa İstanbul ana endeksinin güncel değeri, günlük değişimi ve TradingView canlı grafiği."
+    : `${cfg.name} (${cfg.ticker}) hisse senedi güncel fiyatı, günlük değişim oranı ve TradingView canlı grafiği.`;
   return {
     title,
     description,
@@ -95,7 +96,7 @@ export default async function HisseDetail({ params }: { params: Promise<{ hisse:
 
   return (
     <div className="container market-page">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }} />
       <nav className="crumbs" aria-label="Breadcrumb">
         <Link href="/">Ana Sayfa</Link> <span>/</span> <Link href="/borsa">Borsa</Link> <span>/</span> <span>{cfg.name}</span>
       </nav>
@@ -123,6 +124,7 @@ export default async function HisseDetail({ params }: { params: Promise<{ hisse:
             ) : (
               <div className="market-muted">Günlük değişim verisi alınamadı.</div>
             )}
+            <div className="market-updated">Kaynak: Yahoo Finance ({cfg.ticker}.IS)</div>
             {d.prevClose != null && (
               <div className="market-stats">
                 <span>Önceki Kapanış: <strong>{cfg.index ? `${tl(d.prevClose, 2)} puan` : `₺${tl(d.prevClose, 2)}`}</strong></span>
@@ -136,8 +138,7 @@ export default async function HisseDetail({ params }: { params: Promise<{ hisse:
           </div>
         )}
 
-        <Sparkline data={d?.series ?? null} up={up} label={`${cfg.name} bir aylık fiyat grafiği`} />
-        <p className="market-spark-cap">Son bir aylık {cfg.ticker} kapanış seyri</p>
+        <TradingViewChart symbol={`BIST:${cfg.ticker}`} title={cfg.name} />
 
         {stats && (
           <div className="market-stats-block">

@@ -13,7 +13,6 @@ import { Resend } from "resend";
  */
 
 const FROM = process.env.MAIL_FROM || "GelecekFinans <bulten@gelecekfinans.com>";
-const TO = process.env.ALERT_EMAIL || "sales@nocturndev.com";
 
 function escapeHtml(value: string): string {
   return value
@@ -36,6 +35,7 @@ export interface BotAlert {
 
 export async function sendBotAlert(alert: BotAlert): Promise<boolean> {
   const key = process.env.RESEND_API_KEY;
+  const recipient = process.env.ALERT_EMAIL?.trim();
   const summary = [
     alert.code ? `Kod: ${alert.code}` : null,
     alert.runId ? `Koşu: ${alert.runId}` : null,
@@ -45,15 +45,18 @@ export async function sendBotAlert(alert: BotAlert): Promise<boolean> {
     .filter(Boolean)
     .join("\n");
 
-  if (!key) {
-    console.error(`[bot-alert] RESEND_API_KEY yok — mail atlandı. ${alert.title}\n${summary}`);
+  if (!key || !recipient) {
+    const missing = [!key ? "RESEND_API_KEY" : null, !recipient ? "ALERT_EMAIL" : null]
+      .filter(Boolean)
+      .join(" / ");
+    console.error(`[bot-alert] ${missing} yok — mail atlandı. ${alert.title}\n${summary}`);
     return false;
   }
 
   try {
     const res = await new Resend(key).emails.send({
       from: FROM,
-      to: TO,
+      to: recipient,
       subject: `GelecekFinans bot durdu: ${alert.title}`,
       html:
         `<h2>Yayın akışı durdu</h2>` +

@@ -307,7 +307,7 @@ export const GUIDE_QUALITY_PRESET: QualityPreset = {
  * doldurmaya iter.
  */
 export const ENTITY_QUALITY_PRESET: QualityPreset = {
-  minWords: 600,
+  minWords: 450,
   maxWords: 1400,
   minIndependentSources: 2,
   label: "varlık",
@@ -484,8 +484,8 @@ export function validateDraft(
  */
 export function stripEvidenceMarkers(value: string): string {
   return value
-    .replace(/\[\s*(?:ev|ark)-\d+[a-z0-9:_-]*\s*\]/gi, "")
-    .replace(/(?:ev|ark)-\d+-publisher:[a-z0-9-]+/gi, "")
+    .replace(/\[\s*(?:ev|ark)-\d+[a-z0-9:._-]*\s*\]/gi, "")
+    .replace(/(?:ev|ark)-\d+-publisher:[a-z0-9.-]+/gi, "")
     .replace(/[ \t]{2,}/g, " ")
     .replace(/\s+([.,;:!?])/g, "$1")
     .trim();

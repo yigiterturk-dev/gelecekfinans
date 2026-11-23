@@ -1,25 +1,31 @@
 "use client";
 import { useState } from "react";
+import { parseDecimalInput } from "@/lib/parse-decimal-input";
 
 /**
- * Enflasyon hesaplayıcı: kümülatif enflasyon oranıyla bir tutarın alım gücünü
- * ve güncel karşılığını hesaplar. Kullanıcı toplam enflasyon yüzdesini girer.
+ * Enflasyon hesaplayıcı: dönem yönünü seçerek tutarı kümülatif enflasyonla
+ * ileri taşır veya geçmiş satın alma gücüne çevirir.
  * Saf client, bağımlılıksız.
  */
 export default function InflationCalculator() {
+  const [direction, setDirection] = useState<"past-to-present" | "present-to-past">("past-to-present");
   const [amount, setAmount] = useState("10000");
   const [totalInflation, setTotalInflation] = useState("65"); // dönem kümülatif %
 
-  const A = parseFloat(amount.replace(",", "."));
-  const inf = parseFloat(totalInflation.replace(",", ".")) / 100;
-  const valid = !isNaN(A) && A > 0 && isFinite(A) && !isNaN(inf) && inf > -1 && isFinite(inf);
+  const A = parseDecimalInput(amount);
+  const inf = parseDecimalInput(totalInflation) / 100;
+  const inputsValid = Number.isFinite(A) && A > 0 && Number.isFinite(inf) && inf > -1;
 
-  let adjusted: number | null = null; // güncel karşılık (nominal eşdeğer)
-  let purchasingPower: number | null = null; // bugünkü alım gücü
-  if (valid) {
-    adjusted = A * (1 + inf);
-    purchasingPower = A / (1 + inf);
-  }
+  const adjustedEstimate = inputsValid
+    ? direction === "past-to-present" ? A * (1 + inf) : A / (1 + inf)
+    : null;
+  const differenceEstimate = adjustedEstimate === null
+    ? null
+    : direction === "past-to-present" ? adjustedEstimate - A : A - adjustedEstimate;
+  const valid = adjustedEstimate !== null && Number.isFinite(adjustedEstimate) &&
+    differenceEstimate !== null && Number.isFinite(differenceEstimate);
+  const adjusted = valid ? adjustedEstimate : null;
+  const difference = valid ? differenceEstimate : null;
 
   const fmt = (v: number) => "₺" + v.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -27,9 +33,16 @@ export default function InflationCalculator() {
     <div className="calc-box">
       <div className="calc-row">
         <label className="calc-field">
-          <span>Tutar (₺)</span>
+          <span>Hesap yönü</span>
+          <select value={direction} onChange={(e) => setDirection(e.target.value as typeof direction)} aria-label="Enflasyon hesap yönü">
+            <option value="past-to-present">Geçmiş tutarı bugüne taşı</option>
+            <option value="present-to-past">Bugünkü tutarı geçmişe indir</option>
+          </select>
+        </label>
+        <label className="calc-field">
+          <span>{direction === "past-to-present" ? "Geçmiş dönemdeki tutar (₺)" : "Bugünkü tutar (₺)"}</span>
           <input type="number" inputMode="decimal" min={0} step="any" value={amount}
-            onChange={(e) => setAmount(e.target.value)} aria-label="Başlangıç tutarı" />
+            onChange={(e) => setAmount(e.target.value)} aria-label={direction === "past-to-present" ? "Geçmiş dönemdeki tutar" : "Bugünkü tutar"} />
         </label>
         <label className="calc-field">
           <span>Dönem Enflasyonu (%)</span>
@@ -39,23 +52,23 @@ export default function InflationCalculator() {
       </div>
       <div className="calc-result calc-result-grid" aria-live="polite">
         {!valid ? (
-          <span className="conv-muted">Tutar ve enflasyon oranı için geçerli değerler girin.</span>
+          <span className="conv-muted">Geçerli tutar ve enflasyon oranı girin; hesap sonucu sayısal sınırı aşmamalı.</span>
         ) : (
           <>
             <div>
-              <span className="calc-result-lbl">Enflasyona Göre Güncel Karşılık</span>
+              <span className="calc-result-lbl">{direction === "past-to-present" ? "Bugünkü karşılığı" : "Geçmiş dönemdeki nominal karşılığı"}</span>
               <strong className="calc-out">{fmt(adjusted!)}</strong>
-              <span className="conv-muted">Aynı alım gücü için bugün gereken tutar.</span>
+              <span className="conv-muted">{direction === "past-to-present" ? "Aynı alım gücünü korumak için gereken tutar." : "Bu tutarın geçmiş dönemdeki nominal karşılığı."}</span>
             </div>
             <div>
-              <span className="calc-result-lbl">Bugünkü Alım Gücü</span>
-              <strong>{fmt(purchasingPower!)}</strong>
-              <span className="conv-muted">Bu tutarın bugünkü reel değeri.</span>
+              <span className="calc-result-lbl">Dönemler arası nominal fark</span>
+              <strong>{fmt(difference!)}</strong>
+              <span className="conv-muted">Seçilen iki dönem arasındaki tutar farkı.</span>
             </div>
           </>
         )}
       </div>
-      <p className="conv-note">Hesaplama girilen kümülatif enflasyon oranına dayanır; resmi TÜİK verileri için ilgili kurum yayınlarını esas alın.</p>
+      <p className="conv-note">Hesap, girilen kümülatif enflasyon oranını seçtiğiniz yönde uygular. Resmî TÜİK verileri için ilgili kurum yayınlarını esas alın.</p>
     </div>
   );
 }

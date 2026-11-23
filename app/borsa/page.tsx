@@ -1,13 +1,14 @@
+import { serializeJsonLd } from "@/lib/json-ld";
 import type { Metadata } from "next";
 import { paylasimMeta } from "@/lib/og";
 import Link from "next/link";
 import { getBistAll, BIST_INDEX_SLUG, tl, pctText, fmtUpdated, safeRelatedArticles } from "@/lib/market";
 import { MedCard } from "@/components/ArticleCard";
 import AdSlot from "@/components/AdSlot";
-import Sparkline from "@/components/Sparkline";
 import MarketFaq from "@/components/MarketFaq";
 import ToolsRail from "@/components/ToolsRail";
 import { BIST_HUB_FAQ } from "@/lib/market-faq";
+import TradingViewChart from "@/components/TradingViewChart";
 
 export const revalidate = 300;
 const BASE = "https://gelecekfinans.com";
@@ -15,7 +16,7 @@ const BASE = "https://gelecekfinans.com";
 export async function generateMetadata(): Promise<Metadata> {
   const title = "BIST 100 Canlı — Borsa İstanbul Endeks ve Hisse Fiyatları";
   const description =
-    "BIST 100 endeksi canlı değeri ve Borsa İstanbul'un en çok işlem gören hisselerinin güncel fiyatları, günlük değişim oranları ve bir aylık seyri.";
+    "BIST 100 endeksi canlı değeri, TradingView grafiği ve Borsa İstanbul'un en çok işlem gören hisselerinin güncel fiyatları.";
   return {
     title,
     description,
@@ -29,7 +30,6 @@ export default async function BorsaHub() {
   const index = rows.find((r) => r.slug === BIST_INDEX_SLUG) ?? null;
   const stocks = rows.filter((r) => r.slug !== BIST_INDEX_SLUG);
   const indexUp = (index?.changePct ?? 0) >= 0;
-
   const jsonLd = {
     "@context": "https://schema.org",
     "@graph": [
@@ -52,7 +52,7 @@ export default async function BorsaHub() {
 
   return (
     <div className="container market-page">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }} />
       <nav className="crumbs" aria-label="Breadcrumb">
         <Link href="/">Ana Sayfa</Link> <span>/</span> <span>Borsa</span>
       </nav>
@@ -81,8 +81,8 @@ export default async function BorsaHub() {
             <div className="market-muted">Günlük değişim verisi alınamadı.</div>
           )}
           {index.updatedAt && <div className="market-updated">Son güncelleme: {fmtUpdated(index.updatedAt)}</div>}
-          <Sparkline data={index.series} up={indexUp} label="BIST 100 bir aylık seyir grafiği" />
-          <p className="market-spark-cap">Son bir aylık BIST 100 kapanış seyri</p>
+          <div className="market-updated">Endeks kaynağı: Yahoo Finance (XU100.IS)</div>
+          <TradingViewChart symbol="BIST:XU100" title="BIST 100" />
           <p className="market-hero-link">
             <Link href={`/borsa/${BIST_INDEX_SLUG}`}>BIST 100 detay sayfası →</Link>
           </p>
@@ -120,6 +120,7 @@ export default async function BorsaHub() {
       ) : (
         <div className="market-na market-na-lg">Hisse verisi şu anda alınamadı. Lütfen daha sonra tekrar deneyin.</div>
       )}
+      {stocks.length > 0 && <p className="market-updated">Hisse fiyatı kaynağı: Yahoo Finance (.IS sembol serileri)</p>}
 
       <AdSlot position="inArticle" />
 
@@ -132,6 +133,8 @@ export default async function BorsaHub() {
         <div className="market-chips">
           <Link href="/borsa/temettu-takvimi" className="market-chip">Temettü Takvimi</Link>
           <Link href="/borsa/tatil-gunleri" className="market-chip">Borsa Tatil Günleri</Link>
+          <Link href="/halka-arz" className="market-chip">Halka Arz Nedir?</Link>
+          <Link href="/araci-kurumlar" className="market-chip">Aracı Kurum Nasıl Seçilir?</Link>
           <Link href="/doviz" className="market-chip">Döviz Kurları</Link>
           <Link href="/altin" className="market-chip">Altın Fiyatları</Link>
           <Link href="/kripto" className="market-chip">Kripto Fiyatları</Link>

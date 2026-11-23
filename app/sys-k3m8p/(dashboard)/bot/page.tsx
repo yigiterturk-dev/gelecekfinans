@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Select from "@/components/Select";
 
 interface Topic {
@@ -118,8 +118,10 @@ interface BotResult {
 
 interface AIProviderStatus {
   connected: boolean;
-  provider: "openai" | "anthropic";
+  automationEnabled: boolean;
+  provider: "openai" | "anthropic" | "deepseek";
   providerLabel: string;
+  billingLabel: string;
   writerModel: string;
   verifierModel: string;
   billingUrl: string;
@@ -139,42 +141,102 @@ const CATEGORIES = [
   { value: "ekonomi", label: "Ekonomi" },
 ];
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
 export default function BotPage() {
   const [topics, setTopics] = useState<Topic[]>([]);
   const [runs, setRuns] = useState<BotRun[]>([]);
   const [decisions, setDecisions] = useState<DecisionRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [sessionExpired, setSessionExpired] = useState(false);
+  const [topicsError, setTopicsError] = useState("");
+  const [topicsLoading, setTopicsLoading] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [generating, setGenerating] = useState(false);
   const [category, setCategory] = useState("");
   const [count, setCount] = useState(1);
   const [result, setResult] = useState<string | null>(null);
-  const [autoPublish, setAutoPublish] = useState(false);
   const [aiProvider, setAIProvider] = useState<AIProviderStatus | null>(null);
   const [cost, setCost] = useState<CostSummary | null>(null);
   const [blocks, setBlocks] = useState<BlockRow[]>([]);
+  const topicsRequest = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    Promise.all([
-      fetch("/api/bot/topics").then((r) => r.json()),
-      fetch("/api/admin/bot-runs").then((r) => r.json()),
-      fetch("/api/admin/ai-provider").then((r) => r.json()),
-    ])
-      .then(([t, r, billing]) => {
-        setTopics(t.topics || []);
-        setRuns(r.runs || []);
-        setDecisions(r.recentDecisions || []);
-        setCost(r.cost || null);
-        setBlocks(r.blocks || []);
-        if (!billing.error) setAIProvider(billing);
-      })
-      .finally(() => setLoading(false));
-  }, []);
+    const controller = new AbortController();
+    let active = true;
+    const load = async () => {
+      try {
+        const responses = await Promise.all([
+          fetch("/api/bot/topics", { signal: controller.signal }),
+          fetch("/api/admin/bot-runs", { signal: controller.signal }),
+          fetch("/api/admin/ai-provider", { signal: controller.signal }),
+        ]);
+        if (controller.signal.aborted) return;
+        const unauthorized = responses.some((response) => response.status === 401);
+        if (active) setSessionExpired(unauthorized);
+        if (unauthorized) {
+          throw new Error("Yönetim oturumunuz sona ermiş. Devam etmek için yeniden giriş yapın.");
+        }
+        if (responses.some((response) => !response.ok)) {
+          throw new Error("Bot paneli verileri yüklenemedi.");
+        }
+        const [topicsData, runsData, billingData]: unknown[] = await Promise.all(
+          responses.map((response) => response.json().catch(() => null)),
+        );
+        if (!isRecord(topicsData) || !Array.isArray(topicsData.topics)
+          || !isRecord(runsData) || !Array.isArray(runsData.runs)
+          || !Array.isArray(runsData.recentDecisions) || !isRecord(runsData.cost)
+          || !Array.isArray(runsData.blocks) || !isRecord(billingData)
+          || typeof billingData.connected !== "boolean" || typeof billingData.automationEnabled !== "boolean") {
+          throw new Error("Bot panelinden geçersiz veri yanıtı geldi.");
+        }
+        if (!active) return;
+        setTopics(topicsData.topics as Topic[]);
+        setRuns(runsData.runs as BotRun[]);
+        setDecisions(runsData.recentDecisions as DecisionRow[]);
+        setCost(runsData.cost as unknown as CostSummary);
+        setBlocks(runsData.blocks as BlockRow[]);
+        setAIProvider(billingData as unknown as AIProviderStatus);
+      } catch {
+        if (active && !controller.signal.aborted) {
+          setLoadError("Bot paneli verileri yüklenemedi. Oturum veya servis bağlantısını kontrol edip yeniden deneyin.");
+        }
+      } finally {
+        if (active && !controller.signal.aborted) setLoading(false);
+      }
+    };
+    void load();
+    return () => {
+      active = false;
+      controller.abort();
+      topicsRequest.current?.abort();
+    };
+  }, [reloadKey]);
 
   const loadTopics = async (cat: string) => {
+    topicsRequest.current?.abort();
+    const controller = new AbortController();
+    topicsRequest.current = controller;
     setCategory(cat);
-    const res = await fetch(`/api/bot/topics?category=${cat}`);
-    const data = await res.json();
-    setTopics(data.topics || []);
+    setTopics([]);
+    setTopicsError("");
+    setTopicsLoading(true);
+    try {
+      const response = await fetch(`/api/bot/topics?category=${encodeURIComponent(cat)}`, { signal: controller.signal });
+      const data: unknown = await response.json().catch(() => null);
+      if (controller.signal.aborted) return;
+      if (!response.ok || !isRecord(data) || !Array.isArray(data.topics)) {
+        throw new Error("Konular yüklenemedi.");
+      }
+      setTopics(data.topics as Topic[]);
+    } catch {
+      if (!controller.signal.aborted) setTopicsError("Seçilen kategorinin konuları yüklenemedi.");
+    } finally {
+      if (!controller.signal.aborted) setTopicsLoading(false);
+    }
   };
 
   const generate = async () => {
@@ -200,7 +262,7 @@ export default function BotPage() {
         const res = await fetch("/api/bot/generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ count: 1, category, words: 650, autoPublish }),
+          body: JSON.stringify({ count: 1, category, words: 650 }),
         });
         const raw = await res.text();
         let data: BotResult;
@@ -224,7 +286,7 @@ export default function BotPage() {
 
       if (fatalErrorCode === "OPENAI_QUOTA_EXHAUSTED") {
         setResult(
-          "Hata: OpenAI API bakiyesi tükenmiş. platform.openai.com üzerinden kredi eklenene kadar akış güvenli biçimde durduruldu."
+          "Hata: OpenAI API kota/limit hatası. Bakiye ve proje/kuruluş harcama/kullanım limitlerini kontrol edin; hata bakiyenin tükendiğini tek başına kanıtlamaz. Akış durduruldu."
         );
       } else if (fatalErrorCode === "ANTHROPIC_BILLING_ERROR") {
         setResult(
@@ -240,15 +302,23 @@ export default function BotPage() {
             (total.errors.length ? `, ${total.errors.length} hata` : "")
         );
       }
-      const runsRes = await fetch("/api/admin/bot-runs");
-      const runsData = await runsRes.json();
-      setRuns(runsData.runs || []);
-      setDecisions(runsData.recentDecisions || []);
-      setCost(runsData.cost || null);
-      setBlocks(runsData.blocks || []);
     } catch (e) {
       setResult(`Hata: ${(e as Error).message}`);
     } finally {
+      try {
+        const runsRes = await fetch("/api/admin/bot-runs");
+        const runsData: unknown = await runsRes.json().catch(() => null);
+        if (!runsRes.ok || !isRecord(runsData) || !Array.isArray(runsData.runs)
+          || !Array.isArray(runsData.recentDecisions) || !isRecord(runsData.cost) || !Array.isArray(runsData.blocks)) {
+          throw new Error("Bot çalışma raporu yenilenemedi.");
+        }
+        setRuns(runsData.runs as BotRun[]);
+        setDecisions(runsData.recentDecisions as DecisionRow[]);
+        setCost(runsData.cost as unknown as CostSummary);
+        setBlocks(runsData.blocks as BlockRow[]);
+      } catch {
+        setLoadError("Üretim sonrası bot çalışma raporu yenilenemedi.");
+      }
       setGenerating(false);
     }
   };
@@ -258,6 +328,16 @@ export default function BotPage() {
   return (
     <div>
       <div className="adm-page-head"><h1 className="adm-h1">Otonom Yayın Merkezi</h1></div>
+      {loadError && (
+        <div role="alert" style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 16, padding: 12, border: "1px solid var(--dn)", borderRadius: 8, color: "var(--dn)" }}>
+          <span style={{ flex: 1, fontSize: 13 }}>{sessionExpired ? "Yönetim oturumunuz sona ermiş. Devam etmek için yeniden giriş yapın." : loadError}</span>
+          {sessionExpired ? (
+            <a className="adm-btn" href="/sys-k3m8p/giris">Yönetim Girişi</a>
+          ) : (
+            <button className="adm-btn" onClick={() => { setLoading(true); setLoadError(""); setReloadKey((key) => key + 1); }}>Yeniden Dene</button>
+          )}
+        </div>
+      )}
 
       <div className="adm-card" style={{ borderColor: "#d9d4ff" }}>
         <div className="adm-card-h">
@@ -270,11 +350,17 @@ export default function BotPage() {
             fontSize: 10,
             padding: "5px 9px",
             borderRadius: 999,
-            background: aiProvider?.connected ? "var(--up-soft)" : "#fef2f2",
-            color: aiProvider?.connected ? "var(--up)" : "var(--dn)",
+            background: !aiProvider?.automationEnabled
+              ? "rgba(148,163,184,.16)"
+              : aiProvider.connected ? "var(--up-soft)" : "#fef2f2",
+            color: !aiProvider?.automationEnabled
+              ? "var(--muted)"
+              : aiProvider.connected ? "var(--up)" : "var(--dn)",
             fontFamily: "var(--mono)",
           }}>
-            {aiProvider?.connected ? "BAĞLI" : "ANAHTAR EKSİK"}
+            {!aiProvider?.automationEnabled
+              ? "OTOMASYON KAPALI · ÇAĞRI YOK"
+              : aiProvider.connected ? "AYARLI" : "YAPILANDIRMA EKSİK"}
           </span>
         </div>
         <div className="adm-card-b">
@@ -305,12 +391,12 @@ export default function BotPage() {
               rel="noopener noreferrer"
               className="adm-btn adm-btn-primary"
             >
-              OpenAI Billing&apos;i Aç ↗
+              {aiProvider?.billingLabel || "Sağlayıcı panelini aç ↗"}
             </a>
             <p style={{ maxWidth: 680, color: "var(--muted)", fontSize: 11, lineHeight: 1.55 }}>
-              Yazar ve doğrulayıcı ayrı modellerdir. Kalite, özgünlük ve kanıt doğrulaması kapılarında kalan taslak
-              BİR kez onarıma gönderilir (ek yazar çağrısı = ek maliyet); ikinci onarım turu yoktur. Günlük limit
-              dolunca motor yeni çağrı yapmadan durur. Gerçek harcama aşağıdaki kartta ölçülür.
+              Yazar ve doğrulayıcı ayrı modellerdir. Varsayılan olarak yalnızca ilk taslak hazırlanır; kalite
+              kapısında kalan metin için otomatik ücretli onarım çağrısı yapılmaz. ARTICLE_MAX_DRAFT_ATTEMPTS
+              artırılırsa ek denemeler açılır. Günlük limit dolunca motor yeni çağrı yapmadan durur.
             </p>
           </div>
         </div>
@@ -322,18 +408,20 @@ export default function BotPage() {
             <b>Model Harcaması</b>
             <small>
               {cost?.measuredDays
-                ? `Gerçek token ölçümü · ${cost.measuredDays} gün kayıtlı · ${cost.calls} çağrı`
+                ? `Uygulama kayıtları · ${cost.measuredDays} gün · ${cost.calls} çağrı · sağlayıcı faturası değil`
                 : "Ölçüm 1 Eylül 2026'da eklendi; ilk koşumdan sonra dolar."}
             </small>
           </div>
           {cost && cost.projectedMonthly > 0 && (
             <span style={{
               whiteSpace: "nowrap", fontSize: 10, padding: "5px 9px", borderRadius: 999,
-              background: cost.projectedMonthly > 75 ? "#fef2f2" : "var(--up-soft)",
-              color: cost.projectedMonthly > 75 ? "var(--dn)" : "var(--up)",
+              background: cost.unpricedModels.length > 0 || cost.projectedMonthly > 75 ? "#fef2f2" : "var(--up-soft)",
+              color: cost.unpricedModels.length > 0 || cost.projectedMonthly > 75 ? "var(--dn)" : "var(--up)",
               fontFamily: "var(--mono)",
             }}>
-              {cost.projectedMonthly > 75 ? "BÜTÇE ÜSTÜ" : "BÜTÇE İÇİNDE"}
+              {cost.unpricedModels.length > 0
+                ? "MALİYET EKSİK"
+                : cost.projectedMonthly > 75 ? "TAHMİNİ EŞİK AŞILDI" : "TAHMİNİ EŞİK ALTINDA"}
             </span>
           )}
         </div>
@@ -343,16 +431,21 @@ export default function BotPage() {
             <ProviderMetric label="SON 7 GÜN" value={cost ? `$${cost.week.toFixed(2)}` : "—"} />
             <ProviderMetric label="SON 30 GÜN" value={cost ? `$${cost.month.toFixed(2)}` : "—"} />
             <ProviderMetric
-              label="AYLIK GİDİŞ"
-              value={cost?.projectedMonthly ? `$${cost.projectedMonthly.toFixed(2)} / $75` : "—"}
+              label={cost?.unpricedModels.length ? "KAYITLI AYLIK TAHMİN" : "TAHMİNİ AYLIK GİDİŞ"}
+              value={cost?.projectedMonthly
+                ? `$${cost.projectedMonthly.toFixed(2)}${cost.unpricedModels.length ? "+" : ""} / $75 eşik`
+                : "—"}
             />
             {cost && Object.entries(cost.byModel).map(([model, value]) => (
               <ProviderMetric key={model} label={model.toUpperCase()} value={`$${value.toFixed(4)}`} />
             ))}
           </div>
+          <p style={{ marginTop: 12, color: "var(--muted)", fontSize: 11 }}>
+            $75 yalnızca kayıtlı tahmin için uyarı eşiğidir; uygulama bu tutarda model çağrılarını otomatik durdurmaz. Gerçek harcama sınırı için sağlayıcı hesabındaki faturalama limitini kullanın.
+          </p>
           {cost && cost.unpricedModels.length > 0 && (
             <p style={{ marginTop: 12, color: "var(--dn)", fontSize: 11 }}>
-              Fiyatı bilinmeyen model: {cost.unpricedModels.join(", ")} — toplam eksik.
+              Fiyatı bilinmeyen model: {cost.unpricedModels.join(", ")} — gösterilen tutar eksik; gerçek harcama daha yüksek olabilir.
             </p>
           )}
         </div>
@@ -379,7 +472,7 @@ export default function BotPage() {
                   }}
                 >
                   <span style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--muted)", whiteSpace: "nowrap" }}>
-                    {new Date(block.createdAt).toLocaleString("tr-TR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                    {new Date(block.createdAt).toLocaleString("tr-TR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Istanbul" })}
                   </span>
                   <span style={{
                     fontFamily: "var(--mono)", fontSize: 9, padding: "3px 7px", borderRadius: 999, whiteSpace: "nowrap",
@@ -418,12 +511,8 @@ export default function BotPage() {
             {generating ? "Akış çalışıyor..." : "Akışı Başlat"}
           </button>
         </div>
-        <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14, color: "var(--ink2)", fontSize: 13 }}>
-          <input type="checkbox" checked={autoPublish} onChange={(e) => setAutoPublish(e.target.checked)} />
-          Eşikleri geçen yeşil içerikleri otomatik yayımla
-        </label>
         <p style={{ marginTop: 6, fontSize: 11, color: "var(--muted)" }}>
-              Kapalıyken tüm içerikler denetim için taslakta kalır. Varsayılan güvenli çalışma biçimi 1 makale ve 650 kelimedir.
+          Bot çıktıları editör incelemesi için taslak kalır. Her üretim isteği tek makale ve 650 kelime hedefiyle çalışır.
         </p>
         {result && (
           <div style={{ marginTop: 16, padding: "10px 14px", background: "var(--surface)", borderRadius: 8, fontSize: 13, color: result.startsWith("Hata") ? "var(--dn)" : "var(--up)" }}>
@@ -501,10 +590,17 @@ export default function BotPage() {
       </div>
 
       <div className="adm-card">
-        <div className="adm-card-h"><div><b>Güncel Konular</b><small>{topics.length} başlık bulundu</small></div></div>
+        <div className="adm-card-h"><div><b>Güncel Konular</b><small>{topicsLoading ? "Yükleniyor…" : `${topics.length} başlık bulundu`}</small></div></div>
         <div className="adm-card-b">
         {topics.length === 0 ? (
-          <p style={{ color: "var(--muted)", fontSize: 13 }}>Konu bulunamadı</p>
+          <div>
+            <p style={{ color: topicsError ? "var(--dn)" : "var(--muted)", fontSize: 13 }}>
+              {topicsLoading ? "Konular getiriliyor…" : topicsError || "Konu bulunamadı"}
+            </p>
+            {topicsError && !topicsLoading && (
+              <button className="adm-btn" style={{ marginTop: 8 }} onClick={() => void loadTopics(category)}>Konuları Yeniden Dene</button>
+            )}
+          </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {topics.slice(0, 15).map((t, i) => (
@@ -536,7 +632,7 @@ export default function BotPage() {
             {runs.map((r) => (
               <div key={r.id} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, padding: 16 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                  <span style={{ fontSize: 13, color: "var(--ink2)", fontFamily: "var(--mono)" }}>{new Date(r.startedAt).toLocaleString("tr-TR")}</span>
+                  <span style={{ fontSize: 13, color: "var(--ink2)", fontFamily: "var(--mono)" }}>{new Date(r.startedAt).toLocaleString("tr-TR", { timeZone: "Europe/Istanbul" })}</span>
                   <span style={{ fontSize: 11, padding: "4px 8px", borderRadius: 4, fontFamily: "var(--mono)", background: r.status === "completed" ? "var(--up-soft)" : "#fffbeb", color: r.status === "completed" ? "var(--up)" : "#d97706" }}>
                     {r.status}
                   </span>

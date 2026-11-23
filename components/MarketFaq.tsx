@@ -1,3 +1,4 @@
+import { serializeJsonLd } from "@/lib/json-ld";
 import type { FaqItem } from "@/lib/market-faq";
 
 /**
@@ -27,7 +28,7 @@ export default function MarketFaq({ items, title = "Sık Sorulan Sorular" }: { i
   };
   return (
     <section className="section market-faq">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }} />
       <h2 className="market-h2">{title}</h2>
       <div className="market-faq-list">
         {items.map((f) => (

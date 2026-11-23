@@ -8,6 +8,8 @@ interface ExternalSource {
   url: string;
   // İçerikte bu terimlerden biri geçerse, link o terime bağlanır (doğal yerleştirme).
   terms: string[];
+  // Kaynak genel veri kaynağı değilse, konuya uygun açık fallback açıklaması.
+  fallbackSentence?: string;
 }
 
 // Kategori → resmi kaynak eşlemesi. İlk eleman birincil (fallback için kullanılır).
@@ -27,8 +29,13 @@ const CATEGORY_SOURCES: Record<string, ExternalSource[]> = {
     { name: "TCMB", url: "https://www.tcmb.gov.tr", terms: ["TCMB", "Merkez Bankası", "merkez bankası", "altın", "rezerv"] },
   ],
   kripto: [
-    { name: "TÜİK", url: "https://www.tuik.gov.tr", terms: ["TÜİK", "ekonomi"] },
-    { name: "TCMB", url: "https://www.tcmb.gov.tr", terms: ["TCMB", "Merkez Bankası", "merkez bankası"] },
+    {
+      name: "SPK Kripto Varlık Hizmet Sağlayıcılar",
+      url: "https://spk.gov.tr/kurumlar/kripto-varlik-hizmet-saglayicilar",
+      terms: ["SPK", "kripto varlık hizmet sağlayıcı"],
+      fallbackSentence:
+        `<p>Türkiye'deki kripto varlık hizmet sağlayıcı listeleri ve duyuruları için <a href="https://spk.gov.tr/kurumlar/kripto-varlik-hizmet-saglayicilar" target="_blank" rel="nofollow noopener noreferrer">SPK'nın güncel sayfasını</a> inceleyin. SPK, “Faaliyette Bulunanlar Listesi”nde yer almanın tek başına yetkilendirme anlamına gelmediğini belirtiyor.</p>`,
+    },
   ],
 };
 
@@ -102,7 +109,7 @@ export function ensureExternalLink(
   // 2) Terim bulunamadıysa: keyword'ü kaynağa bağlayan kısa bir cümle ekle.
   const primary = sources[0] || DEFAULT_SOURCE;
   const kw = (keyword || "konuyla ilgili güncel veriler").trim();
-  const sentence =
+  const sentence = primary.fallbackSentence ||
     `<p>Konuyla ilgili resmi verilere <a href="${primary.url}" target="_blank" rel="nofollow noopener noreferrer">${primary.name}</a> üzerinden ulaşabilirsiniz.</p>`;
   void kw; // keyword şu an cümlede zorlanmıyor (doğallık için); imza uyumu korunur.
 

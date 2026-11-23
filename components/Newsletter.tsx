@@ -9,36 +9,62 @@ const PREFS: { key: string; label: string }[] = [
   { key: "ekonomi", label: "Ekonomi" },
 ];
 
-export default function Newsletter() {
+export default function Newsletter({ enabled = true }: { enabled?: boolean }) {
   const [email, setEmail] = useState("");
   const [prefs, setPrefs] = useState<string[]>([]);
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [needsConfirm, setNeedsConfirm] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   function togglePref(key: string) {
     setPrefs(p => (p.includes(key) ? p.filter(k => k !== key) : [...p, key]));
+  }
+
+  if (!enabled) {
+    return (
+      <div className="newsletter-box center" role="status">
+        <p className="newsletter-title">E-posta bülteni şu an kapalı</p>
+        <p className="newsletter-desc">
+          E-posta gönderimi hazır olmadığı için şu anda kayıt almıyoruz.
+        </p>
+      </div>
+    );
   }
 
   async function subscribe(e: React.FormEvent) {
     e.preventDefault();
     if (!email) return;
     setStatus("loading");
+    setErrorMessage("");
     try {
       const res = await fetch("/api/newsletter", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, preferences: prefs, source: "site-form" }),
       });
+      const d: unknown = await res.json().catch(() => null);
       if (res.ok) {
-        const d = await res.json().catch(() => ({}));
-        setNeedsConfirm(!!d.requiresConfirmation);
-        setStatus("success");
-        setEmail("");
-        setPrefs([]);
+        if (d && typeof d === "object"
+          && "ok" in d && d.ok === true
+          && "requiresConfirmation" in d && d.requiresConfirmation === true
+          && "confirmationSent" in d && d.confirmationSent === true) {
+          setNeedsConfirm(true);
+          setStatus("success");
+          setEmail("");
+          setPrefs([]);
+        } else {
+          setErrorMessage("Kayıt isteği alındı ancak onay e-postası doğrulanamadı. Lütfen biraz sonra tekrar deneyin.");
+          setStatus("error");
+        }
       } else {
+        const message = d && typeof d === "object" && "error" in d && typeof d.error === "string"
+          ? d.error
+          : "Bültene şu anda kaydolunamıyor.";
+        setErrorMessage(message);
         setStatus("error");
       }
     } catch {
+      setErrorMessage("Sunucuya ulaşılamadı. Lütfen biraz sonra tekrar deneyin.");
       setStatus("error");
     }
   }
@@ -90,7 +116,7 @@ export default function Newsletter() {
       <p className="newsletter-fineprint">
         İlgi alanı seçmezseniz tüm kategorilerden haber alırsınız.
       </p>
-      {status === "error" && <p className="newsletter-error" role="alert">Bir hata oluştu, tekrar deneyin.</p>}
+      {status === "error" && <p className="newsletter-error" role="alert">{errorMessage || "Bültene şu anda kaydolunamıyor."}</p>}
       </div>
     </div>
   );

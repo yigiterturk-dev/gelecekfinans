@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "crypto";
+import { createHash, createHmac, timingSafeEqual } from "crypto";
 
 /**
  * Bülten kategori segmentleri. ASCII anahtarlar (doviz/altin) URL ve
@@ -14,6 +14,8 @@ export const SEGMENT_LABELS: Record<Segment, string> = {
   altin: "Altın",
   ekonomi: "Ekonomi",
 };
+
+const MAX_SIGNED_NEWSLETTER_TOKEN_LENGTH = 512;
 
 export function isSegment(v: unknown): v is Segment {
   return typeof v === "string" && (SEGMENTS as readonly string[]).includes(v);
@@ -65,13 +67,20 @@ export function signOptInToken(email: string, ttlMs = 1000 * 60 * 60 * 48): stri
   return `${payload}.${sig}`;
 }
 
+/** Persist only a fingerprint so each subscriber's current confirmation link can be consumed once. */
+export function hashOptInToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+export const REVOKED_OPT_IN_TOKEN_HASH = "revoked";
+
 /**
  * Token doğrular; geçerli ve süresi geçmemişse email döner, aksi halde null.
  * Sabit-zaman karşılaştırma kullanır.
  */
 export function verifyOptInToken(token: string | null | undefined): string | null {
   const secret = newsletterSecret();
-  if (!secret || !token) return null;
+  if (!secret || !token || token.length > MAX_SIGNED_NEWSLETTER_TOKEN_LENGTH) return null;
   const parts = token.split(".");
   if (parts.length !== 2) return null;
   const [payload, sig] = parts;
@@ -113,7 +122,7 @@ export function signUnsubToken(email: string): string | null {
 /** Unsubscribe token'ı doğrular; geçerliyse email döner, aksi halde null. */
 export function verifyUnsubToken(token: string | null | undefined): string | null {
   const secret = newsletterSecret();
-  if (!secret || !token) return null;
+  if (!secret || !token || token.length > MAX_SIGNED_NEWSLETTER_TOKEN_LENGTH) return null;
   const parts = token.split(".");
   if (parts.length !== 2) return null;
   const [payload, sig] = parts;

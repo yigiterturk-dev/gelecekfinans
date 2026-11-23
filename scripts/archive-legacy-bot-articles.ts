@@ -27,6 +27,19 @@ function words(content: string): number {
   return content.replace(/<[^>]+>/g, " ").split(/\s+/).filter(Boolean).length;
 }
 
+function httpsLinkHosts(content: string): string[] {
+  const hosts = new Set<string>();
+  for (const match of content.matchAll(/href="(https:\/\/[^\"]+)"/gi)) {
+    try {
+      const url = new URL(match[1]);
+      if (url.protocol === "https:") hosts.add(url.hostname.toLocaleLowerCase("en-US").replace(/^www\./, ""));
+    } catch {
+      // Invalid links are not evidence of a usable source.
+    }
+  }
+  return [...hosts].slice(0, 12);
+}
+
 function reasonsFor(article: {
   content: string;
   imageUrl: string | null;
@@ -35,7 +48,10 @@ function reasonsFor(article: {
   const meta = metaOf(article.automationMeta);
   const reasons: string[] = [];
   if (words(article.content) < 50) reasons.push("EMPTY_SHELL");
-  if (meta.pipelineVersion !== "gf-evidence-v3" || meta.verifiedEvidence !== true) reasons.push("NO_VERIFIED_EVIDENCE");
+  // Pipeline versions evolve independently from the meaning of this flag.
+  // A newer verified pipeline (for example v5) is not evidence of a bad
+  // article; only a missing/false verification result is.
+  if (meta.verifiedEvidence !== true) reasons.push("NO_VERIFIED_EVIDENCE");
   if (/\/ai-|images\.unsplash\.com/.test(article.imageUrl || "")) reasons.push("LEGACY_OR_UNLICENSED_IMAGE");
   return reasons;
 }
@@ -49,10 +65,12 @@ async function archive(apply: boolean, scope: "all" | "drafts" | "published") {
     orderBy: { createdAt: "asc" },
     select: {
       id: true,
+      slug: true,
       title: true,
       status: true,
       publishedAt: true,
       publicationDecision: true,
+      source: true,
       imageUrl: true,
       content: true,
       automationMeta: true,
@@ -70,7 +88,20 @@ async function archive(apply: boolean, scope: "all" | "drafts" | "published") {
     targets: targets.length,
     published: targets.filter((row) => row.status === "PUBLISHED").length,
     drafts: targets.filter((row) => row.status === "DRAFT").length,
-    articles: targets.map((row) => ({ id: row.id, status: row.status, title: row.title, reasons: reasonsFor(row) })),
+    articles: targets.map((row) => {
+      const meta = metaOf(row.automationMeta);
+      return {
+        id: row.id,
+        slug: row.slug,
+        status: row.status,
+        title: row.title,
+        source: row.source,
+        sourceUrl: typeof meta.sourceUrl === "string" ? meta.sourceUrl : null,
+        sourceHosts: httpsLinkHosts(row.content),
+        hasVisibleSourcesSection: /<h[23][^>]*>\s*Kaynaklar\s*<\/h[23]>/i.test(row.content),
+        reasons: reasonsFor(row),
+      };
+    }),
   }, null, 2));
 
   if (!apply || !targets.length) return;

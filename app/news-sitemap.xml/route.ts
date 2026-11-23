@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/db";
+import { isSeoNoindex } from "@/lib/articles";
 import { absoluteImageUrl } from "@/lib/image-url";
+import { articleCoverUrl } from "@/lib/article-cover";
 
 const BASE = "https://gelecekfinans.com";
 
@@ -17,8 +19,10 @@ function escapeXml(value: string): string {
 type HaberSatiri = {
   slug: string;
   title: string;
+  category: string;
   publishedAt: Date | null;
   imageUrl: string | null;
+  automationMeta: unknown;
 };
 
 export async function GET() {
@@ -41,10 +45,13 @@ export async function GET() {
       select: {
         slug: true,
         title: true,
+        category: true,
         publishedAt: true,
         imageUrl: true,
+        automationMeta: true,
       },
     });
+    articles = articles.filter((article) => !isSeoNoindex(article.automationMeta));
   } catch (hata) {
     veriOkundu = false;
     console.error("news-sitemap: makaleler okunamadı", hata);
@@ -54,7 +61,7 @@ export async function GET() {
     const publishedAt = article.publishedAt;
     if (!publishedAt) return "";
     // Görsel URL'i kendi alan adımıza normalize edilir (bkz. lib/image-url.ts).
-    const imageUrl = absoluteImageUrl(article.imageUrl, BASE);
+    const imageUrl = absoluteImageUrl(articleCoverUrl(article), BASE);
     const image = imageUrl
       ? `<image:image><image:loc>${escapeXml(imageUrl)}</image:loc><image:caption>${escapeXml(article.title)}</image:caption></image:image>`
       : "";

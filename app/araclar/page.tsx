@@ -1,29 +1,16 @@
+import { serializeJsonLd } from "@/lib/json-ld";
 import type { Metadata } from "next";
 import Link from "next/link";
 import AdSlot from "@/components/AdSlot";
+import { TOOL_CATALOG } from "@/lib/tool-catalog";
 
 export const revalidate = 86400;
 const BASE = "https://gelecekfinans.com";
 
-const TOOLS = [
-  { slug: "doviz-cevirici", title: "Döviz Çevirici", desc: "Dolar, Euro, Sterlin ve TL arasında canlı kurla çeviri yapın.", icon: "💱" },
-  { slug: "altin-hesaplama", title: "Altın Hesaplama", desc: "Gram, çeyrek ve cumhuriyet altınının güncel TL değerini hesaplayın.", icon: "🥇" },
-  { slug: "kredi-faiz-hesaplama", title: "Kredi Faizi Hesaplama", desc: "Kredi tutarı, faiz ve vadeye göre aylık taksit ve toplam ödemeyi görün.", icon: "🏦" },
-  { slug: "mevduat-faiz-hesaplama", title: "Mevduat Faizi Hesaplama", desc: "Vadeli mevduatın brüt ve stopaj sonrası net getirisini hesaplayın.", icon: "💰" },
-  { slug: "enflasyon-hesaplama", title: "Enflasyon Hesaplama", desc: "Paranızın enflasyon karşısındaki alım gücünü ve güncel karşılığını hesaplayın.", icon: "📈" },
-  { slug: "bilesik-faiz-hesaplama", title: "Bileşik Faiz Hesaplama", desc: "Aylık ek yatırımla bileşik faizin dönem sonu değerini hesaplayın.", icon: "🔁" },
-  { slug: "hisse-kar-zarar-hesaplama", title: "Hisse Kâr/Zarar Hesaplama", desc: "Komisyon dahil hisse işleminin net kâr/zararını ve getirisini hesaplayın.", icon: "📊" },
-  { slug: "kira-artis-hesaplama", title: "Kira Artışı Hesaplama", desc: "TÜFE 12 aylık ortalama oranıyla yeni kira bedelini hesaplayın.", icon: "🏠" },
-  { slug: "emekli-zammi-hesaplama", title: "Emekli Zammı Hesaplama", desc: "Zam oranına göre yeni emekli aylığınızı ve yıllık farkı görün.", icon: "👴" },
-  { slug: "brut-net-maas-hesaplama", title: "Brüt Net Maaş Hesaplama", desc: "2026 vergi dilimleri ve asgari ücret istisnasıyla brütten nete, netten brüte maaş.", icon: "💼" },
-  { slug: "memur-zammi-hesaplama", title: "Memur Zammı Hesaplama", desc: "Toplu sözleşme + enflasyon farkıyla memur ve memur emeklisi zammını hesaplayın.", icon: "🏛️" },
-  { slug: "temettu-hesaplama", title: "Temettü Hesaplama", desc: "Stopaj sonrası net temettü gelirini ve temettü verimini hesaplayın.", icon: "💵" },
-];
-
 export async function generateMetadata(): Promise<Metadata> {
-  const title = "Finans Araçları — Döviz Çevirici, Altın, Faiz ve Enflasyon Hesaplama";
+  const title = "Finans Araçları — Döviz, Altın, Faiz, Enflasyon, BES ve OKS Hesaplama";
   const description =
-    "Ücretsiz finans hesaplama araçları: canlı döviz çevirici, altın hesaplama, kredi ve mevduat faizi hesaplayıcı, enflasyon hesaplama.";
+    "Ücretsiz finans hesaplama araçları: canlı döviz çevirici, altın, kredi ve mevduat faizi, enflasyon, BES ve OKS devlet katkısı hesaplama.";
   return {
     title,
     description,
@@ -40,13 +27,13 @@ export default function AraclarHub() {
       {
         "@type": "CollectionPage",
         name: "Finans Araçları",
-        description: "Döviz, altın, faiz ve enflasyon hesaplama araçları.",
+        description: "Döviz, altın, faiz, enflasyon, BES ve OKS için ücretsiz finans hesaplama araçları.",
         url: `${BASE}/araclar`,
         isPartOf: { "@type": "WebSite", name: "GelecekFinans", url: BASE },
       },
       {
         "@type": "ItemList",
-        itemListElement: TOOLS.map((t, i) => ({
+        itemListElement: TOOL_CATALOG.map((t, i) => ({
           "@type": "ListItem",
           position: i + 1,
           name: t.title,
@@ -65,18 +52,18 @@ export default function AraclarHub() {
 
   return (
     <div className="container market-page">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }} />
       <nav className="crumbs" aria-label="Breadcrumb">
         <Link href="/">Ana Sayfa</Link> <span>/</span> <span>Araçlar</span>
       </nav>
       <h1 className="page-header">Finans Araçları</h1>
       <p className="market-lede">
-        Ücretsiz finans hesaplama araçları: canlı döviz çevirici, altın değeri hesaplama, kredi ve mevduat faizi
-        hesaplayıcı ile enflasyon hesaplama.
+        Ücretsiz finans hesaplama araçları: canlı döviz çevirici, altın değeri, kredi ve mevduat faizi,
+        enflasyon, BES ve OKS devlet katkısı hesaplama.
       </p>
 
       <div className="market-grid">
-        {TOOLS.map((t) => (
+        {TOOL_CATALOG.map((t) => (
           <Link key={t.slug} href={`/araclar/${t.slug}`} className="market-card tool-card">
             <span className="tool-icon" aria-hidden>{t.icon}</span>
             <span className="market-card-name">{t.title}</span>

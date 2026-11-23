@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { paylasimMeta } from "@/lib/og";
 import Link from "next/link";
+import { serializeJsonLd } from "@/lib/json-ld";
 
 export const metadata: Metadata = {
   title: "Künye",
@@ -39,7 +40,7 @@ export default function Kunye() {
     <div style={{ maxWidth: 720, margin: "0 auto", padding: "60px 24px 100px" }}>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(KUNYE_LD).replace(/</g, "\\u003c") }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(KUNYE_LD) }}
       />
       <h1 style={{ fontFamily: "var(--display)", fontSize: 36, fontWeight: 900, marginBottom: 24 }}>Künye</h1>
       <div className="article-prose">

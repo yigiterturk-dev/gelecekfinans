@@ -2,6 +2,8 @@ import { getAllArticles } from "@/lib/articles";
 
 const BASE = "https://gelecekfinans.com";
 
+export const revalidate = 600;
+
 const CATEGORY_TR: Record<string, string> = {
   kripto: "Kripto Para",
   borsa: "Borsa",
@@ -10,17 +12,30 @@ const CATEGORY_TR: Record<string, string> = {
   ekonomi: "Ekonomi",
 };
 
+function escapeXml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+function cdata(value: string): string {
+  return "<![CDATA[" + value.split("]]>").join("]]]]><![CDATA[>") + "]]>";
+}
+
 export async function GET() {
   const articles = (await getAllArticles()).slice(0, 50);
   const items = articles
     .map(
       (a) => `<item>
-      <title><![CDATA[${a.title}]]></title>
-      <link>${BASE}/${a.slug}</link>
-      <description><![CDATA[${a.meta}]]></description>
+      <title>${cdata(a.title)}</title>
+      <link>${BASE}/${escapeXml(a.slug)}</link>
+      <description>${cdata(a.meta)}</description>
       <pubDate>${new Date(a.created_at).toUTCString()}</pubDate>
-      <category>${CATEGORY_TR[a.category] || a.category}</category>
-      <guid isPermaLink="true">${BASE}/${a.slug}</guid>
+      <category>${escapeXml(CATEGORY_TR[a.category] || a.category)}</category>
+      <guid isPermaLink="true">${BASE}/${escapeXml(a.slug)}</guid>
       <source url="${BASE}/feed.xml">GelecekFinans</source>
     </item>`
     )

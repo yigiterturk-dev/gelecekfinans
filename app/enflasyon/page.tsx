@@ -1,3 +1,4 @@
+import { serializeJsonLd } from "@/lib/json-ld";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { paylasimMeta } from "@/lib/og";
@@ -93,7 +94,7 @@ export default async function EnflasyonPage() {
 
   return (
     <div className="container market-page">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }} />
       <nav className="crumbs" aria-label="Breadcrumb">
         <Link href="/">Ana Sayfa</Link> <span>/</span> <span>Enflasyon</span>
       </nav>

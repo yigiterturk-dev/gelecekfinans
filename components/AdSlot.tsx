@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Script from "next/script";
+import { getPublicSiteConfig } from "@/lib/public-site-config";
 import {
   readPrivacyConsent, readServerPrivacyConsent, subscribePrivacyConsent,
 } from "@/lib/consent";
@@ -27,15 +28,24 @@ export default function AdSlot({ position }: Props) {
   const pushed = useRef(false);
 
   useEffect(() => {
-    fetch("/api/site-config")
-      .then(r => r.json())
-      .then(d => {
-        if (d.adSlots?.[position]) setEnabled(true);
-        if (d.adsenseId) setAdsenseId(d.adsenseId);
-        if (d.adSlotIds?.[position]) setSlotId(String(d.adSlotIds[position]).trim());
+    if (consent !== "accepted") {
+      setEnabled(false);
+      setAdsenseId("");
+      setSlotId("");
+      return;
+    }
+
+    let cancelled = false;
+    getPublicSiteConfig()
+      .then((config) => {
+        if (cancelled) return;
+        setEnabled(config.adSlots[position] === true);
+        setAdsenseId(config.adsenseId);
+        setSlotId(config.adSlotIds[position] ?? "");
       })
       .catch(() => {});
-  }, [position]);
+    return () => { cancelled = true; };
+  }, [consent, position]);
 
   // Reklam slotunu yalnızca etkin + adsenseId hazır olduğunda, bir kez kayıt et.
   // Otomatik Reklam modunda (birim kimliği yok) push YAPILMAZ: <ins> etiketi

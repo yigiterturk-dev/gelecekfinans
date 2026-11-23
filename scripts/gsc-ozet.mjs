@@ -1,26 +1,88 @@
-import crypto from "node:crypto";
-import fs from "node:fs";
-const env = Object.fromEntries(fs.readFileSync(".env.local","utf8").split("\n").filter(l=>l.includes("=")&&!l.startsWith("#")).map(l=>{const i=l.indexOf("=");let v=l.slice(i+1).trim();if((v.startsWith('"')&&v.endsWith('"')))v=v.slice(1,-1);return [l.slice(0,i).trim(),v];}));
-const b64=o=>Buffer.from(typeof o==="string"?o:JSON.stringify(o)).toString("base64url");
-const now=Math.floor(Date.now()/1000);
-const claim={iss:env.GSC_CLIENT_EMAIL,scope:"https://www.googleapis.com/auth/webmasters.readonly",aud:"https://oauth2.googleapis.com/token",exp:now+3600,iat:now};
-const unsigned=`${b64({alg:"RS256",typ:"JWT"})}.${b64(claim)}`;
-const sig=crypto.sign("RSA-SHA256",Buffer.from(unsigned),env.GSC_PRIVATE_KEY.replace(/\\n/g,"\n")).toString("base64url");
-const tr=await (await fetch("https://oauth2.googleapis.com/token",{method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},body:new URLSearchParams({grant_type:"urn:ietf:params:oauth:grant-type:jwt-bearer",assertion:`${unsigned}.${sig}`})})).json();
-if(!tr.access_token){console.error("token hatası",tr);process.exit(1);}
-const H={authorization:`Bearer ${tr.access_token}`,"content-type":"application/json"};
-const sites=await (await fetch("https://searchconsole.googleapis.com/webmasters/v3/sites",{headers:H})).json();
-console.log("ERİŞİM:",(sites.siteEntry??[]).map(s=>`${s.siteUrl} [${s.permissionLevel}]`).join("\n        "));
-const d=n=>new Date(Date.now()-n*864e5).toISOString().slice(0,10);
-const q=async(site,body)=>(await (await fetch(`https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(site)}/searchAnalytics/query`,{method:"POST",headers:H,body:JSON.stringify(body)})).json());
-for(const s of (sites.siteEntry??[]).map(x=>x.siteUrl)){
-  console.log("\n=== "+s);
-  for(const [lbl,a,b] of [["son28",d(30),d(3)],["önceki28",d(58),d(31)]]){
-    const r=await q(s,{startDate:a,endDate:b,dimensions:[],type:"web"});
-    const w=r.rows?.[0]; console.log(` ${lbl}: tık ${w?.clicks??0} | gös ${w?.impressions??0} | ort.sıra ${(w?.position??0).toFixed(1)}`);
+import dotenv from "dotenv";
+import { google } from "googleapis";
+
+dotenv.config({ path: ".env.local" });
+
+const email = process.env.GSC_CLIENT_EMAIL;
+const key = process.env.GSC_PRIVATE_KEY?.replace(/\\n/g, "\n");
+
+if (!email || !key) {
+  console.error("GSC_CLIENT_EMAIL ve GSC_PRIVATE_KEY gerekli (.env.local veya ortam değişkenleri).");
+  process.exitCode = 1;
+} else {
+  const auth = new google.auth.JWT({
+    email,
+    key,
+    scopes: ["https://www.googleapis.com/auth/webmasters.readonly"],
+  });
+  const searchConsole = google.searchconsole({ version: "v1", auth });
+
+  const day = (offset) => {
+    const date = new Date();
+    date.setUTCDate(date.getUTCDate() - offset);
+    return date.toISOString().slice(0, 10);
+  };
+
+  const compact = (value) => Number(value ?? 0).toFixed(0);
+  const pagePath = (value) => {
+    try {
+      return new URL(value).pathname;
+    } catch {
+      return value;
+    }
+  };
+
+  async function main() {
+    const { data: siteData } = await searchConsole.sites.list();
+    const sites = siteData.siteEntry ?? [];
+    if (sites.length === 0) {
+      console.log("Bu servis hesabının erişebildiği Search Console mülkü bulunamadı.");
+      return;
+    }
+
+    console.log("ERİŞİM:", sites.map((site) => `${site.siteUrl} [${site.permissionLevel}]`).join("\n        "));
+
+    for (const site of sites) {
+      console.log(`\n=== ${site.siteUrl}`);
+      for (const [label, startDate, endDate] of [
+        ["son28", day(30), day(3)],
+        ["önceki28", day(58), day(31)],
+      ]) {
+        const { data } = await searchConsole.searchanalytics.query({
+          siteUrl: site.siteUrl,
+          requestBody: { startDate, endDate, dimensions: [], type: "web" },
+        });
+        const totals = data.rows?.[0];
+        console.log(
+          ` ${label}: tık ${compact(totals?.clicks)} | gös ${compact(totals?.impressions)} | ort.sıra ${Number(totals?.position ?? 0).toFixed(1)}`,
+        );
+      }
+
+      const { data: queryData } = await searchConsole.searchanalytics.query({
+        siteUrl: site.siteUrl,
+        requestBody: { startDate: day(30), endDate: day(3), dimensions: ["query"], rowLimit: 6, type: "web" },
+      });
+      console.log(
+        " top sorgu:",
+        (queryData.rows ?? []).map((row) => `${row.keys?.[0] ?? "(sorgu yok)"} (g${compact(row.impressions)}/t${compact(row.clicks)}/s${compact(row.position)})`).join(" · ") || "yok",
+      );
+
+      const { data: pageData } = await searchConsole.searchanalytics.query({
+        siteUrl: site.siteUrl,
+        requestBody: { startDate: day(30), endDate: day(3), dimensions: ["page"], rowLimit: 5, type: "web" },
+      });
+      console.log(
+        " top sayfa:",
+        (pageData.rows ?? []).map((row) => `${pagePath(row.keys?.[0] ?? "")} (g${compact(row.impressions)}/t${compact(row.clicks)})`).join(" · ") || "yok",
+      );
+    }
   }
-  const t=await q(s,{startDate:d(30),endDate:d(3),dimensions:["query"],rowLimit:6,type:"web"});
-  console.log(" top sorgu:",(t.rows??[]).map(x=>`${x.keys[0]} (g${x.impressions}/t${x.clicks}/s${x.position.toFixed(0)})`).join(" · ")||"yok");
-  const p=await q(s,{startDate:d(30),endDate:d(3),dimensions:["page"],rowLimit:5,type:"web"});
-  console.log(" top sayfa:",(p.rows??[]).map(x=>`${x.keys[0].replace(/^https?:\/\/[^/]+/,"")} (g${x.impressions}/t${x.clicks})`).join(" · ")||"yok");
+
+  main().catch((error) => {
+    const status = error?.response?.status;
+    const code = error?.code;
+    const reason = status ? `HTTP ${status}` : code ? `hata kodu ${code}` : "beklenmeyen hata";
+    console.error(`Search Console özeti alınamadı (${reason}). Kimlik bilgilerini ve mülk erişimini kontrol edin.`);
+    process.exitCode = 1;
+  });
 }

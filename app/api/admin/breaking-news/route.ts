@@ -5,17 +5,26 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { computeExpiry, effectiveExpiry, isBreakingLive, DEFAULT_BREAKING_TTL_HOURS } from "@/lib/breaking";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { z } from "zod";
+
+const PRIVATE_HEADERS = { "Cache-Control": "private, no-store, max-age=0" };
+const createBreakingNewsSchema = z.object({
+  text: z.string().trim().min(1).max(280),
+  url: z.string().trim().max(2_048).url().refine((value) => /^https?:\/\//i.test(value)).nullable().optional(),
+  ttlHours: z.number().int().min(1).max(168).optional(),
+}).strict();
+const deleteBreakingNewsSchema = z.object({ id: z.string().trim().min(1).max(64).optional() }).strict();
 
 function rateLimitResponse(result: ReturnType<typeof rateLimit>) {
   return NextResponse.json(
     { error: "Too many requests", retryAfter: result.retryAfterSec },
-    { status: 429, headers: { "Retry-After": String(result.retryAfterSec) } }
+    { status: 429, headers: { ...PRIVATE_HEADERS, "Retry-After": String(result.retryAfterSec) } }
   );
 }
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: PRIVATE_HEADERS });
 
   const limit = rateLimit(`admin:breaking-news:get:${clientIp(req)}`, { limit: 60, windowMs: 60_000 });
   if (!limit.ok) return rateLimitResponse(limit);
@@ -36,7 +45,7 @@ export async function GET(req: NextRequest) {
     expiresAt: effectiveExpiry(r).toISOString(),
   }));
 
-  return NextResponse.json({ items, defaultTtlHours: DEFAULT_BREAKING_TTL_HOURS });
+  return NextResponse.json({ items, defaultTtlHours: DEFAULT_BREAKING_TTL_HOURS }, { headers: PRIVATE_HEADERS });
 }
 
 export async function POST(req: NextRequest) {
@@ -44,28 +53,30 @@ export async function POST(req: NextRequest) {
   if (kokenReddi) return kokenReddi;
 
   const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: PRIVATE_HEADERS });
 
   const limit = rateLimit(`admin:breaking-news:post:${clientIp(req)}`, { limit: 10, windowMs: 60_000 });
   if (!limit.ok) return rateLimitResponse(limit);
 
-  const body = await req.json().catch(() => ({}));
-  const text = typeof body.text === "string" ? body.text.trim() : "";
-  const url = typeof body.url === "string" && body.url.trim() ? body.url.trim() : null;
-  const ttlHours = typeof body.ttlHours === "number" ? body.ttlHours : null;
-
-  if (!text) return NextResponse.json({ error: "Text gerekli" }, { status: 400 });
-  if (text.length > 280) return NextResponse.json({ error: "Metin çok uzun (max 280)" }, { status: 400 });
-  if (url && !/^https?:\/\//i.test(url)) {
-    return NextResponse.json({ error: "Geçersiz link (http/https olmalı)" }, { status: 400 });
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Geçersiz JSON gövdesi" }, { status: 400, headers: PRIVATE_HEADERS });
   }
-
-  // Eski aktif olanları kapat
-  await prisma.breakingNews.updateMany({ where: { active: true }, data: { active: false } });
+  const parsed = createBreakingNewsSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Son dakika alanları geçersiz" }, { status: 400, headers: PRIVATE_HEADERS });
+  }
+  const { text, url, ttlHours } = parsed.data;
 
   const expiresAt = computeExpiry(ttlHours);
-  const item = await prisma.breakingNews.create({ data: { text, url, active: true, expiresAt } });
-  return NextResponse.json({ ...item, expiresAt: expiresAt.toISOString() });
+  const item = await prisma.$transaction(async (tx) => {
+    // Yeni kayıt oluşmazsa önceki aktif duyuru da açık kalır.
+    await tx.breakingNews.updateMany({ where: { active: true }, data: { active: false } });
+    return tx.breakingNews.create({ data: { text, url, active: true, expiresAt } });
+  });
+  return NextResponse.json({ ...item, expiresAt: expiresAt.toISOString() }, { headers: PRIVATE_HEADERS });
 }
 
 export async function DELETE(req: NextRequest) {
@@ -73,16 +84,27 @@ export async function DELETE(req: NextRequest) {
   if (kokenReddi) return kokenReddi;
 
   const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: PRIVATE_HEADERS });
 
   const limit = rateLimit(`admin:breaking-news:delete:${clientIp(req)}`, { limit: 10, windowMs: 60_000 });
   if (!limit.ok) return rateLimitResponse(limit);
 
-  const { id } = await req.json().catch(() => ({}));
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Geçersiz JSON gövdesi" }, { status: 400, headers: PRIVATE_HEADERS });
+  }
+  const parsed = deleteBreakingNewsSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Son dakika kimliği geçersiz" }, { status: 400, headers: PRIVATE_HEADERS });
+  }
+  const { id } = parsed.data;
   if (id) {
-    await prisma.breakingNews.delete({ where: { id } });
+    const deleted = await prisma.breakingNews.deleteMany({ where: { id } });
+    if (deleted.count === 0) return NextResponse.json({ error: "Kayıt bulunamadı" }, { status: 404, headers: PRIVATE_HEADERS });
   } else {
     await prisma.breakingNews.updateMany({ where: { active: true }, data: { active: false } });
   }
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true }, { headers: PRIVATE_HEADERS });
 }

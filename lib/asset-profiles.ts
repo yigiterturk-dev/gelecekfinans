@@ -10,7 +10,7 @@
  *
  * ⚠️ KURAL (market-faq.ts ile aynı): hiçbir metinde değişken rakam geçmez —
  * fiyat, kur, yüzde, oran. Sabit fiziksel ölçüler (bir onsun gram karşılığı,
- * bir çeyreğin altın içeriği) değişmediği için yazılabilir; piyasada oluşan
+ * ziynet altınlarının ağırlık ve saflığı) değişmediği için yazılabilir; piyasada oluşan
  * her değer yasaktır. Yatırım tavsiyesi yoktur.
  */
 import type { FaqItem } from "./market-faq";
@@ -52,7 +52,7 @@ export const GOLD_PROFILES: Record<string, AssetProfile> = {
     faq: [
       {
         q: "Çeyrek altın kaç gram?",
-        a: "Çeyrek altın yaklaşık 1,75 gram saf altın içerir. Ürünün brüt ağırlığı ayarı nedeniyle bundan biraz farklı olabilir; fiyat hesabında esas alınan, içindeki saf altın miktarıdır. Bu sayfadaki değer de saf altın içeriği üzerinden türetilmiştir.",
+        a: "Darphane Cumhuriyet ziynet çeyreği 1,754 gram nominal ağırlıkta ve 916,6 milyem (22 ayar) saflıktadır. Bu sayfadaki değer, bu standardın içerdiği saf altının spot karşılığıdır; sikke primi ve alış-satış makası dahil değildir.",
       },
       {
         q: "Darphane çeyreği ile kuyumcu çeyreği arasında fark var mı?",
@@ -61,15 +61,23 @@ export const GOLD_PROFILES: Record<string, AssetProfile> = {
     ],
   },
 
+  "yarim-altin": {
+    paragraphs: [
+      "Yarım altın adıyla bilinen ürün, Darphane standardındaki yarım Cumhuriyet ziynet altınıdır. Tam ziynet altınının yarısı kadar nominal ağırlığa sahiptir; 22 ayar olduğu için gramajının tamamı saf altın değildir. Bu sayfadaki tutar, ziynet standardındaki saf altın içeriğinin ons altın ve dolar/TL kurundan türetilen yaklaşık karşılığıdır.",
+      "Kuyumcuda göreceğiniz alış veya satış fiyatı bu metal hesabından farklı olur. Darphane basımı, işçilik, basım maliyeti ve satıcı marjı fiyatı etkiler; alış-satış makası da işlem yönüne göre değişir. Yarım altın bölünebilirlik ve hediye amacıyla tercih edilebilir, ancak alım öncesinde ürünün ziynet mi sikke mi olduğunu kontrol edin; sikke yarımlık farklı ağırlıktadır.",
+    ],
+    faq: [],
+  },
+
   "cumhuriyet-altini": {
     paragraphs: [
-      "Cumhuriyet altını, Darphane tarafından basılan ve üzerinde Cumhuriyet'in kuruluşuna atıf taşıyan ziynet altınıdır. Tam, yarım, çeyrek ve ata gibi farklı boyutlarda basılır; bu sayfadaki değer tam Cumhuriyet altınına aittir. Tam Cumhuriyet altını yaklaşık 7 gram saf altın içerir, yani dört çeyreğe karşılık gelen bir büyüklüktedir. Türkiye'de uzun süredir basılıyor olması ve tanınırlığı nedeniyle alım satımda kolaylıkla alıcı bulan ürünlerdendir.",
+      "Cumhuriyet altınları Darphane tarafından ziynet ve sikke gruplarında basılır; ağırlıkları birbirinden farklıdır. Bu sayfadaki değer, 7,016 gram nominal ağırlıktaki tam Cumhuriyet ziynet altınına aittir. Bu 22 ayar ürün yaklaşık 6,43 gram saf altın içerir ve dört ziynet çeyreğine denk gelir. Birlik Cumhuriyet sikkesi (Ata Lira) ise 7,216 gram nominal ağırlıktadır.",
       "Fiyat, ürünün içerdiği saf altın miktarının güncel gram altın değeriyle çarpılmasıyla bulunur. Büyük gramajlı bir ürün olduğu için işçilik payının toplam bedel içindeki oranı çeyrek ve yarım altına kıyasla düşüktür; bu, altın içeriği başına maliyeti azaltan bir unsurdur. Buna karşılık bölünebilirliği yoktur: elinizdeki tek bir tam altını kısmen bozdurma imkânı bulunmaz, satmak istediğinizde tamamını satmanız gerekir. Eski tarihli bazı basımlar koleksiyon değeri taşıyabilir ve bu durumda fiyat, içerdiği altının değerinin üzerinde oluşabilir; ancak bu, altın fiyatından bağımsız ayrı bir piyasadır.",
     ],
     faq: [
       {
         q: "Tam Cumhuriyet altını kaç gram?",
-        a: "Tam Cumhuriyet altını yaklaşık 7 gram saf altın içerir; bu da dört çeyrek altına karşılık gelir. Bu sayfadaki fiyat, ürünün saf altın içeriğinin güncel gram altın değeriyle çarpılmasıyla hesaplanır.",
+        a: "Bu sayfadaki tam ziynet altını 7,016 gram nominal ağırlıkta ve 916,6 milyem saflıktadır; yaklaşık 6,43 gram saf altın içerir. 7,216 gram olan birlik Cumhuriyet sikkesi ayrı bir türdür. Gösterilen spot metal karşılığı, ziynet altınının saf altın içeriğine göre türetilir.",
       },
       {
         q: "Cumhuriyet altını mı çeyrek altın mı daha avantajlı?",

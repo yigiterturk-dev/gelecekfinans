@@ -11,7 +11,7 @@ import { fetchPolicyRate } from "../lib/tcmb-evds";
 
 (async () => {
   if (!process.env.EVDS_API_KEY) {
-    console.log("EVDS_API_KEY yok — sayfa sabit tabloya düşüyor.");
+    console.log("EVDS_API_KEY yok — EVDS seri kontrolü atlandı; /faiz resmi TCMB tablosunu kullanır.");
     console.log("Ücretsiz anahtar: https://evds2.tcmb.gov.tr → Giriş → Profil → API Anahtarı");
     process.exit(0);
   }

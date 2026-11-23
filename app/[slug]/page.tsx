@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import SafeImage from "@/components/SafeImage";
-import { absoluteImageUrl, imageObjectLd, publicImageUrl } from "@/lib/image-url";
+import { absoluteImageUrl, imageObjectLd } from "@/lib/image-url";
+import { articleCoverAlt, articleCoverFallbackUrl, articleCoverUrl, isIllustrativeCover } from "@/lib/article-cover";
 import { parseProfileSubject, profileAboutLd } from "@/lib/entity-profile";
 import { CATS, MedCard } from "@/components/ArticleCard";
 import ReadingProgress from "@/components/ReadingProgress";
@@ -14,6 +15,7 @@ import { readingTime } from "@/lib/reading-time";
 import { tamGovde, kilitliGovde } from "@/lib/article-body";
 import PremiumBody from "@/components/PremiumBody";
 import { pickRelated } from "@/lib/related";
+import { serializeJsonLd } from "@/lib/json-ld";
 
 /**
  * 🔑 ISR (2026-09-09). Sayfa ARTIK önbellekleniyor.
@@ -59,7 +61,8 @@ const BASE = "https://gelecekfinans.com";
 export async function generateMetadata({params}:{params:Promise<{slug:string}>}):Promise<Metadata>{
   const {slug}=await params; const a=await getArticleBySlug(slug); if(!a)return{};
   // OG/Twitter görselleri kendi alan adımızdan verilir (bkz. lib/image-url.ts).
-  const img=absoluteImageUrl(a.imageUrl,BASE);
+  const cover=articleCoverUrl(a);
+  const img=absoluteImageUrl(cover,BASE);
   return{
     title:a.title,description:a.meta,keywords:a.keyword,
     alternates: { canonical: `${BASE}/${slug}` },
@@ -76,17 +79,17 @@ export async function generateMetadata({params}:{params:Promise<{slug:string}>})
 export default async function ArticlePage({params}:{params:Promise<{slug:string}>}){
   const {slug}=await params; const a=await getArticleBySlug(slug); if(!a)notFound();
   const cfg=CATS[a.category]??{l:a.category.toUpperCase(),c:"#555"};
-  const img=publicImageUrl(a.imageUrl);
+  const img=articleCoverUrl(a);
   const publishedDate = new Date(a.created_at);
   const updatedDate = new Date(a.updatedAt || a.created_at);
-  const date=publishedDate.toLocaleDateString("tr-TR",{day:"numeric",month:"long",year:"numeric"});
+  const date=publishedDate.toLocaleDateString("tr-TR",{day:"numeric",month:"long",year:"numeric",timeZone:"Europe/Istanbul"});
   const visiblyUpdated = updatedDate.getTime() - publishedDate.getTime() > 60_000;
   const url = `${BASE}/${a.slug}`;
   const readTime = readingTime(a.content);
 
   // Structured data — görsel düğümü mutlak URL ve bilinen boyutlarla üretilir;
   // Google zengin sonuçlar için ImageObject'te width/height bekliyor.
-  const imageLd=imageObjectLd(a.imageUrl,BASE,a.title,`${url}#primaryimage`);
+  const imageLd=imageObjectLd(img,BASE,a.title,`${url}#primaryimage`);
   // "X kimdir" künyelerinde sayfanın HAKKINDA olduğu varlık makinece
   // okunabilir olmalı; sitenin tek gerçek sıralaması bu şeritten geliyor.
   const profileSubject = parseProfileSubject(a.title);
@@ -150,14 +153,13 @@ export default async function ArticlePage({params}:{params:Promise<{slug:string}
     : null;
 
   // JSON-LD XSS-güvenliği (Next 16 json-ld rehberi): `<` → < kaçışla.
-  const jsonLd = (obj: unknown) => JSON.stringify(obj).replace(/</g, "\\u003c");
 
   return(
     <div className="article-container">
       <ReadingProgress/>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{__html:jsonLd(ld)}}/>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{__html:jsonLd(breadcrumbLd)}}/>
-      {faqLd && <script type="application/ld+json" dangerouslySetInnerHTML={{__html:jsonLd(faqLd)}}/>}
+      <script type="application/ld+json" dangerouslySetInnerHTML={{__html:serializeJsonLd(ld)}}/>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{__html:serializeJsonLd(breadcrumbLd)}}/>
+      {faqLd && <script type="application/ld+json" dangerouslySetInnerHTML={{__html:serializeJsonLd(faqLd)}}/>}
 
       {/* Breadcrumb */}
       <nav className="breadcrumb">
@@ -174,7 +176,7 @@ export default async function ArticlePage({params}:{params:Promise<{slug:string}
         <time className="article-date" dateTime={a.created_at}>Yayınlandı: {date}</time>
         {visiblyUpdated && (
           <time className="article-date" dateTime={a.updatedAt}>
-            Güncellendi: {updatedDate.toLocaleDateString("tr-TR",{day:"numeric",month:"long",year:"numeric"})}
+            Güncellendi: {updatedDate.toLocaleDateString("tr-TR",{day:"numeric",month:"long",year:"numeric",timeZone:"Europe/Istanbul"})}
           </time>
         )}
         <span className="article-date">{readTime}</span>
@@ -193,11 +195,12 @@ export default async function ArticlePage({params}:{params:Promise<{slug:string}
       {img&&(
         <figure className="article-figure">
           <div className="article-figure-media">
-            <SafeImage src={img} alt={a.title} fill style={{objectFit:"cover"}} sizes="720px" priority />
+            <SafeImage src={img} fallbackSrc={articleCoverFallbackUrl(a)} alt={articleCoverAlt(a)} fill style={{objectFit:"cover"}} sizes="720px" priority />
           </div>
           {/* Görselin yanındaki metin Google Görseller'in en güçlü bağlam
               sinyallerinden biri; alt metnin kopyası değil, kaynak künyesi. */}
           <figcaption className="article-figcaption">
+            {isIllustrativeCover(a) && <span className="article-illustrative-note">Temsili görsel · </span>}
             {a.title}
             {a.imageCredit ? (
               <> — <a href={a.imageCredit.url} target="_blank" rel="noopener noreferrer nofollow">{a.imageCredit.text}</a></>
@@ -285,8 +288,8 @@ export default async function ArticlePage({params}:{params:Promise<{slug:string}
         <div>
           <Link href="/yazarlar" className="author-name">GelecekFinans Haber Merkezi</Link>
           <div className="author-role">
-            İki bağımsız kaynak ve özgünlük kontrolüyle hazırlanan finans haberleri.{" "}
-            <Link href="/yayincilik-ilkeleri">Yayın yöntemimiz</Link>
+            Kaynak doğrulama ve düzeltme sürecimizi{" "}
+            <Link href="/yayincilik-ilkeleri">yayın ilkelerimizden</Link> inceleyin.
           </div>
         </div>
       </div>

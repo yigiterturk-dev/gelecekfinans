@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import {
   isContentWord,
   isDistinctiveWord,
+  isSafeSingleWordAnchor,
   MIN_SINGLE_WORD_ANCHOR,
   turkceSinirliDesen,
 } from "@/lib/anchor-words";
@@ -110,7 +111,7 @@ export function pickPlaceholderTarget(
     pool
       .filter((item) => !used.has(item.slug))
       .map((item) => ({ item, score: relevanceScore(html, item) }))
-      .filter((entry) => entry.score > 0)
+      .filter((entry) => entry.score >= 2)
       .sort((a, b) => b.score - a.score)[0]?.item ?? null
   );
 }
@@ -128,17 +129,34 @@ export function relevanceScore(
   html: string,
   article: { title: string; keyword?: string | null },
 ): number {
-  const text = html.toLocaleLowerCase("tr-TR");
+  const text = html
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;|&#160;/gi, " ")
+    .toLocaleLowerCase("tr-TR");
+  let score = 0;
+  const keyword = article.keyword?.trim() || "";
+  const keywordWords = keyword.split(/\s+/).filter(Boolean);
+  // Tam hedef sorgusunun kaynak metinde yer alması, tek bir geniş kelimenin
+  // tesadüfen geçmesinden daha güçlü bir bağlam kanıtıdır.
+  if (
+    keywordWords.length >= 2
+    && keywordWords.some((word) => isContentWord(word))
+    && text.includes(keyword.toLocaleLowerCase("tr-TR"))
+  ) {
+    score += 3;
+  }
   const words = `${article.keyword ?? ""} ${article.title}`
     .split(/[\s:,;.!?—–-]+/)
     .filter((word) => isContentWord(word));
   const seen = new Set<string>();
-  let score = 0;
   for (const word of words) {
     const lower = word.toLocaleLowerCase("tr-TR");
     if (seen.has(lower)) continue;
     seen.add(lower);
     if (text.includes(lower)) score++;
+  }
+  if (keywordWords.length === 1 && isSafeSingleWordAnchor(keyword) && text.includes(keyword.toLocaleLowerCase("tr-TR"))) {
+    score += 2;
   }
   return score;
 }
@@ -148,6 +166,7 @@ export {
   isFiniteVerbForm,
   isContentWord,
   isDistinctiveWord,
+  isSafeSingleWordAnchor,
   MIN_SINGLE_WORD_ANCHOR,
 } from "@/lib/anchor-words";
 
@@ -163,7 +182,14 @@ export function linkableTerms(article: { title: string; keyword?: string | null 
     terms.push(trimmed);
   };
 
-  if (article.keyword && article.keyword.trim().length >= 6) push(article.keyword);
+  if (article.keyword && article.keyword.trim().length >= 6) {
+    const keyword = article.keyword.trim();
+    const keywordWords = keyword.split(/\s+/).filter(Boolean);
+    if (
+      (keywordWords.length >= 2 && keywordWords.some((word) => isContentWord(word)))
+      || isSafeSingleWordAnchor(keyword)
+    ) push(keyword);
+  }
 
   const words = article.title
     .split(/[\s:,;.!?—–-]+/)
@@ -179,13 +205,12 @@ export function linkableTerms(article: { title: string; keyword?: string | null 
     }
   }
 
-  // TEK KELİME çapa yalnızca hedefin ANAHTAR KELİMESİNDEN gelebilir. Başlıktan
-  // koparılan tek kelime (sıfat, zarf, ay adı) hedefin konusunu söylemez;
-  // "sınırlı" çapası DASK haberini TCMB enflasyon haberine bağlamıştı.
+  // Tek kelime yalnızca kapalı listedeki varlık/kurum adları için uygundur.
+  // "piyasa", "istikrarı" veya "borçlanma" tek başına hedef yazının konusunu
+  // tarif etmez; geniş kelimeler ancak çok kelimeli öbekte çapa olabilir.
   for (const word of words) {
     if (word.length < MIN_SINGLE_WORD_ANCHOR) continue;
-    if (!isContentWord(word)) continue;
-    if (!article.keyword?.toLocaleLowerCase("tr-TR").includes(word.toLocaleLowerCase("tr-TR"))) continue;
+    if (!isSafeSingleWordAnchor(word)) continue;
     push(word);
   }
 
@@ -218,7 +243,7 @@ export function injectInternalLinks(
   // eşleşiyorsa, bağlantı en alakalı olana gitsin.
   const ordered = [...articles]
     .map((article) => ({ article, score: relevanceScore(html, article) }))
-    .filter((entry) => entry.score > 0)
+    .filter((entry) => entry.score >= 2)
     .sort((a, b) => b.score - a.score)
     .map((entry) => entry.article);
 

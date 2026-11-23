@@ -4,7 +4,7 @@
  *  - gövdeye sızmış kanıt kimliklerini ([ev-1-publisher:...]) söker,
  *  - eksik kapak görselini üretir,
  *  - SEO skorunu ve yayın kararını yeniden hesaplar,
- *  - karar AUTO_PUBLISH ise yayına alır.
+ *  - karar REVIEW ise taslağı editör kuyruğunda tutar.
  * Kuru çalışma varsayılan; yazmak için --apply.
  */
 import { prisma } from "../lib/db";
@@ -59,7 +59,7 @@ async function main() {
       sourceScore: draft.sourceScore ?? 0,
       seoScore: seo.score,
       hasImage: Boolean(imageUrl),
-      autoPublishEnabled: true,
+      autoPublishEnabled: false,
       verifiedEvidence: automation?.verifiedEvidence === true,
     });
     console.log(
@@ -77,9 +77,6 @@ async function main() {
         ...(imageStrategy ? { imageStrategy } : {}),
         seoScore: seo.score,
         publicationDecision: decision.decision,
-        ...(decision.decision === "AUTO_PUBLISH"
-          ? { status: "PUBLISHED" as const, publishedAt: new Date(), autoPublished: true }
-          : {}),
         automationMeta: asJson({
           ...(automation || {}),
           repair: { at: new Date().toISOString(), metaFixed, imageStrategy, seoIssues: seo.issues },

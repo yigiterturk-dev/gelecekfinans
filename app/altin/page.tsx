@@ -1,20 +1,22 @@
+import { serializeJsonLd } from "@/lib/json-ld";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { getAllGold, GOLD_TYPES, tl, pctText, fmtUpdated, safeRelatedArticles } from "@/lib/market";
+import { getAllGold, GOLD_TYPES, tl, pctText, fmtUpdated, fmtGoldQuoteUpdated, safeRelatedArticles } from "@/lib/market";
 import { MedCard } from "@/components/ArticleCard";
 import AdSlot from "@/components/AdSlot";
 import MarketFaq from "@/components/MarketFaq";
 import ToolsRail from "@/components/ToolsRail";
 import { GOLD_HUB_FAQ } from "@/lib/market-faq";
 import GoldCalculator from "@/components/calculators/GoldCalculator";
+import CoinGeckoAttribution from "@/components/CoinGeckoAttribution";
 
 export const revalidate = 600;
 const BASE = "https://gelecekfinans.com";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const title = "Altın Fiyatları — Gram, Çeyrek, Cumhuriyet ve Ons Altın Canlı TL";
+  const title = "Altın Fiyatları — Gram, Çeyrek, Yarım, Cumhuriyet ve Ons Altın TL";
   const description =
-    "Güncel altın fiyatları: gram altın, çeyrek altın, cumhuriyet altını ve ons altın canlı Türk Lirası fiyatları, günlük değişim ve altın hesaplama aracı.";
+    "Gram ve ons altın spot değerleri ile Darphane ziynet standartlarına göre türetilen çeyrek, yarım ve tam altın metal karşılığı, günlük değişim ve hesaplama aracı.";
   return {
     title,
     description,
@@ -25,9 +27,11 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function AltinHub() {
-  const gold = await getAllGold();
-  const related = await safeRelatedArticles("altin");
-  const updated = Object.values(gold).find((g) => g?.updatedAt)?.updatedAt ?? null;
+  const [gold, related] = await Promise.all([getAllGold(), safeRelatedArticles("altin")]);
+  const goldPrice = Object.values(gold).find((g) => g?.price);
+  const updated = goldPrice?.updatedAt ?? null;
+  const goldUpdated = goldPrice?.goldUpdatedAt ?? null;
+  const goldSource = Object.values(gold).find((g) => g?.goldSource)?.goldSource ?? null;
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -35,7 +39,7 @@ export default async function AltinHub() {
       {
         "@type": "CollectionPage",
         name: "Altın Fiyatları",
-        description: "Gram, çeyrek, cumhuriyet ve ons altın canlı TL fiyatları.",
+        description: "Gram, çeyrek, yarım, cumhuriyet ve ons altın TL metal karşılıkları.",
         url: `${BASE}/altin`,
         isPartOf: { "@type": "WebSite", name: "GelecekFinans", url: BASE },
       },
@@ -51,15 +55,22 @@ export default async function AltinHub() {
 
   return (
     <div className="container market-page">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }} />
       <nav className="crumbs" aria-label="Breadcrumb">
         <Link href="/">Ana Sayfa</Link> <span>/</span> <span>Altın</span>
       </nav>
       <h1 className="page-header">Altın Fiyatları</h1>
       <p className="market-lede">
-        Gram altın, çeyrek altın, cumhuriyet altını ve ons altın için canlı Türk Lirası fiyatları ve günlük değişim.
-        {updated && <> Son güncelleme: {fmtUpdated(updated)}.</>}
+        Gram ve ons altının spot değerleri ile Darphane'nin 22 ayar ziynet altını standardına göre türetilen çeyrek, yarım ve tam altın metal karşılığı. Kuyumcu ve banka alış-satış fiyatları prim, makas ve marjlar nedeniyle farklılık gösterebilir.
+        {goldUpdated && <> Altın kotasyon zamanı: {fmtGoldQuoteUpdated(goldUpdated)}.</>}
+        {updated && <> USD/TRY referans tarihi: {fmtUpdated(updated)}.</>}
       </p>
+      {goldSource === "CoinGecko" && (
+        <p className="conv-note"><CoinGeckoAttribution /></p>
+      )}
+      {goldSource === "Yahoo Finance" && (
+        <p className="market-updated">Altın kotasyon kaynağı: Yahoo Finance (GC=F)</p>
+      )}
 
       <div className="market-grid">
         {Object.entries(GOLD_TYPES).map(([type, cfg]) => {

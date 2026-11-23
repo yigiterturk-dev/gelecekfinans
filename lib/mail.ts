@@ -29,6 +29,17 @@ export function mailEnabled(): boolean {
 
 const FROM = process.env.MAIL_FROM || "GelecekFinans <bulten@gelecekfinans.com>";
 const BASE = process.env.SITE_URL || "https://gelecekfinans.com";
+const HTML_ESCAPE_MAP: Record<string, string> = {
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;",
+  "'": "&#39;",
+};
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (char) => HTML_ESCAPE_MAP[char] ?? char);
+}
 
 /**
  * Alıcıya özel abonelikten çıkma URL'i. Yalnızca imzalı token kullanır;
@@ -53,23 +64,27 @@ function digestHtml(
   today: string,
   opts: { campaignId?: string; variant?: "A" | "B" } = {}
 ): string {
+  const safeBase = escapeHtml(BASE.replace(/\/+$/, ""));
   const articleHtml = articles
     .map(
-      (a) => `
+      (a) => {
+        const articleUrl = escapeHtml(`${BASE.replace(/\/+$/, "")}/${encodeURIComponent(a.slug)}`);
+        return `
       <tr>
         <td style="padding:16px 0;border-bottom:1px solid #f0f0f0">
-          <span style="font-size:10px;color:#0f3d6b;text-transform:uppercase;letter-spacing:0.05em;font-weight:600">${a.category.toUpperCase()}</span>
-          <a href="${BASE}/${a.slug}" style="display:block;font-size:16px;font-weight:700;color:#111;text-decoration:none;margin-top:4px;line-height:1.4">${a.title}</a>
-          <p style="font-size:13px;color:#666;margin-top:6px;line-height:1.5">${a.meta}</p>
+          <span style="font-size:10px;color:#0f3d6b;text-transform:uppercase;letter-spacing:0.05em;font-weight:600">${escapeHtml(a.category.toUpperCase())}</span>
+          <a href="${articleUrl}" style="display:block;font-size:16px;font-weight:700;color:#111;text-decoration:none;margin-top:4px;line-height:1.4">${escapeHtml(a.title)}</a>
+          <p style="font-size:13px;color:#666;margin-top:6px;line-height:1.5">${escapeHtml(a.meta)}</p>
         </td>
-      </tr>`
+      </tr>`;
+      }
     )
     .join("");
 
   // Açılma takip pikseli (A/B kampanyaları için)
   const tracker =
     opts.campaignId && opts.variant
-      ? `<img src="${BASE}/api/newsletter/open?c=${encodeURIComponent(opts.campaignId)}&v=${opts.variant}" width="1" height="1" alt="" style="display:none" />`
+      ? `<img src="${safeBase}/api/newsletter/open?c=${encodeURIComponent(opts.campaignId)}&amp;v=${opts.variant}" width="1" height="1" alt="" style="display:none" />`
       : "";
 
   return `
@@ -84,17 +99,17 @@ function digestHtml(
           <span style="font-size:22px;font-weight:800;color:#fff;letter-spacing:-0.02em">Gelecek</span><span style="font-size:22px;font-weight:800;color:#7fb0e3;letter-spacing:-0.02em">Finans</span>
         </td></tr>
         <tr><td style="padding:28px 32px">
-          <p style="font-size:13px;color:#888;margin:0 0 4px">${today}</p>
+          <p style="font-size:13px;color:#888;margin:0 0 4px">${escapeHtml(today)}</p>
           <h1 style="font-size:20px;color:#111;margin:0 0 24px;font-weight:800">Günlük Finans Bülteni</h1>
           <table width="100%" cellpadding="0" cellspacing="0">
             ${articleHtml}
           </table>
           <div style="text-align:center;margin-top:28px">
-            <a href="${BASE}" style="display:inline-block;padding:12px 28px;background:#0f3d6b;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;font-size:13px">Tüm Haberleri Oku</a>
+            <a href="${safeBase}" style="display:inline-block;padding:12px 28px;background:#0f3d6b;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;font-size:13px">Tüm Haberleri Oku</a>
           </div>
         </td></tr>
         <tr><td style="padding:20px 32px;background:#fafafa;border-top:1px solid #e5e5e5;text-align:center">
-          <p style="font-size:11px;color:#999;margin:0">Bu e-postayı ${BASE} üzerinden abone olduğunuz için alıyorsunuz.</p>
+          <p style="font-size:11px;color:#999;margin:0">Bu e-postayı ${safeBase} üzerinden abone olduğunuz için alıyorsunuz.</p>
           <a href="{{unsub}}" style="font-size:11px;color:#0f3d6b;text-decoration:underline">Abonelikten çık</a>
         </td></tr>
       </table>
@@ -142,13 +157,18 @@ async function sendBatch(
   for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
     const batch = recipients.slice(i, i + BATCH_SIZE);
     await Promise.all(
-      batch.map((email) =>
-        client.emails
+      batch.map((email) => {
+        const unsubscribeUrl = unsubUrl(email)!;
+        return client.emails
           .send({
             from: FROM,
             to: email,
             subject,
-            html: html.replace("{{unsub}}", unsubUrl(email)!),
+            html: html.replace("{{unsub}}", escapeHtml(unsubscribeUrl)),
+            headers: {
+              "List-Unsubscribe": `<${unsubscribeUrl}>`,
+              "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+            },
           })
           .then((res) => {
             /**
@@ -169,8 +189,8 @@ async function sendBatch(
           .catch((err) => {
             not((err as Error)?.message?.slice(0, 80) || "istek başarısız");
             console.error(`[mail] send failed for ${maskeliAdres(email)}:`, err);
-          })
-      )
+          });
+      })
     );
   }
   lastBatchResult = { sent, failed, reasons };

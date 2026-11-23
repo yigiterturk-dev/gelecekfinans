@@ -13,6 +13,23 @@ export const GENERATED_IMAGE_HEIGHT = 675;
 
 const BLOB_URL = /^https?:\/\/[^/]*\.public\.blob\.vercel-storage\.com\/(.+)$/;
 
+/** Makale görseli olarak saklanabilecek URL: site içi yol veya normal HTTP(S). */
+export function isSafeArticleImageUrl(value: string): boolean {
+  const url = value.trim();
+  if (!url) return true;
+  if (url.startsWith("/")) {
+    return !url.startsWith("//") && !url.includes("\\") && !/[\u0000-\u001f]/.test(url);
+  }
+  try {
+    const parsed = new URL(url);
+    return (parsed.protocol === "http:" || parsed.protocol === "https:")
+      && !parsed.username
+      && !parsed.password;
+  } catch {
+    return false;
+  }
+}
+
 /** Blob URL'ini kendi alan adımızdaki köke çevirir; diğer URL'lere dokunmaz. */
 export function publicImageUrl(url: string): string;
 export function publicImageUrl(url: string | null | undefined): string | null;

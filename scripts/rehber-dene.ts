@@ -6,7 +6,7 @@ async function main() {
   const result = await runGuidePipeline({
     count: Number(process.argv[2]) || 1,
     trigger: "admin",
-    autoPublish: true,
+    autoPublish: false,
     category: process.argv[3] || undefined,
   });
   console.log("SONUÇ:", JSON.stringify(result, null, 2));

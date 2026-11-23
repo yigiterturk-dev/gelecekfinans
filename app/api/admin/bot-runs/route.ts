@@ -1,18 +1,42 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { startOfIstanbulDay } from "@/lib/bot/ai-budget";
 import type { UsageSummary } from "@/lib/bot/usage";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
+
+const PRIVATE_HEADERS = { "Cache-Control": "private, no-store, max-age=0" };
+const istanbulDateFormatter = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Europe/Istanbul",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+function istanbulDateKey(date: Date): string {
+  const parts = new Map(istanbulDateFormatter.formatToParts(date).map(({ type, value }) => [type, value] as const));
+  return `${parts.get("year")}-${parts.get("month")}-${parts.get("day")}`;
+}
+
+function rateLimitResponse(retryAfterSec: number) {
+  return NextResponse.json(
+    { error: "Too many requests", retryAfter: retryAfterSec },
+    { status: 429, headers: { ...PRIVATE_HEADERS, "Retry-After": String(retryAfterSec) } },
+  );
+}
 
 /**
  * Panelde maliyet ve engel kayıtları görünmüyordu: ekran yalnızca BotRun
  * özetini çekiyordu, AutomationEvent'e hiç bakmıyordu. "Bugün para nereye
  * gitti, makale neden çıkmadı" sorularının cevabı yalnızca terminaldeydi.
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: PRIVATE_HEADERS });
+
+  const limit = rateLimit(`admin:bot-runs:get:${clientIp(req)}`, { limit: 30, windowMs: 60_000 });
+  if (!limit.ok) return rateLimitResponse(limit.retryAfterSec);
 
   const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
@@ -31,7 +55,6 @@ export async function GET() {
     }),
     prisma.automationEvent.findMany({
       where: { stage: "cost", createdAt: { gte: monthAgo } },
-      orderBy: { createdAt: "desc" },
       select: { createdAt: true, metadata: true },
     }),
     prisma.automationEvent.findMany({
@@ -55,7 +78,7 @@ export async function GET() {
     cost.calls += usage.calls;
     if (event.createdAt >= weekStart) cost.week += usage.costUsd;
     if (event.createdAt >= dayStart) cost.today += usage.costUsd;
-    activeDays.add(event.createdAt.toISOString().slice(0, 10));
+    activeDays.add(istanbulDateKey(event.createdAt));
     for (const [model, stat] of Object.entries(usage.byModel || {})) {
       cost.byModel[model] = (cost.byModel[model] || 0) + stat.costUsd;
     }
@@ -85,5 +108,5 @@ export async function GET() {
       unpricedModels: cost.unpriced,
     },
     blocks: blockEvents,
-  });
+  }, { headers: PRIVATE_HEADERS });
 }

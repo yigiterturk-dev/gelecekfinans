@@ -13,30 +13,39 @@ export default function GizlilikPolitikasi() {
     <div style={{ maxWidth: 720, margin: "0 auto", padding: "60px 24px 100px" }}>
       <h1 style={{ fontFamily: "var(--display)", fontSize: 36, fontWeight: 900, marginBottom: 24 }}>Gizlilik Politikası</h1>
       <div className="article-prose">
-        <p><strong>Son güncelleme:</strong> 6 Ağustos 2026</p>
+        <p><strong>Son güncelleme:</strong> 23 Kasım 2026</p>
 
         <h2>Toplanan Veriler</h2>
         <p>
           Site içi sayaç, ziyaret edilen sayfanın yolunu kişisel profil oluşturmadan kaydeder. Teknik
           sunucu günlüklerinde güvenlik ve hata ayıklama amacıyla IP adresi, tarayıcı bilgisi ve istek
-          zamanı sınırlı süreyle yer alabilir. Onay vermeniz halinde Google Analytics ziyaret edilen
-          sayfa ve etkileşim gibi kullanım verilerini işler. Vercel Analytics toplulaştırılmış trafik
-          ölçümü sağlar.
+          zamanı sınırlı süreyle yer alabilir. Kötüye kullanımı önlemek için bazı isteklerde IP adresi
+          kısa süreli hız sınırı sayacında kullanılır; süresi dolan sayaç kayıtları otomatik temizlenir.
+          “Kabul et” tercihinizden sonra Google Analytics,
+          ziyaret edilen sayfa ve etkileşim gibi kullanım verilerini işler.
         </p>
 
         <h2>Çerezler</h2>
         <p>
-          Zorunlu işlevler dışındaki Google Analytics ve reklam hizmetleri yalnızca “Kabul et”
-          tercihinizden sonra yüklenir. “Yalnızca zorunlu” seçeneği bu hizmetleri yüklemez. Tercihiniz
-          tarayıcınızın yerel depolama alanında saklanır; site verilerini temizleyerek tercihinizi
-          sıfırlayabilirsiniz.
+          Google Analytics ve Google Reader Revenue Manager yalnızca “Kabul et” tercihinizden sonra;
+          Google AdSense ise etkinleştirilmişse ve onayınız varsa yüklenir. “Yalnızca zorunlu” seçeneği
+          bu hizmetleri yüklemez. Borsa sayfalarındaki TradingView grafiği, yalnızca ilgili grafiğin
+          “TradingView grafiğini yükle” düğmesine basıldığında istenir. Çerez tercihinizi sayfa altındaki
+          “Çerez tercihleri” bağlantısından yönetebilirsiniz. Seçiminiz tarayıcınızın yerel depolama
+          alanında saklanır.
         </p>
 
         <h2>Üçüncü Taraf Hizmetler</h2>
         <p>
-          Onay verdiğinizde Google Analytics ve etkinleştirilmişse Google AdSense gibi üçüncü taraf
-          hizmetler kendi teknolojilerini kullanabilir. Bu sağlayıcıların kendi gizlilik ve saklama
-          kuralları geçerlidir. Reklam tercihlerinizi Google reklam ayarlarından ayrıca yönetebilirsiniz.
+          Google Reader Revenue Manager, Google Haberler için yapılandırılmış okuyucu gelir
+          çağrılarını gösterebilir. TradingView grafikleri yalnızca ilgili yükleme düğmesine basıldığında
+          istenir. Bu üçüncü taraf hizmetleri istek sırasında teknik veriler alabilir; her sağlayıcının
+          kendi gizlilik ve saklama kuralları geçerlidir. Google entegrasyonuyla ilgili bilgi için{" "}
+          <a href="https://support.google.com/news/publisher-center/answer/16941185" target="_blank" rel="noopener noreferrer">
+            Google Publisher Center yardımına
+          </a>{" "}
+          bakabilirsiniz. Google Analytics ve etkinleştirilmişse AdSense de Google hizmetleridir;
+          her sağlayıcının kendi gizlilik ve saklama kuralları geçerlidir.
         </p>
 
         <h2>Veri Güvenliği</h2>

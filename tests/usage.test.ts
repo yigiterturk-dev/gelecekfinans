@@ -18,12 +18,13 @@ test("önbellekli girdi iki kez saymaz", () => {
   assert.equal(fresh.costUsd, 1.25);
 });
 
-test("fiyatı bilinmeyen model maliyeti şişirmez, işaretlenir", () => {
+test("fiyatı bilinmeyen model toplamın eksik olduğunu işaretler", () => {
   resetUsageLedger();
   recordUsage("writer", "yeni-model-x", { input_tokens: 1000, output_tokens: 1000 });
   const summary = usageSummary();
   assert.equal(summary.costUsd, 0);
   assert.deepEqual(summary.unpricedModels, ["yeni-model-x"]);
+  assert.equal(summary.costIsComplete, false);
 });
 
 test("usage gelmezse ölçüm sessizce atlanır", () => {
@@ -53,6 +54,7 @@ test("koşu özeti aşama ve modele göre toplanır", () => {
   assert.equal(summary.byStage.writer.calls, 1);
   assert.equal(summary.byModel["gpt-4o-mini"].calls, 1);
   assert.deepEqual(summary.unpricedModels, []);
+  assert.equal(summary.costIsComplete, true);
 
   // yazar: 8000*1.25 + 2000*0.125 + 3000*10 = 0.01 + 0.00025 + 0.03
   assert.equal(summary.byStage.writer.costUsd, 0.04025);

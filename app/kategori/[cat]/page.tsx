@@ -1,6 +1,8 @@
-import { getArticlesByCategory } from "@/lib/articles";
+import { serializeJsonLd } from "@/lib/json-ld";
+import { getArticlesByCategory, getCategoryArticleCount } from "@/lib/articles";
 import { MedCard, CATS } from "@/components/ArticleCard";
 import Newsletter from "@/components/Newsletter";
+import { mailEnabled } from "@/lib/mail";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { paylasimMeta } from "@/lib/og";
@@ -15,11 +17,22 @@ export const revalidate = 300;
 const PER_PAGE = 20;
 const BASE = "https://gelecekfinans.com";
 
-export async function generateMetadata({params, searchParams}:{params:Promise<{cat:string}>; searchParams:Promise<{sayfa?:string}>}):Promise<Metadata>{
+function parsePage(value?: string | string[]): number {
+  if (typeof value !== "string" || !/^\d+$/.test(value)) return 1;
+  const page = Number(value);
+  return Number.isSafeInteger(page) && page > 0 ? page : 1;
+}
+
+function categoryPageHref(cat: string, page: number): string {
+  return page === 1 ? `/kategori/${cat}` : `/kategori/${cat}?sayfa=${page}`;
+}
+
+export async function generateMetadata({params, searchParams}:{params:Promise<{cat:string}>; searchParams:Promise<{sayfa?:string|string[]}>}):Promise<Metadata>{
   const {cat}=await params; const c=CATS[cat]; if(!c)return{};
   const {sayfa}=await searchParams;
-  const page = Math.max(1, parseInt(sayfa || "1"));
-  const articleCount = (await getArticlesByCategory(cat)).length;
+  const page = parsePage(sayfa);
+  const articleCount = await getCategoryArticleCount(cat);
+  const totalPages = Math.ceil(articleCount / PER_PAGE);
   const canonical = page > 1 ? `${BASE}/kategori/${cat}?sayfa=${page}` : `${BASE}/kategori/${cat}`;
   const title = page > 1 ? `${c.l} Haberleri — Sayfa ${page}` : `${c.l} Haberleri ve Son Dakika Gelişmeleri`;
   const profile = getCategoryProfile(cat);
@@ -30,18 +43,23 @@ export async function generateMetadata({params, searchParams}:{params:Promise<{c
     title,
     description,
     alternates: { canonical },
-    robots: { index: articleCount > 0, follow: true },
+    robots: { index: articleCount > 0 && page <= totalPages, follow: true },
     ...paylasimMeta({ url: canonical, title, description }),
   };
 }
 
-export default async function CatPage({params, searchParams}:{params:Promise<{cat:string}>; searchParams:Promise<{sayfa?:string}>}){
+export default async function CatPage({params, searchParams}:{params:Promise<{cat:string}>; searchParams:Promise<{sayfa?:string|string[]}>}){
   const {cat}=await params; const cfg=CATS[cat]; if(!cfg)notFound();
   const {sayfa}=await searchParams;
-  const page = Math.max(1, parseInt(sayfa || "1"));
-  const allArts = await getArticlesByCategory(cat);
-  const totalPages = Math.ceil(allArts.length / PER_PAGE);
-  const arts = allArts.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+  const page = parsePage(sayfa);
+  const [articleCount, arts] = await Promise.all([
+    getCategoryArticleCount(cat),
+    getArticlesByCategory(cat, PER_PAGE, (page - 1) * PER_PAGE),
+  ]);
+  const totalPages = Math.ceil(articleCount / PER_PAGE);
+  if (page > Math.max(1, totalPages)) notFound();
+  const pageWindowStart = Math.max(1, Math.min(page - 3, totalPages - 6));
+  const visiblePages = Array.from({ length: Math.min(totalPages, 7) }, (_, i) => pageWindowStart + i);
   // Kategoriye özgü metin YALNIZCA ilk sayfada: ?sayfa=2 ve sonrasında
   // tekrarlanırsa aynı metin birden çok adreste görünür (kanibalizasyon).
   const profile = page === 1 ? getCategoryProfile(cat) : null;
@@ -68,11 +86,11 @@ export default async function CatPage({params, searchParams}:{params:Promise<{ca
 
   return(
     <div className="container page-cat">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }} />
       <div className="cat-header" style={{borderColor:cfg.c}}>
         <span className="tag" style={{background:cfg.c,marginBottom:10,display:"inline-block"}}>{cfg.l}</span>
         <h1 className="page-header">{cfg.l} Haberleri</h1>
-        <p className="cat-count">{allArts.length} haber</p>
+        <p className="cat-count">{articleCount} haber</p>
       </div>
 
       <div className="resp-grid-4">
@@ -96,23 +114,23 @@ export default async function CatPage({params, searchParams}:{params:Promise<{ca
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <nav className="pagination">
+        <nav className="pagination" aria-label="Kategori sayfaları">
           {page > 1 && (
-            <Link href={`/kategori/${cat}?sayfa=${page-1}`} className="page-btn">
+            <Link href={categoryPageHref(cat, page - 1)} className="page-btn">
               ← Önceki
             </Link>
           )}
-          {Array.from({length:Math.min(totalPages, 7)}, (_, i) => {
-            const p = i + 1;
+          {visiblePages.map((p) => {
             return (
-              <Link key={p} href={`/kategori/${cat}?sayfa=${p}`}
-                className={`page-btn${p === page ? " active" : ""}`}>
+              <Link key={p} href={categoryPageHref(cat, p)}
+                className={`page-btn${p === page ? " active" : ""}`}
+                aria-current={p === page ? "page" : undefined}>
                 {p}
               </Link>
             );
           })}
           {page < totalPages && (
-            <Link href={`/kategori/${cat}?sayfa=${page+1}`} className="page-btn">
+            <Link href={categoryPageHref(cat, page + 1)} className="page-btn">
               Sonraki →
             </Link>
           )}
@@ -121,7 +139,7 @@ export default async function CatPage({params, searchParams}:{params:Promise<{ca
 
       {/* Newsletter */}
       <section className="section">
-        <Newsletter />
+        <Newsletter enabled={mailEnabled()} />
       </section>
     </div>
   );

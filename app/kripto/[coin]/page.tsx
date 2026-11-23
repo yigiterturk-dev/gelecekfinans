@@ -1,3 +1,4 @@
+import { serializeJsonLd } from "@/lib/json-ld";
 import { datasetDescription } from "@/lib/dataset-desc";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -10,6 +11,7 @@ import MarketFaq from "@/components/MarketFaq";
 import { cryptoFaq } from "@/lib/market-faq";
 import { CRYPTO_PROFILES } from "@/lib/crypto-profiles";
 import Sparkline from "@/components/Sparkline";
+import CoinGeckoAttribution from "@/components/CoinGeckoAttribution";
 
 export const revalidate = 300;
 const BASE = "https://gelecekfinans.com";
@@ -80,7 +82,7 @@ export default async function KriptoDetail({ params }: { params: Promise<{ coin:
 
   return (
     <div className="container market-page">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }} />
       <nav className="crumbs" aria-label="Breadcrumb">
         <Link href="/">Ana Sayfa</Link> <span>/</span> <Link href="/kripto">Kripto Para</Link> <span>/</span> <span>{cfg.label}</span>
       </nav>
@@ -110,6 +112,7 @@ export default async function KriptoDetail({ params }: { params: Promise<{ coin:
               {d.marketCap != null && <span>Piyasa Değeri: <strong>₺{tl(d.marketCap, 0)}</strong></span>}
             </div>
             {d.updatedAt && <div className="market-updated">Son güncelleme: {fmtUpdated(d.updatedAt)}</div>}
+            <div className="market-updated"><CoinGeckoAttribution /></div>
           </>
         ) : (
           <div className="market-na market-na-lg">{cfg.label} fiyatı şu anda alınamadı. Lütfen daha sonra tekrar deneyin.</div>
@@ -128,7 +131,7 @@ export default async function KriptoDetail({ params }: { params: Promise<{ coin:
         ))}
         <p className="market-prose">
           Bu sayfadaki
-          {" "}1 {cfg.symbol} = TL fiyatı, CoinGecko genel API verilerinden derlenir ve yaklaşık 5 dakikada bir
+          {" "}1 {cfg.symbol} = TL fiyatı CoinGecko genel API verilerinden derlenir ve yaklaşık 5 dakikada bir
           güncellenir. Kripto varlıklar yüksek oynaklığa sahiptir; gösterilen veriler bilgilendirme amaçlıdır ve
           yatırım tavsiyesi niteliği taşımaz. Güncel gelişmeler için{" "}
           <Link href="/kategori/kripto">kripto para haberleri</Link> sayfamızı takip edin.

@@ -3,10 +3,17 @@ export interface ArticleAIBudgetConfig {
   /** Haber akışının dokunamayacağı, rehber akışına ayrılmış çağrı payı. */
   guideWriterCallReserve: number;
   maxWriterCallsPerRun: number;
+  /** İlk taslağa ek kalite/benzerlik onarım denemeleri. */
+  maxDraftAttempts: number;
   writerMaxOutputTokens: number;
   verifierMaxOutputTokens: number;
   evidencePromptCharacterLimit: number;
   evidenceItemCharacterLimit: number;
+}
+
+/** Model harcaması kullanıcı tarafından açıkça açılmadıkça otomasyon çalışmaz. */
+export function isAIAutomationEnabled(env: Record<string, string | undefined> = process.env): boolean {
+  return env.AI_AUTOMATION_ENABLED?.trim().toLocaleLowerCase("en-US") === "true";
 }
 
 function boundedInteger(
@@ -59,6 +66,9 @@ export function resolveArticleAIBudgetConfig(
     // tek bir onarımlı konu tavanın üçte ikisini yiyor. 6, koşumun 2 makale
     // hedefini bir redde rağmen tutturmaya yeten gerçek çağrı sayısıdır.
     maxWriterCallsPerRun: boundedInteger(env.ARTICLE_MAX_WRITER_CALLS_PER_RUN, 6, 1, 12),
+    // Her onarım yeni ücretli model çağrısıdır. Varsayılan sıfır onarım;
+    // kalite kapısında kalan taslak için otomatik olarak 2-3 kez para yakma.
+    maxDraftAttempts: boundedInteger(env.ARTICLE_MAX_DRAFT_ATTEMPTS, 1, 1, 4),
     // 2400 token, 800 kelimelik TÜRKÇE makale JSON'ına yetmiyordu: canlı
     // kayıtta "Unterminated string in JSON at position 7764" ile taslak
     // ortadan kesildi. Türkçe token başına daha az kelime taşır ve claims/faq
@@ -79,5 +89,17 @@ export function startOfIstanbulDay(now = new Date()): Date {
     shifted.getUTCFullYear(),
     shifted.getUTCMonth(),
     shifted.getUTCDate(),
+  ) - turkeyOffsetMs);
+}
+
+/** Türkiye'de haftalık kota pazartesi 00.00 İstanbul saatinde sıfırlanır. */
+export function startOfIstanbulWeek(now = new Date()): Date {
+  const turkeyOffsetMs = 3 * 60 * 60 * 1000;
+  const shifted = new Date(now.getTime() + turkeyOffsetMs);
+  const daysSinceMonday = (shifted.getUTCDay() + 6) % 7;
+  return new Date(Date.UTC(
+    shifted.getUTCFullYear(),
+    shifted.getUTCMonth(),
+    shifted.getUTCDate() - daysSinceMonday,
   ) - turkeyOffsetMs);
 }

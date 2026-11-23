@@ -1,3 +1,4 @@
+import { serializeJsonLd } from "@/lib/json-ld";
 import type { Metadata } from "next";
 import { paylasimMeta } from "@/lib/og";
 import Link from "next/link";
@@ -20,6 +21,7 @@ const KUME_ADI: Record<string, string> = {
 };
 
 export async function generateMetadata(): Promise<Metadata> {
+  const guides = await getGuides();
   const title = "Finans Rehberleri — Yatırım ve Ekonomi Kavramları";
   const description =
     "Enflasyon, döviz, altın, borsa ve kripto para başta olmak üzere temel finans kavramlarını adım adım anlatan rehberler.";
@@ -27,6 +29,7 @@ export async function generateMetadata(): Promise<Metadata> {
     title,
     description,
     alternates: { canonical: `${BASE}/rehber` },
+    robots: guides.length === 0 ? { index: false, follow: true } : { index: true, follow: true },
     ...paylasimMeta({ url: `${BASE}/rehber`, title, description }),
   };
 }
@@ -73,7 +76,7 @@ export default async function RehberHub() {
 
   return (
     <div className="container market-page">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }} />
       <nav className="crumbs" aria-label="Breadcrumb">
         <Link href="/">Ana Sayfa</Link> <span>/</span> <span>Rehberler</span>
       </nav>

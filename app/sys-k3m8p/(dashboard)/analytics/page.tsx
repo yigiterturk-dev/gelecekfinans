@@ -15,22 +15,66 @@ interface Stats {
   daily: { date: string; count: number }[];
 }
 
+function isStats(value: unknown): value is Stats {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const data = value as Partial<Stats>;
+  return Number.isFinite(data.totalViews)
+    && Array.isArray(data.topPages)
+    && data.topPages.every((row) => row
+      && typeof row.path === "string"
+      && Number.isFinite(row.views))
+    && Array.isArray(data.topArticles)
+    && data.topArticles.every((row) => row
+      && typeof row.path === "string"
+      && Number.isFinite(row.views)
+      && typeof row.title === "string"
+      && (row.category === null || typeof row.category === "string"))
+    && Array.isArray(data.daily)
+    && data.daily.every((row) => row
+      && typeof row.date === "string"
+      && Number.isFinite(row.count));
+}
+
 export default function AnalyticsPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [period, setPeriod] = useState("7d");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const controller = new AbortController();
     // eslint-disable-next-line react-hooks/set-state-in-effect -- re-fetch sırasında loading göstergesi (kasıtlı)
     setLoading(true);
-    fetch(`/api/admin/stats?period=${period}`)
-      .then(r => r.json())
-      .then(setStats)
-      .finally(() => setLoading(false));
+    setError(null);
+    void (async () => {
+      try {
+        const response = await fetch(`/api/admin/stats?period=${period}`, { signal: controller.signal });
+        if (response.status === 401) {
+          throw new Error("Oturum süreniz dolmuş olabilir. Yeniden giriş yapın.");
+        }
+        if (!response.ok) throw new Error("Analitik verileri şu anda alınamıyor.");
+        const data: unknown = await response.json();
+        if (!isStats(data)) throw new Error("Analitik yanıtı beklenen biçimde değil.");
+        setStats(data);
+      } catch (cause) {
+        if (controller.signal.aborted) return;
+        setError(cause instanceof Error ? cause.message : "Analitik verileri şu anda alınamıyor.");
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    })();
+    return () => controller.abort();
   }, [period]);
 
   if (loading) return <p style={{ color: "var(--muted)" }}>Yükleniyor...</p>;
-  if (!stats) return null;
+  if (error || !stats) {
+    return (
+      <p role="alert" style={{ color: "var(--dn, #dc2626)" }}>
+        {error ?? "Analitik verileri şu anda alınamıyor."} {" "}
+        <a href="/sys-k3m8p/giris" style={{ color: "inherit", textDecoration: "underline" }}>Yönetim paneline giriş</a>
+      </p>
+    );
+  }
 
   const maxDaily = Math.max(...stats.daily.map(d => d.count), 1);
 

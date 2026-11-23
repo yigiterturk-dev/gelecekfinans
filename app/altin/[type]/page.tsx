@@ -1,8 +1,9 @@
+import { serializeJsonLd } from "@/lib/json-ld";
 import { datasetDescription } from "@/lib/dataset-desc";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getGold, GOLD_TYPES, tl, pctText, fmtUpdated, safeRelatedArticles } from "@/lib/market";
+import { getGold, GOLD_TYPES, tl, pctText, fmtUpdated, fmtGoldQuoteUpdated, safeRelatedArticles } from "@/lib/market";
 import { MedCard } from "@/components/ArticleCard";
 import AdSlot from "@/components/AdSlot";
 import MarketFaq from "@/components/MarketFaq";
@@ -10,6 +11,7 @@ import { goldFaq } from "@/lib/market-faq";
 import { GOLD_PROFILES } from "@/lib/asset-profiles";
 import { getGuides } from "@/lib/articles";
 import GoldCalculator from "@/components/calculators/GoldCalculator";
+import CoinGeckoAttribution from "@/components/CoinGeckoAttribution";
 
 export const revalidate = 600;
 const BASE = "https://gelecekfinans.com";
@@ -79,7 +81,7 @@ export default async function AltinDetail({ params }: { params: Promise<{ type: 
 
   return (
     <div className="container market-page">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }} />
       <nav className="crumbs" aria-label="Breadcrumb">
         <Link href="/">Ana Sayfa</Link> <span>/</span> <Link href="/altin">Altın</Link> <span>/</span> <span>{cfg.label}</span>
       </nav>
@@ -103,7 +105,14 @@ export default async function AltinDetail({ params }: { params: Promise<{ type: 
             ) : (
               <div className="market-muted">Günlük değişim verisi alınamadı.</div>
             )}
-            {d.updatedAt && <div className="market-updated">Son güncelleme: {fmtUpdated(d.updatedAt)}</div>}
+            {d.goldSource === "CoinGecko" && (
+              <div className="market-updated"><CoinGeckoAttribution /></div>
+            )}
+            {d.goldSource === "Yahoo Finance" && (
+              <div className="market-updated">Altın kotasyon kaynağı: Yahoo Finance (GC=F)</div>
+            )}
+            {d.goldUpdatedAt && <div className="market-updated">Altın kotasyon zamanı: {fmtGoldQuoteUpdated(d.goldUpdatedAt)}</div>}
+            {d.updatedAt && <div className="market-updated">USD/TRY referans tarihi: {fmtUpdated(d.updatedAt)}</div>}
           </>
         ) : (
           <div className="market-na market-na-lg">Altın fiyatı şu anda alınamadı. Lütfen daha sonra tekrar deneyin.</div>
@@ -123,9 +132,10 @@ export default async function AltinDetail({ params }: { params: Promise<{ type: 
           <p key={i} className="market-prose">{p}</p>
         ))}
         <p className="market-prose">
-          Bu sayfadaki {cfg.label.toLowerCase()} fiyatı, uluslararası ons altın fiyatının güncel
-          dolar/TL kuruyla çarpılmasıyla türetilir ve yaklaşık 10 dakikada bir güncellenir. Gösterilen değerler
-          bilgilendirme amaçlıdır; kapalıçarşı ve banka fiyatları işçilik ve marj nedeniyle farklılık gösterebilir.
+          Bu sayfadaki değer uluslararası ons altın fiyatı ve dolar/TL kurundan türetilir; çeyrek, yarım ve tam Cumhuriyet
+          ziynet altınında Darphane'nin nominal ağırlığı ile 22 ayar saflık oranı uygulanır. Yaklaşık 10 dakikada bir
+          güncellenir. Gösterilen değer tahmini metal karşılığıdır; sikke primi, işçilik, alış-satış makası ve kurum
+          marjı dahil değildir. Kapalıçarşı ve banka fiyatları farklılık gösterebilir.
           Güncel gelişmeler için <Link href="/kategori/altin">altın haberleri</Link> sayfamızı takip edin.
         </p>
       </section>

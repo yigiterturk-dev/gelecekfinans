@@ -10,15 +10,16 @@ import type { ReactNode } from "react";
  * Bu bloklar hem o niyeti karşılıyor hem de sayfaya rakip sayfalarla
  * yarışacak metin derinliği veriyor.
  *
- * ⚠️ Rakam UYDURULMAZ: metinlerdeki tüm oranlar "varsayım" olarak
- * işaretlidir, güncel oran için TÜİK/TCMB/BDDK kaynağına yönlendirilir.
- * Güncel veriye bağlı iddialar buraya yazılmaz — her ay yanlışlanır.
+ * ⚠️ Canlı ve dönemden döneme değişen rakamlar rehberlere yazılmaz.
+ * İstisna: adı ve metni belirli bir yıla sabitlenmiş araçlarda o yılın
+ * kaynaklı oran/tavanı açıkça yıl etiketiyle verilebilir; sonraki yıla
+ * taşınmamalıdır.
  */
 
 type Block =
-  | { h: string; p: string[] }
-  | { h: string; p?: string[]; ul: string[] }
-  | { h: string; p?: string[]; table: { head: string[]; rows: string[][] } };
+  | { h: string; p: ReactNode[] }
+  | { h: string; p?: ReactNode[]; ul: string[] }
+  | { h: string; p?: ReactNode[]; table: { head: string[]; rows: string[][] } };
 
 const GUIDES: Record<string, Block[]> = {
   "kira-artis-hesaplama": [
@@ -175,7 +176,10 @@ const GUIDES: Record<string, Block[]> = {
         "KKDF ve BSMV: ihtiyaç kredilerinde faiz üzerinden alınan vergilerdir; taksit hesabına eklenmediği için gerçek maliyet daha yüksek çıkar.",
         "Dosya masrafı ve tahsis ücreti: bankaya göre değişir, kredi kullanımında peşin tahsil edilir.",
         "Sigorta primleri: krediyle bağlantılı hayat ve konut sigortaları ayrı kalemdir.",
-        "Erken ödeme: kalan anaparanın ödenmesi hâlinde bazı bankalar erken ödeme tazminatı uygular; sözleşmedeki maddeye bakın.",
+        "Erken ödeme: tüketici kredisinde erken ödenen tutara göre faiz ve diğer maliyetlerde indirim yapılır. Erken ödeme tazminatı, yalnızca sabit faizli konut finansmanında sözleşmede yer alması koşuluyla istenebilir; değişken faizli konut kredisinde istenemez.",
+      ],
+      p: [
+        <>Sabit faizli konut finansmanında tazminat, erken ödenen anaparanın kalan vadesi 36 ayı aşmıyorsa %1'ini, aşıyorsa %2'sini geçemez ve sözleşmede yer almalıdır. Ayrıntılar için <a href="https://tuketici.ticaret.gov.tr/yayinlar/tuketici-bilgi-rehberi/tuketici-kredisi-sozlesmeleri-hakkinda-bilgilendirme" target="_blank" rel="noopener noreferrer">Ticaret Bakanlığının tüketici kredisi rehberine</a> ve <a href="https://tuketici.ticaret.gov.tr/yayinlar/tuketici-bilgi-rehberi/konut-finansmani-sozlesmeleri-hakkinda-bilgilendirme" target="_blank" rel="noopener noreferrer">konut finansmanı rehberine</a> bakın.</>,
       ],
     },
   ],
@@ -214,8 +218,8 @@ const GUIDES: Record<string, Block[]> = {
     {
       h: "Bileşik faiz formülü",
       p: [
-        "Bileşik faizde her dönemin getirisi anaparaya eklenir ve sonraki dönemde onun da faizi işler. Tek seferlik yatırımda dönem sonu değer A = P × (1 + r)^t formülüyle bulunur; P başlangıç tutarı, r dönemsel oran, t dönem sayısıdır.",
-        "Düzenli ek yatırım varsa hesap iki parçaya ayrılır: başlangıç tutarının bileşik büyümesi ve her ayın kendi süresi kadar büyüyen ek yatırımlar. Bu yüzden erken başlamak, sonradan daha büyük tutarlar yatırmaktan daha etkilidir.",
+        "Bileşik faizde her dönemin getirisi anaparaya eklenir ve sonraki dönemde onun da faizi işler. Tek seferlik yatırımda dönem sonu değer A = P × (1 + r)^t formülüyle bulunur; P başlangıç tutarı, r dönemsel oran, t dönem sayısıdır. Bu araç yıllık nominal oranı aylık döneme böler ve aylık bileşikleme uygular.",
+        "Düzenli ek yatırım varsa hesap iki parçaya ayrılır: başlangıç tutarının bileşik büyümesi ve her ayın kendi süresi kadar büyüyen ek yatırımlar. Süre ay cinsinden en yakın tam aya yuvarlanır; bir aydan kısa süre hesaplanmaz. Bu yüzden erken başlamak, sonradan daha büyük tutarlar yatırmaktan daha etkilidir.",
       ],
     },
     {
@@ -225,9 +229,10 @@ const GUIDES: Record<string, Block[]> = {
         rows: [
           ["Başlangıç tutarı", "100.000 TL"],
           ["Yıllık getiri (varsayım)", "%40"],
+          ["Bileşikleme", "Aylık (aylık oran %3,3333)"],
           ["Süre", "5 yıl"],
-          ["Dönem sonu değer", "537.824 TL"],
-          ["Toplam kazanç", "437.824 TL"],
+          ["Dönem sonu değer", "715.198,09 TL"],
+          ["Toplam kazanç", "615.198,09 TL"],
         ],
       },
     },
@@ -249,7 +254,7 @@ const GUIDES: Record<string, Block[]> = {
     {
       h: "Net kâr nasıl hesaplanır?",
       p: [
-        "Hisse işleminde kâr, alış ve satış fiyatı farkı ile adedin çarpımından işlem maliyetleri çıkarılarak bulunur. BIST'te alım ve satım ayrı ayrı komisyona tabidir; komisyon üzerinden ayrıca %5 oranında BSMV alınır. Bu yüzden hesap makinesinde komisyon oranınızı girmeniz istenir: aynı fiyat farkı, farklı komisyonda farklı net sonuç verir.",
+        "Hisse işleminde net kâr, alış ve satış tutarları farkından iki yöndeki komisyon ve komisyon üzerinden alınan BSMV çıkarılarak bulunur. Hesaplayıcı BSMV için varsayılan %5 oranı kullanır; oran ve komisyon kurum tarifesine göre değişebileceği için alanları kendi hesabınıza göre güncelleyin.",
         "Halka açık hisselerde kazanç üzerinden ayrıca stopaj yoktur (temettü geliri hariç). Yine de işlem maliyetleri ve varsa hesap işletim ücreti toplam getiriyi düşürür.",
       ],
     },
@@ -261,13 +266,15 @@ const GUIDES: Record<string, Block[]> = {
           ["Adet", "1.000"],
           ["Alış fiyatı", "10,00 TL"],
           ["Satış fiyatı", "12,00 TL"],
-          ["Komisyon (varsayım %0,2, iki yön + BSMV)", "46,20 TL"],
+          ["Komisyon (varsayım %0,2, iki yön)", "44,00 TL"],
+          ["BSMV (komisyonun %5'i)", "2,20 TL"],
+          ["Alış maliyeti (komisyon ve BSMV dahil)", "10.021,00 TL"],
           ["Net kâr", "1.953,80 TL"],
-          ["Getiri", "%9,77"],
+          ["Getiri (net kâr / alış maliyeti)", "%19,50"],
         ],
       },
       p: [
-        "Brüt kâr 2.000 TL görünse de komisyon ve BSMV sonrası net kâr 1.953,80 TL'ye iner. Düşük fiyatlı ve sık işlem yapılan senaryolarda bu fark, getirinin önemli bir bölümünü siler.",
+        "Brüt kâr 2.000 TL görünse de komisyon ve BSMV sonrası net kâr 1.953,80 TL'ye iner. Getiri, net kârın komisyon ve BSMV dahil alış maliyetine oranıdır; saklama veya başka hesap ücretleri örneğe dahil değildir.",
       ],
     },
     {
@@ -352,10 +359,10 @@ const GUIDES: Record<string, Block[]> = {
       table: {
         head: ["Ürün", "Ağırlık", "Ayar"],
         rows: [
-          ["Çeyrek altın", "1,75 gram", "22"],
-          ["Yarım altın", "3,50 gram", "22"],
-          ["Tam (ziynet) altın", "7,00 gram", "22"],
-          ["Cumhuriyet (ata) altını", "7,216 gram", "22"],
+          ["Çeyrek Cumhuriyet ziynet", "1,754 gram", "22"],
+          ["Yarım Cumhuriyet ziynet", "3,508 gram", "22"],
+          ["Tam Cumhuriyet ziynet", "7,016 gram", "22"],
+          ["Birlik Cumhuriyet sikke (Ata Lira)", "7,216 gram", "22"],
           ["Gram altın", "1,00 gram", "24 (has)"],
         ],
       },
@@ -386,6 +393,38 @@ const GUIDES: Record<string, Block[]> = {
         "Yİ-ÜFE: üretici fiyatlarıdır; maliyet baskısını ve gelecek tüketici fiyatlarını önceden gösterir.",
         "Kişisel enflasyon: harcama sepetiniz TÜFE'den farklıysa (kira, eğitim, sağlık ağırlığı) sizin enflasyonunuz TÜFE'den sapar.",
         "Dönem seçimi: tek bir ayın oranı yerine, hesapladığınız süreyle uyumlu kümülatif değişimi kullanın.",
+      ],
+    },
+  ],
+  "bes-devlet-katkisi-hesaplama": [
+    {
+      h: "2026 BES devlet katkısı nasıl hesaplanır?",
+      p: [
+        <>2026 yılında katılımcı adına ödenen uygun katkı paylarının %20’si kadar devlet katkısı hesaplanır. Yıllık uygun ödeme üst sınırı brüt asgari ücretin yıllık toplamı olan 396.360 TL’dir; bu tutar için azami devlet katkısı 79.272 TL olur. Limit kişi başınadır: aynı katılımcının gönüllü BES sözleşmelerindeki uygun ödemeleri birlikte değerlendirilir; çocuklar dahil başka katılımcıların sözleşme limitleri ayrıdır. <a href="https://cdn.egm.org.tr/sites/files/DK20Rehberi_07.01.2026-3103.pdf" target="_blank" rel="noopener noreferrer">EGM’nin rehberi de çocuk sözleşmelerinin limitini ayrı ele alır</a>. <a href="https://www.egm.org.tr/otomatik-katilim/oks--bes-karsilastirmasi/" target="_blank" rel="noopener noreferrer">BES ve OKS limitleri de ayrıdır</a>; bu hesaplayıcı OKS ödemelerini kapsamaz. Oran ve sınır, <a href="https://www.egm.org.tr/bireysel-emeklilik/devlet-katkisi/" target="_blank" rel="noopener noreferrer">EGM’nin 2026 BES bilgilerine</a> dayanır.</>,
+        <>Katılımcı dışında biri de katılımcı adına ödeme yapabilir; ancak arada iş ilişkisi bulunmamalıdır. Düzenli, ek ve başlangıç katkıları limit içinde değerlendirilebilir. İşveren katkıları ve başka hesaptan aktarılan birikimler bu hesaba girmez. Önceki yıllardan devreden katkı, gelecek yılın ilk günü ödenmiş kabul edilerek hesaba katılır; aracı doğru kullanmak için bu tutarı ayrı alana girin. <a href="https://cdn.egm.org.tr/sites/files/DK20Rehberi_07.01.2026-3103.pdf" target="_blank" rel="noopener noreferrer">EGM’nin 2026 rehberindeki devir örneğini</a> inceleyebilirsiniz. Devlet katkısı, ödemenin emeklilik şirketinin hesabına nakden ulaştığı ayı takip eden ay BES hesabına yatırılır.</>,
+      ],
+    },
+    {
+      h: "Devlet katkısı hemen çekilebilir mi?",
+      p: [
+        <>Normal ayrılmada devlet katkısı hesabındaki bakiyenin tamamı alınamaz. EGM’nin <a href="https://www.egm.org.tr/bireysel-emeklilik/devlet-katkisi/" target="_blank" rel="noopener noreferrer">hak ediş açıklamasına</a> göre sistemde 3 yıldan az kalınırsa hak ediş oluşmaz; en az 3, 6 ve 10 yılda sırasıyla bakiyenin %15, %35 ve %60’ına hak kazanılır. Emeklilik hakkıyla ayrılma, vefat veya maluliyette oran %100’dür.</>,
+        "Hesaplayıcıdaki isteğe bağlı hak ediş tahmini, girilen güncel devlet katkısı hesabı bakiyesine normal ayrılma oranını uygular. Emeklilik, vefat ve maluliyet istisnasını otomatik belirlemez; ayrıca katkı hesabına esas süre sözleşme kayıtlarına göre değişebilir. Gerçek hak ediş ve net ödeme için emeklilik şirketinizin hesabını ve EGM açıklamalarını kontrol edin.",
+      ],
+    },
+  ],
+  "oks-devlet-katkisi-hesaplama": [
+    {
+      h: "2026 OKS devlet katkısı nasıl hesaplanır?",
+      p: [
+        <>Otomatik Katılım Sistemi’nde çalışan adına tahsil edilen uygun katkı paylarının %20’si kadar devlet katkısı taahhüt edilir. 2026’da kişi başına yıllık uygun katkı payı tavanı 396.360 TL, buna karşılık gelen azami katkı tutarı 79.272 TL’dir. OKS limiti gönüllü BES limitinden ayrıdır. Bu oran ve tavan, <a href="https://www.egm.org.tr/otomatik-katilim/devlet-katkisi/" target="_blank" rel="noopener noreferrer">EGM’nin 2026 OKS açıklamasına</a> dayanır.</>,
+        <>İki aylık başlangıç dönemi sonunda sistemde kalan ve başlangıç katkısı daha önce hesaplanmamış katılımcıya 500 TL ilave devlet katkısı taahhüt edilir; EGM bu tek seferlik tutarın yıllık limite dahil olmadığını belirtir. Tüm OKS sertifikalarını sonlandırıp çıkan kişi yeniden katıldığında bu tutarı alamaz. Cayma hakkını kullanıp daha önce başlangıç katkısı hesaplanmayanlar yeniden katıldıklarında uygun olabilir. Durumunuzu emeklilik şirketinizden doğrulayın. OKS’de devlet katkısı nakden hemen ödenmiş sayılmaz; taahhüt olarak kayda alınır ve sistemde kalma süresine bağlı hak ediş koşullarına tabidir. Bu araç, 10 yıl ve üzeri yıllık gelir sigortası tercihine bağlı ek katkıyı ve fon getirilerini hesaplamaz.</>,
+      ],
+    },
+    {
+      h: "OKS devlet katkısı neden taahhüt olarak gösterilir?",
+      p: [
+        "EGM’ye göre katkıya bağlı devlet tutarı ve başlangıç dönemi ilave tutarı çalışanın devlet katkısı hesabında taahhüt olarak izlenir. Normal ayrılmada en az 3, 6 ve 10 yılda sırasıyla %15, %35 ve %60 hak ediş uygulanır; emeklilik, vefat veya maluliyette oran %100’dür. Kesin süre, tutar ve net ödeme için emeklilik şirketi kayıtlarını ve EGM bilgisini kontrol edin.",
+        <>İki aylık başlangıç bonusu için ilgili başlangıç döneminin tamamlanması ve bu dönemin sonunda sistemde kalınması gerekir; önceki OKS çıkışları ve daha önce hesaplanan başlangıç katkısı tekrar uygunluğu etkiler. EGM, tüm sertifikalarını sonlandırarak çıkan kişinin tekrar girişinde başlangıç katkısından yararlanamayacağını, ancak cayma kullanıp daha önce katkısı hesaplanmayan kişinin istisna kapsamında olabileceğini belirtir. Ayrıntılar için <a href="https://www.egm.org.tr/calisanlar/calisan-bilgilendirme-rehberi/" target="_blank" rel="noopener noreferrer">EGM çalışan rehberine</a> bakın.</>,
       ],
     },
   ],

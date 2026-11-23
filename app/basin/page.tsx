@@ -1,3 +1,4 @@
+import { serializeJsonLd } from "@/lib/json-ld";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { BASE } from "@/lib/embed-tools";
@@ -17,14 +18,14 @@ export const metadata: Metadata = {
 };
 
 const METHOD = [
-  ["Kira artışı", "Mevcut kira × (1 + oran); oran kullanıcı tarafından TÜİK'in 12 aylık ortalamalar serisinden girilir.", "TBK m. 344 · TÜİK TÜFE"],
-  ["Emekli zammı", "Mevcut aylık × (1 + oran); yıllık fark = aylık fark × 12.", "TÜİK · SGK/ÇSGB duyuruları"],
-  ["Kredi taksiti", "Taksit = A × i / (1 − (1 + i)^−n); anüite yöntemi.", "Bankaların ilan ettiği faiz"],
-  ["Mevduat getirisi", "Brüt = Anapara × oran × gün / 365; net = brüt − stopaj.", "TCMB · Resmî Gazete stopaj oranları"],
-  ["Bileşik faiz", "A = P × (1 + r)^t; ek yatırımda her ayın kendi süresi kadar büyümesi eklenir.", "—"],
-  ["Hisse kâr/zarar", "(Satış − alış) × adet − komisyon − BSMV.", "BIST işlem kuralları"],
-  ["Temettü", "Net = brüt × (1 − stopaj); verim = hisse başı temettü / fiyat.", "SPK · aracı kurum bildirimleri"],
-  ["Enflasyon", "Alım gücü = tutar / (1 + enflasyon)^n; reel getiri = (1 + nominal)/(1 + enflasyon) − 1.", "TÜİK TÜFE / Yİ-ÜFE"],
+  ["Kira artışı", "p girilen yüzde oranı: yeni kira = mevcut kira × (1 + p/100). p, TÜİK'in 12 aylık ortalamalar serisinden alınır.", "TBK m. 344 · TÜİK TÜFE"],
+  ["Emekli zammı", "z girilen yüzde zam: yeni aylık = mevcut aylık × (1 + z/100); yıllıklandırılmış fark = aylık fark × 12. Bu, zam ayından yıl sonuna kadar fiilen alınacak toplam değildir.", "TÜİK · SGK/ÇSGB duyuruları"],
+  ["Kredi taksiti", "Taksit = A × i / (1 − (1 + i)^−n); A anapara, i girilen aylık faiz yüzdesinin 100'e bölünmüş hali, n ay sayısıdır. Anüite yöntemi; KKDF, BSMV ve dosya masrafları dahil değildir.", "Kullanıcının girdiği anapara, aylık faiz ve vade"],
+  ["Mevduat getirisi", "p yıllık faiz, t stopaj (ikisi de girilen yüzde): brüt = anapara × (p/100) × gün / 365; net = brüt × (1 − t/100).", "Kullanıcının girdiği faiz ve stopaj oranları"],
+  ["Bileşik faiz", "P başlangıç tutarı, M ay sonu katkısı, r yıllık nominal oran (girilen yüzdenin 100'e bölünmüş hali), n girilen sürenin en yakın aya yuvarlanmış ay sayısı: A = P(1 + r/12)^n + M[((1 + r/12)^n − 1)/(r/12)] (r ≠ 0). r = 0 ise A = P + Mn.", "Kullanıcının girdiği yıllık nominal oran"],
+  ["Hisse kâr/zarar", "Net K/Z = brüt satış tutarı − brüt alış tutarı − alış ve satış komisyonları − bu komisyonların BSMV'si. Komisyon oranı binde (‰), BSMV oranı yüzde (%) girilir.", "Kullanıcının girdiği fiyat, adet, komisyon ve BSMV oranları"],
+  ["Temettü", "t girilen stopaj yüzdesi: net = yıllık brüt temettü × (1 − t/100); brüt verim (%) = hisse başı yıllık brüt temettü ÷ hisse fiyatı × 100.", "Kullanıcının girdiği tutar ve stopaj oranı"],
+  ["Enflasyon", "p girilen dönem kümülatif enflasyon yüzdesi: ileri = geçmiş tutar × (1 + p/100); ters = bugünkü tutar ÷ (1 + p/100).", "Kullanıcının girdiği dönem enflasyonu (TÜİK verisiyle doğrulayın)"],
 ];
 
 export default function BasinPage() {
@@ -41,7 +42,7 @@ export default function BasinPage() {
 
   return (
     <div className="container market-page">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }} />
       <nav className="crumbs" aria-label="Breadcrumb">
         <Link href="/">Ana Sayfa</Link> <span>/</span> <span>Basın ve Kaynak</span>
       </nav>
@@ -86,10 +87,10 @@ export default function BasinPage() {
             </tbody>
           </table>
           <p>
-            Araçlar yalnızca kullanıcının girdiği değerlerle hesap yapar; kendi başına oran
-            varsaymaz. Stopaj, KKDF, BSMV gibi kesintiler kullanıcı tarafından girilir ve
-            hesaplayıcı bunları gizlemez. Sonuçlar bilgilendirme amaçlıdır, yatırım veya hukuk
-            danışmanlığı değildir.
+            Her araçta kullanılan varsayılan oranlar ve hesap kapsamı ayrıca açıklanır. Bazı
+            oranlar kullanıcı tarafından değiştirilebilir; bazı kesintiler ise kapsam dışıdır
+            (örneğin kredi aracında KKDF ve BSMV). Sonuçlar bilgilendirme amaçlıdır, yatırım
+            veya hukuk danışmanlığı değildir.
           </p>
         </div>
       </section>

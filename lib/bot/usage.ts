@@ -110,8 +110,18 @@ export interface UsageSummary {
   costUsd: number;
   /** Fiyatı bilinmeyen model varsa maliyet EKSİK demektir; adları burada. */
   unpricedModels: string[];
+  /** Fiyatı bilinmeyen çağrı bulunduğunda toplam kesin değildir. */
+  costIsComplete: boolean;
   byStage: Record<string, { calls: number; inputTokens: number; outputTokens: number; costUsd: number }>;
   byModel: Record<string, { calls: number; inputTokens: number; outputTokens: number; costUsd: number }>;
+  /** Cross-tab for identifying which model generated cost at each pipeline stage. */
+  byStageAndModel: Record<string, Record<string, {
+    calls: number;
+    inputTokens: number;
+    cachedInputTokens: number;
+    outputTokens: number;
+    costUsd: number;
+  }>>;
 }
 
 export function usageSummary(): UsageSummary {
@@ -122,8 +132,10 @@ export function usageSummary(): UsageSummary {
     outputTokens: 0,
     costUsd: 0,
     unpricedModels: [],
+    costIsComplete: true,
     byStage: {},
     byModel: {},
+    byStageAndModel: {},
   };
   const unpriced = new Set<string>();
   for (const entry of ledger) {
@@ -143,11 +155,30 @@ export function usageSummary(): UsageSummary {
       row.costUsd += entry.costUsd;
       bucket[key] = row;
     }
+    const stageModels = summary.byStageAndModel[entry.stage] ?? {};
+    const modelRow = stageModels[entry.model] ?? {
+      calls: 0,
+      inputTokens: 0,
+      cachedInputTokens: 0,
+      outputTokens: 0,
+      costUsd: 0,
+    };
+    modelRow.calls += 1;
+    modelRow.inputTokens += entry.inputTokens;
+    modelRow.cachedInputTokens += entry.cachedInputTokens;
+    modelRow.outputTokens += entry.outputTokens;
+    modelRow.costUsd += entry.costUsd;
+    stageModels[entry.model] = modelRow;
+    summary.byStageAndModel[entry.stage] = stageModels;
   }
   summary.costUsd = Number(summary.costUsd.toFixed(6));
   for (const bucket of [summary.byStage, summary.byModel]) {
     for (const row of Object.values(bucket)) row.costUsd = Number(row.costUsd.toFixed(6));
   }
+  for (const models of Object.values(summary.byStageAndModel)) {
+    for (const row of Object.values(models)) row.costUsd = Number(row.costUsd.toFixed(6));
+  }
   summary.unpricedModels = [...unpriced];
+  summary.costIsComplete = unpriced.size === 0;
   return summary;
 }

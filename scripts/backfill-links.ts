@@ -28,9 +28,10 @@ function stripWeakAnchors(html: string): { content: string; removed: string[] } 
     /<a\s[^>]*href="\/[^"]*"[^>]*>([^<]{1,40})<\/a>/g,
     (whole, text: string) => {
       const words = text.trim().split(/\s+/);
-      // YALNIZCA gerçekten anlamsız çapalar sökülür. "TCMB", "Borsa",
-      // "kripto", "dolar" kısa ama hedefin konusunu söylüyor; onlar kalır.
-      const weak = words.length === 1 && isGenericAnchor(words[0]);
+      // Tek kelimeli geniş çapaları ve bütünüyle dolgu sözcüklerinden oluşan
+      // öbekleri kaldır. "TCMB", "Bitcoin" ve "Borsa İstanbul" gibi hedefi
+      // tarif eden çapalara dokunma.
+      const weak = words.every((word) => isGenericAnchor(word));
       if (!weak) return whole;
       removed.push(text.trim());
       return text;

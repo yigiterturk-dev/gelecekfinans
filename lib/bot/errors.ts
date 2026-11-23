@@ -26,10 +26,21 @@ export class OpenAIQuotaError extends AIProviderFatalError {
 
   constructor() {
     super(
-      "OpenAI kredisi tükendi. Billing bakiyesi yenilenene kadar üretim durduruldu.",
+      "OpenAI API kota/limit hatası nedeniyle üretim durduruldu. Bakiye, proje/kuruluş harcama sınırı ve kullanım limitlerini kontrol edin; bu hata tek başına bakiyenin bittiğini göstermez.",
       "OPENAI_QUOTA_EXHAUSTED",
     );
     this.name = "OpenAIQuotaError";
+  }
+}
+
+/** A payment-required response means this provider cannot process requests. */
+export class AIProviderBillingError extends AIProviderFatalError {
+  constructor() {
+    super(
+      "Yapay zekâ sağlayıcısı 402 ödeme/bakiye hatası verdi; bu koşudaki yeni model çağrıları durduruldu.",
+      "AI_PROVIDER_BILLING_ERROR",
+    );
+    this.name = "AIProviderBillingError";
   }
 }
 
@@ -81,6 +92,10 @@ export function isAnthropicBillingError(error: unknown): boolean {
   const type = `${value.error?.type || ""}`.toLocaleLowerCase("en-US");
   const message = `${value.message || ""} ${value.error?.message || ""}`.toLocaleLowerCase("en-US");
   return value.status === 402 || type === "billing_error" || message.includes("credit balance");
+}
+
+export function isProviderBillingError(error: unknown): boolean {
+  return (error as { status?: number } | null)?.status === 402;
 }
 
 /**

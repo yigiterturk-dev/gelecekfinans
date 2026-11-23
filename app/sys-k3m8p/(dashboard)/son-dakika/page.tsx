@@ -116,10 +116,10 @@ export default function BreakingNewsAdmin() {
             <div style={{ flex: 1, minWidth: 0 }}>
               <p style={{ fontSize: 13, color: isLive ? "var(--ink)" : "var(--muted)" }}>{item.text}</p>
               <p style={{ fontSize: 10, color: "var(--faint)", marginTop: 2, fontFamily: "var(--mono)" }}>
-                {new Date(item.createdAt).toLocaleString("tr-TR")}
+                {new Date(item.createdAt).toLocaleString("tr-TR", { timeZone: "Europe/Istanbul" })}
                 {item.expiresAt && (
                   <span style={{ marginLeft: 8 }}>
-                    · {isLive ? "Bitiş" : "Bitti"}: {new Date(item.expiresAt).toLocaleString("tr-TR")}
+                    · {isLive ? "Bitiş" : "Bitti"}: {new Date(item.expiresAt).toLocaleString("tr-TR", { timeZone: "Europe/Istanbul" })}
                   </span>
                 )}
               </p>

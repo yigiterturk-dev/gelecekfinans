@@ -1,0 +1,11 @@
+[start] altin-yedi-haftanin-zirvesinde-ons-4277-dolar 22:05:59
+[ok] altin-yedi-haftanin-zirvesinde-ons-4277-dolar -> /Users/yigiterturk/projects/gelecekfinans/tmp-gorseller/altin-yedi-haftanin-zirvesinde-ons-4277-dolar.png (https://d8j0ntlcm91z4.cloudfront.net/user_38ZYl6OoN0cvN0HKO3A8j3K1Fn9/hf_20261122_190600_7b6d4c11-d9d1-4a27-b300-4b829878ce4a.png)
+[start] viop-nedir-turkiye-vadeli-islem-ve-opsiyon-piyasasi-rehberi 22:06:22
+[ok] viop-nedir-turkiye-vadeli-islem-ve-opsiyon-piyasasi-rehberi -> /Users/yigiterturk/projects/gelecekfinans/tmp-gorseller/viop-nedir-turkiye-vadeli-islem-ve-opsiyon-piyasasi-rehberi.png (https://d8j0ntlcm91z4.cloudfront.net/user_38ZYl6OoN0cvN0HKO3A8j3K1Fn9/hf_20261122_190623_fe737057-e6dc-4265-ae82-0b78d287fbd1.png)
+[start] dolar-ve-euro-kurlari-10-kasim-2026-doviz-fiyatlari 22:06:51
+[ok] dolar-ve-euro-kurlari-10-kasim-2026-doviz-fiyatlari -> /Users/yigiterturk/projects/gelecekfinans/tmp-gorseller/dolar-ve-euro-kurlari-10-kasim-2026-doviz-fiyatlari.png (https://d8j0ntlcm91z4.cloudfront.net/user_38ZYl6OoN0cvN0HKO3A8j3K1Fn9/hf_20261122_190652_a45385b4-a800-4665-b1ab-aa548d750f41.png)
+[start] tuketici-guven-endeksi-kasimda-yukseldi 22:07:17
+[ok] tuketici-guven-endeksi-kasimda-yukseldi -> /Users/yigiterturk/projects/gelecekfinans/tmp-gorseller/tuketici-guven-endeksi-kasimda-yukseldi.png (https://d8j0ntlcm91z4.cloudfront.net/user_38ZYl6OoN0cvN0HKO3A8j3K1Fn9/hf_20261122_190718_0881535c-305f-4668-9340-454666647df5.png)
+[start] blockchain-nasil-calisir-merkeziyetsiz-teknolojinin-temelleri 22:07:43
+[ok] blockchain-nasil-calisir-merkeziyetsiz-teknolojinin-temelleri -> /Users/yigiterturk/projects/gelecekfinans/tmp-gorseller/blockchain-nasil-calisir-merkeziyetsiz-teknolojinin-temelleri.png (https://d8j0ntlcm91z4.cloudfront.net/user_38ZYl6OoN0cvN0HKO3A8j3K1Fn9/hf_20261122_190744_63fbee02-5ef1-4fff-867e-8eb01591ecbd.png)
+[done] 22:08:09

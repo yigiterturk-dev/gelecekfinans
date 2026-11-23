@@ -8,7 +8,22 @@ import { YIL_2026, brutNetYil, netBrut } from "@/lib/maas";
  */
 const AYLAR = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
 const fmt = (v: number) => "₺" + v.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const num = (s: string) => parseFloat(s.replace(/\./g, "").replace(",", "."));
+const num = (s: string) => {
+  const value = s.trim().replace(/\s/g, "");
+  if (!value) return NaN;
+
+  // Türkçe binlik noktası ve ondalık virgülünü, ayrıca ondalık nokta girişini kabul et.
+  if (value.includes(",")) {
+    if (!/^(?:\d+|\d{1,3}(?:\.\d{3})+)(?:,\d+)?$/.test(value)) return NaN;
+    return Number(value.replace(/\./g, "").replace(",", "."));
+  }
+  if (value.includes(".")) {
+    if (/^\d{1,3}(?:\.\d{3})+$/.test(value)) return Number(value.replace(/\./g, ""));
+    if (/^\d+(?:\.\d+)?$/.test(value)) return Number(value);
+    return NaN;
+  }
+  return /^\d+$/.test(value) ? Number(value) : NaN;
+};
 
 export default function SalaryCalculator() {
   const [mode, setMode] = useState<"brut" | "net">("brut");
@@ -54,7 +69,7 @@ export default function SalaryCalculator() {
         <div className="crypto-table-wrap" style={{ marginTop: 16 }}>
           <table className="crypto-table">
             <thead>
-              <tr><th>Ay</th><th>SGK + İşsizlik</th><th>Gelir Vergisi</th><th>Damga V.</th><th>Net</th><th>Dilim</th></tr>
+              <tr><th>Ay</th><th>SGK + İşsizlik</th><th>Gelir Vergisi</th><th>Damga V.</th><th>Net</th><th title="Ay sonu kümülatif gelir vergisi matrahının ulaştığı marjinal oran">Ay Sonu Dilimi</th></tr>
             </thead>
             <tbody>
               {yil.map((a) => (
@@ -72,11 +87,12 @@ export default function SalaryCalculator() {
         </div>
       )}
       <p className="conv-note">
-        2026 gelir vergisi ücret tarifesi (Gelir Vergisi Genel Tebliği Seri No 332, Resmî Gazete 31.12.2025),
-        asgari ücret istisnası, SGK işçi payı %14, işsizlik %1, damga vergisi binde 7,59 ve prime esas kazanç tavanı
-        {" "}{fmt(YIL_2026.sgkTavan)} esas alınır. Özel sektörde teşviksiz normal işçi içindir; engelli indirimi, BES kesintisi,
-        ikramiye ve yan haklar dahil değildir. Netten brüte hesap ocak ayı netine göre yapılır. 2027 asgari ücreti ve
-        vergi dilimleri açıklandığında araç güncellenir.
+        Maaşı Türkçe biçimde (50.000,50) veya ondalık noktayla (50000.50) girebilirsiniz.{" "}
+        2026 ücret vergisi dilimleri için <a href="https://cdn.gib.gov.tr/api/gibportal-file/file/getFileResources?objectKey=arsiv%2Fyardim-kaynaklar%2Fyararli-bilgiler%2Fgelir-vergisi-tarifeleri%2Fgelir-vergisi-tarifesi-2026.pdf" target="_blank" rel="noopener noreferrer">GİB 2026 tarifesi</a>,
+        asgari ücret ve işveren maliyeti için <a href="https://www.csgb.gov.tr/poco-pages/asgari-ucret/" target="_blank" rel="noopener noreferrer">Çalışma Bakanlığı 2026 tablosu</a> esas alınır. Hesaplamada asgari ücret istisnası, SGK işçi payı %14, işsizlik %1, damga vergisi binde 7,59 ve prime esas kazanç tavanı {fmt(YIL_2026.sgkTavan)} kullanılır.
+        Özel sektörde teşviksiz normal işçi içindir; engelli indirimi, BES kesintisi, ikramiye ve yan haklar dahil değildir.
+        Tablodaki ay sonu dilimi, kümülatif matrahın ulaştığı marjinal oranı gösterir; o ayın tüm matrahına tek oran uygulanmaz.
+        Netten brüte hesap ocak ayı netine göre yapılır. 2027 asgari ücreti ve vergi dilimleri açıklandığında araç güncellenir.
       </p>
     </div>
   );

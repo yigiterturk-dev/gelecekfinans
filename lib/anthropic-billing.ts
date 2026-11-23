@@ -37,7 +37,11 @@ export function sumAnthropicCostCents(payload: unknown) {
     return pageTotal + results.reduce((bucketTotal, result) => {
       if (!result || typeof result !== "object") return bucketTotal;
       const amount = (result as AnthropicCostResult).amount;
-      const parsed = typeof amount === "number" ? amount : Number.parseFloat(String(amount));
+      const parsed = typeof amount === "number"
+        ? amount
+        : typeof amount === "string" && amount.trim() !== ""
+          ? Number(amount)
+          : NaN;
       return Number.isFinite(parsed) ? bucketTotal + parsed : bucketTotal;
     }, 0);
   }, 0);

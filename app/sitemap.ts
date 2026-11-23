@@ -2,6 +2,8 @@ import { isSeoNoindex } from "@/lib/articles";
 import { prisma } from "@/lib/db";
 import { FX_PAIRS, GOLD_TYPES, CRYPTO_COINS, BIST_STOCKS } from "@/lib/market";
 import { absoluteImageUrl } from "@/lib/image-url";
+import { articleCoverUrl } from "@/lib/article-cover";
+import { TOOL_CATALOG } from "@/lib/tool-catalog";
 import type { MetadataRoute } from "next";
 
 // Haber sitesi için saatlik tazeleme yeterli; her istekte tüm makaleleri
@@ -27,35 +29,17 @@ const BASE = "https://gelecekfinans.com";
  */
 const PROFIL_TARIHLERI = {
   hisse: new Date("2026-09-07"),   // lib/stock-profiles.ts
-  varlik: new Date("2026-11-15"),  // lib/asset-profiles.ts (altın + döviz) + hub iç bağlantıları
+  varlik: new Date("2026-11-23"),  // lib/asset-profiles.ts (altın + döviz) + hub iç bağlantıları
   kripto: new Date("2026-09-07"),  // lib/crypto-profiles.ts
-  arac: new Date("2026-11-15"),    // lib/market-faq.ts + lib/tool-guides.tsx (araç rehber metinleri)
+  arac: new Date("2026-11-23"),    // lib/market-faq.ts + lib/tool-guides.tsx (araç rehber metinleri)
   kategori: new Date("2026-09-09"),// lib/category-profiles.ts
 } as const;
 
-/**
- * Kurumsal/hukuki sayfaların son değişim günü (git geçmişinden okundu).
- * ⚠️ Bu sayfaların metnini değiştiren HERKES burayı da güncellemeli;
- * yoksa Google eski tarihe bakıp yeniden taramayı erteler.
- * Kapsam: /hakkimizda · /yayincilik-ilkeleri · /iletisim ·
- *         /gizlilik-politikasi · /kullanim-kosullari
- */
+// lastModified yalnızca ilgili sayfa içeriğinin gerçekten değiştiği tarihtir.
+// 23 Kasım'da içerik güncellenen kurumsal sayfalar ayrı tarih alır; iletişim ve
+// kullanım koşulları önceki editoryal tarihlerinde kalır.
 const STATIK_SAYFA_TARIHI = new Date("2026-09-09");
-
-const TOOL_SLUGS = [
-  "doviz-cevirici",
-  "altin-hesaplama",
-  "kredi-faiz-hesaplama",
-  "mevduat-faiz-hesaplama",
-  "enflasyon-hesaplama",
-  "bilesik-faiz-hesaplama",
-  "hisse-kar-zarar-hesaplama",
-  "kira-artis-hesaplama",
-  "emekli-zammi-hesaplama",
-  "memur-zammi-hesaplama",
-  "brut-net-maas-hesaplama",
-  "temettu-hesaplama",
-];
+const GUNCEL_KURUMSAL_SAYFA_TARIHI = new Date("2026-11-23");
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Sitemap sorgusu sayfa görüntüleme istatistiklerine ihtiyaç duymaz. Doğrudan
@@ -91,7 +75,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.8,
     // Görsel kendi alan adımızdan bildirilir (bkz. lib/image-url.ts); blob alt
     // alan adı Google Görseller'de siteye atıf kazandırmıyor.
-    ...(a.imageUrl ? { images: [absoluteImageUrl(a.imageUrl, BASE)!] } : {}),
+    ...(articleCoverUrl(a) ? { images: [absoluteImageUrl(articleCoverUrl(a), BASE)!] } : {}),
   }));
 
   // En yeni makale tarihi: anasayfa ve arşiv gerçekten o an tazeleniyor.
@@ -159,8 +143,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     changeFrequency: "hourly" as const,
     priority: 0.85,
   }));
-  const toolEntries = TOOL_SLUGS.map((s) => ({
-    url: `${BASE}/araclar/${s}`,
+  const toolEntries = TOOL_CATALOG.map(({ slug }) => ({
+    url: `${BASE}/araclar/${slug}`,
     lastModified: PROFIL_TARIHLERI.arac,
     changeFrequency: "weekly" as const,
     priority: 0.7,
@@ -174,14 +158,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // Gömülebilir araçlar ve basın sayfası: dış bağlantı kampanyasının iniş sayfaları.
     { url: `${BASE}/gomulu`, lastModified: PROFIL_TARIHLERI.arac, changeFrequency: "monthly", priority: 0.6 },
     { url: `${BASE}/basin`, lastModified: PROFIL_TARIHLERI.arac, changeFrequency: "monthly", priority: 0.4 },
-    { url: `${BASE}/hakkimizda`, lastModified: STATIK_SAYFA_TARIHI, changeFrequency: "monthly", priority: 0.3 },
+    { url: `${BASE}/hakkimizda`, lastModified: GUNCEL_KURUMSAL_SAYFA_TARIHI, changeFrequency: "monthly", priority: 0.3 },
     { url: `${BASE}/kunye`, lastModified: new Date("2026-11-12"), changeFrequency: "yearly", priority: 0.3 },
-    { url: `${BASE}/yazarlar`, lastModified: new Date("2026-11-12"), changeFrequency: "monthly", priority: 0.3 },
-    { url: `${BASE}/yayincilik-ilkeleri`, lastModified: STATIK_SAYFA_TARIHI, changeFrequency: "monthly", priority: 0.5 },
+    { url: `${BASE}/yazarlar`, lastModified: GUNCEL_KURUMSAL_SAYFA_TARIHI, changeFrequency: "monthly", priority: 0.3 },
+    { url: `${BASE}/yayincilik-ilkeleri`, lastModified: GUNCEL_KURUMSAL_SAYFA_TARIHI, changeFrequency: "monthly", priority: 0.5 },
     { url: `${BASE}/iletisim`, lastModified: STATIK_SAYFA_TARIHI, changeFrequency: "monthly", priority: 0.3 },
-    { url: `${BASE}/gizlilik-politikasi`, lastModified: STATIK_SAYFA_TARIHI, changeFrequency: "yearly", priority: 0.2 },
-    { url: `${BASE}/cerez-politikasi`, lastModified: new Date("2026-11-12"), changeFrequency: "yearly", priority: 0.2 },
+    { url: `${BASE}/gizlilik-politikasi`, lastModified: GUNCEL_KURUMSAL_SAYFA_TARIHI, changeFrequency: "yearly", priority: 0.2 },
+    { url: `${BASE}/cerez-politikasi`, lastModified: GUNCEL_KURUMSAL_SAYFA_TARIHI, changeFrequency: "yearly", priority: 0.2 },
     { url: `${BASE}/kullanim-kosullari`, lastModified: STATIK_SAYFA_TARIHI, changeFrequency: "yearly", priority: 0.2 },
+    // Eğitim rehberleri: süreç anlatır, canlı rakam içermez; bu yüzden aylık tazelik iddiası dürüst.
+    { url: `${BASE}/halka-arz`, lastModified: new Date("2026-11-22"), changeFrequency: "monthly", priority: 0.6 },
+    { url: `${BASE}/araci-kurumlar`, lastModified: new Date("2026-11-22"), changeFrequency: "monthly", priority: 0.6 },
     ...marketHubs,
     ...fxEntries,
     ...goldEntries,

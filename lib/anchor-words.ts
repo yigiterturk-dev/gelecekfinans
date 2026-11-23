@@ -59,9 +59,27 @@ const GENERIC_ANCHOR_WORDS = new Set([
   "seviye", "seviyesi", "seviyesinde", "seviyesine", "düzeyi", "düzeyinde",
   "düzeyine", "oranında", "oranı", "rahatlama", "artış", "düşüş", "yükseliş",
   "geriledi", "geriliyor", "rekor",
+  // Tek başına bir habere götürmek için fazla geniş finans/ekonomi sözcükleri.
+  // Önceki link enjeksiyonunda "piyasa", "istikrarı" ve "borçlanma" gibi
+  // kelimeler, yalnızca aynı kelime başka yazıda geçti diye konu dışı sayfalara
+  // bağlanmıştı. Bu terimler ancak daha açıklayıcı bir öbek içinde çapa olabilir.
+  "piyasa", "piyasası", "piyasalar", "istikrarı", "borçlanma", "enflasyon",
+  "fiyat", "fiyatı", "fiyatları", "faiz", "faizi", "faizler", "veri",
+  "veriler", "verileri", "bilgileri", "satışlar", "beklentileri", "ihracat",
+  "türkiye", "riskler", "etkiler", "belirlenir", "değişiklik", "sonraki",
 ]);
 
 export const MIN_SINGLE_WORD_ANCHOR = 7;
+
+const SPECIFIC_SINGLE_WORD_ANCHORS = new Set([
+  "bitcoin", "btc", "ethereum", "eth", "solana", "sol", "xrp", "dogecoin",
+  "doge", "litecoin", "ltc", "tcmb", "spk", "bist", "viop", "tüfe", "kkm",
+]);
+
+/** Tek kelimeyle bile hedefi açıkça tarif eden, kapalı terim listesi. */
+export function isSafeSingleWordAnchor(word: string): boolean {
+  return SPECIFIC_SINGLE_WORD_ANCHORS.has(word.trim().toLocaleLowerCase("tr-TR"));
+}
 
 /**
  * KAPALI SINIF KELİMELER (bağlaç, zarf, edat, belirteç).

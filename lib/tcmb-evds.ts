@@ -5,15 +5,15 @@
  * 2026-06 dönemine aitti; 4 Eylül'de sayfa üç aylık veriyle "güncel faiz
  * oranları" diyordu. Finans sitesinde yanlış faiz göstermek en pahalı hata.
  *
- * ⚠️ Ölçüldü (2026-09-04): TCMB'nin faiz sayfası JavaScript ile render
- * ediliyor (HTML var, metin yok) ve EVDS anahtarsız çağrıda giriş sayfasına
- * 302 atıyor. Yani kazıma seçeneği YOK; tek yol ücretsiz EVDS API anahtarı
- * (evds2.tcmb.gov.tr üzerinden kayıt).
+ * ⚠️ Bu adapter public faiz sayfasında kullanılmıyor: seri kodu canlı yanıtla
+ * doğrulanmadı. 2026-11-12'de TCMB'nin faiz tablolarının sunucu HTML'inde
+ * okunabildiği görüldü; public page bunun yerine `lib/tcmb-faiz.ts` kullanır.
+ * Bu adapter yalnızca seri kodunu manuel doğrulamak için tutulur.
  *
- * Anahtar yoksa fonksiyon null döner ve sayfa sabit tabloya düşer — kurulum
- * eksik diye sayfa çökmez, sadece bayat veriyi AÇIKÇA bayat olarak gösterir.
+ * Anahtar yoksa bu adapter null döner. Public /faiz sayfası kendi resmi TCMB
+ * tablo okuyucusunu kullanır; tablo da okunamazsa tarihli statik fallback gösterir.
  *
- * ⚠️ SERİ KODU DOĞRULANMADI: anahtar olmadan EVDS kataloğuna erişilemediği
+ * ⚠️ SERİ KODU DOĞRULANMADI: EVDS kataloğuna erişilemediği
  * için varsayılan seri kodu (`TP.APIFON4`) canlı yanıtla teyit EDİLMEDİ.
  * Anahtar geldiğinde ÖNCE `npx tsx scripts/faiz-dene.ts` çalıştırın; dönen
  * etiket ve değer beklenenle uyuşmuyorsa `EVDS_POLICY_SERIES` ile düzeltin.

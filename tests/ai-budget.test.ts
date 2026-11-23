@@ -1,12 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { resolveArticleAIBudgetConfig, startOfIstanbulDay } from "../lib/bot/ai-budget";
+import { isAIAutomationEnabled, resolveArticleAIBudgetConfig, startOfIstanbulDay } from "../lib/bot/ai-budget";
+
+test("AI otomasyonu harcama için açık opt-in ister", () => {
+  assert.equal(isAIAutomationEnabled({}), false);
+  assert.equal(isAIAutomationEnabled({ AI_AUTOMATION_ENABLED: "false" }), false);
+  assert.equal(isAIAutomationEnabled({ AI_AUTOMATION_ENABLED: "TRUE" }), true);
+});
 
 test("AI bütçesi güvenli üretim varsayılanlarını kullanır", () => {
   assert.deepEqual(resolveArticleAIBudgetConfig({}), {
     dailyWriterCallLimit: 24,
     guideWriterCallReserve: 8,
     maxWriterCallsPerRun: 6,
+    maxDraftAttempts: 1,
     writerMaxOutputTokens: 5000,
     verifierMaxOutputTokens: 800,
     evidencePromptCharacterLimit: 14000,
@@ -19,12 +26,14 @@ test("AI bütçe değişkenleri güvenli aralıklara sıkıştırılır", () => 
     ARTICLE_DAILY_WRITER_CALL_LIMIT: "999",
     ARTICLE_GUIDE_WRITER_RESERVE: "24",
     ARTICLE_MAX_WRITER_CALLS_PER_RUN: "0",
+    ARTICLE_MAX_DRAFT_ATTEMPTS: "4",
     OPENAI_WRITER_MAX_OUTPUT_TOKENS: "9000",
     OPENAI_VERIFIER_MAX_OUTPUT_TOKENS: "10",
   });
   assert.equal(budget.dailyWriterCallLimit, 50);
   assert.equal(budget.guideWriterCallReserve, 24);
   assert.equal(budget.maxWriterCallsPerRun, 1);
+  assert.equal(budget.maxDraftAttempts, 4);
   assert.equal(budget.writerMaxOutputTokens, 9000);
   assert.equal(budget.verifierMaxOutputTokens, 300);
 });

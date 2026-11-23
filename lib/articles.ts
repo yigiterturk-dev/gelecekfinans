@@ -1,6 +1,8 @@
 import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import { prisma } from "./db";
 import type { Article, ArticleListItem, ArticleExtras, ArticleFaq, ImageCredit } from "./types";
+import { stripEvidenceMarkers } from "./bot/quality";
 
 export type { Article } from "./types";
 
@@ -34,12 +36,17 @@ export class DatabaseUnavailableError extends Error {
 export function coerceExtras(value: unknown): ArticleExtras | null {
   if (!value || typeof value !== "object") return null;
   const v = value as Record<string, unknown>;
+  const clean = (text: string) => stripEvidenceMarkers(text);
 
   const summary = Array.isArray(v.summary)
-    ? v.summary.filter((s): s is string => typeof s === "string" && s.trim().length > 0).slice(0, 5)
+    ? v.summary
+        .filter((s): s is string => typeof s === "string" && s.trim().length > 0)
+        .map(clean)
+        .filter((s) => s.length > 0)
+        .slice(0, 5)
     : [];
 
-  const impact = typeof v.impact === "string" ? v.impact.trim() : "";
+  const impact = typeof v.impact === "string" ? clean(v.impact.trim()) : "";
 
   const faq: ArticleFaq[] = Array.isArray(v.faq)
     ? v.faq
@@ -48,8 +55,8 @@ export function coerceExtras(value: unknown): ArticleExtras | null {
           const q = (f as Record<string, unknown>).q;
           const a = (f as Record<string, unknown>).a;
           if (typeof q !== "string" || typeof a !== "string") return null;
-          const qt = q.trim();
-          const at = a.trim();
+          const qt = clean(q.trim());
+          const at = clean(a.trim());
           if (!qt || !at) return null;
           return { q: qt, a: at };
         })
@@ -66,19 +73,17 @@ export function coerceExtras(value: unknown): ArticleExtras | null {
 }
 
 /**
- * `premium` kolonu henüz veritabanına eklenmemiş olabilir (owner `prisma db push`
- * çalıştırmadan önce). Bu durumda Prisma "column does not exist" hatası fırlatır.
- * Bu kontrol, hatanın eksik `premium` kolonundan kaynaklanıp kaynaklanmadığını
- * tespit eder; öyleyse sorguyu `premium` olmadan tekrar deneriz (premium:false).
- * Kolon mevcutsa davranış hiç değişmez.
+ * Bazı sonradan eklenen nullable/varsayılan kolonlar canlı veritabanında
+ * `prisma db push` tamamlanana kadar eksik olabilir. Bu kontrol, Prisma'nın
+ * eksik kolon hatasını tanır; ilgili okuyucu destekleyebildiği alanları
+ * çıkartıp sorguyu yeniden deneyebilir.
  */
 function isMissingOptionalColumn(err: unknown): boolean {
   const msg =
     err && typeof err === "object" && "message" in err
       ? String((err as { message?: unknown }).message ?? "")
       : String(err);
-  // Prisma P2022 (column does not exist) veya `premium`/`aiExtras` sütun hatası.
-  // Owner `prisma db push` çalıştırana kadar bu opsiyonel kolonlar yok olabilir.
+  // Prisma P2022 (column does not exist) veya adı geçen opsiyonel kolon hatası.
   const code =
     err && typeof err === "object" && "code" in err
       ? String((err as { code?: unknown }).code ?? "")
@@ -95,8 +100,11 @@ function isMissingOptionalColumn(err: unknown): boolean {
 // React cache(): aynı render içinde aynı argümanlarla tekrarlı çağrılarda DB
 // sorgusunu tek sefere indirir (request-level dedupe). Davranış değişmez —
 // sonuçlar birebir aynı kalır, yalnızca tekrar eden sorgu önlenir.
+// `includeViews=false`, arama gibi görüntülenme sıralaması göstermeyen listelerin
+// gereksiz pageView agregasyonu yapmasını önler.
 export const getAllArticles = cache(async function getAllArticles(
-  limit = 200
+  limit = 200,
+  includeViews = true,
 ): Promise<ArticleListItem[]> {
   let rows: Array<{
     title: string;
@@ -129,7 +137,7 @@ export const getAllArticles = cache(async function getAllArticles(
   } as const;
   const baseQuery = {
     where: { status: "PUBLISHED" as const },
-    orderBy: { publishedAt: "desc" as const },
+    orderBy: [{ publishedAt: "desc" as const }, { id: "desc" as const }],
     take: limit,
     select: listSelect,
   };
@@ -150,13 +158,12 @@ export const getAllArticles = cache(async function getAllArticles(
     });
   }
 
-  const slugs = rows.map((r) => `/${r.slug}`);
   const viewMap = new Map<string, number>();
-  if (slugs.length > 0) {
+  if (includeViews && rows.length > 0) {
     try {
       const viewCounts = await prisma.pageView.groupBy({
         by: ["path"],
-        where: { path: { in: slugs } },
+        where: { path: { in: rows.map((row) => `/${row.slug}`) } },
         _count: { path: true },
       });
       for (const v of viewCounts) viewMap.set(v.path, v._count.path);
@@ -287,10 +294,197 @@ export const getArticleBySlug = cache(async function getArticleBySlug(
   };
 });
 
-export async function getArticlesByCategory(cat: string): Promise<ArticleListItem[]> {
-  const all = await getAllArticles();
-  return all.filter((a) => a.category === cat);
+const getCachedPublishedArticleCount = unstable_cache(async (category: string | null) => {
+  return prisma.article.count({ where: { status: "PUBLISHED", ...(category ? { category } : {}) } });
+}, ["published-article-count-v1"], { revalidate: 300, tags: ["category-articles"] });
+
+export const getCategoryArticleCount = cache(async function getCategoryArticleCount(cat: string): Promise<number> {
+  try {
+    return await getCachedPublishedArticleCount(cat);
+  } catch (err) {
+    console.error("[getCategoryArticleCount] sorgu başarısız:", err);
+    throw new DatabaseUnavailableError(err);
+  }
+});
+
+export const getArchiveArticleCount = cache(async function getArchiveArticleCount(category?: string): Promise<number> {
+  try {
+    return await getCachedPublishedArticleCount(category || null);
+  } catch (err) {
+    console.error("[getArchiveArticleCount] sorgu başarısız:", err);
+    throw new DatabaseUnavailableError(err);
+  }
+});
+
+const getCachedPublishedArticleRows = unstable_cache(async (category: string | null, take: number, skip: number) => {
+  return prisma.article.findMany({
+    where: { status: "PUBLISHED", ...(category ? { category } : {}) },
+    orderBy: [{ publishedAt: "desc" }, { id: "desc" }],
+    take,
+    skip,
+    select: {
+      title: true,
+      meta: true,
+      keyword: true,
+      category: true,
+      source: true,
+      publishedAt: true,
+      createdAt: true,
+      slug: true,
+      id: true,
+      imageUrl: true,
+      updatedAt: true,
+    },
+  });
+}, ["published-article-rows-v1"], { revalidate: 300, tags: ["category-articles"] });
+
+const getCachedPublishedSearchRows = unstable_cache(async (category: string | null) => {
+  return prisma.article.findMany({
+    where: { status: "PUBLISHED", ...(category ? { category } : {}) },
+    orderBy: [{ publishedAt: "desc" }, { id: "desc" }],
+    select: {
+      title: true,
+      meta: true,
+      keyword: true,
+      category: true,
+      source: true,
+      publishedAt: true,
+      createdAt: true,
+      slug: true,
+      id: true,
+      imageUrl: true,
+      updatedAt: true,
+    },
+  });
+}, ["published-article-search-v1"], { revalidate: 300, tags: ["category-articles"] });
+
+const getPublishedArticlePage = cache(async function getPublishedArticlePage(
+  category: string | null,
+  limit = 200,
+  offset = 0,
+): Promise<ArticleListItem[]> {
+  const take = Number.isSafeInteger(limit) && limit > 0 ? Math.min(limit, 200) : 200;
+  const skip = Number.isSafeInteger(offset) && offset >= 0 ? offset : 0;
+  let rows: Array<{
+    title: string;
+    meta: string;
+    keyword: string | null;
+    category: string;
+    source: string | null;
+    publishedAt: Date | null;
+    createdAt: Date;
+    slug: string;
+    id: string;
+    imageUrl: string | null;
+    updatedAt: Date;
+  }>;
+  try {
+    rows = await getCachedPublishedArticleRows(category, take, skip);
+  } catch (err) {
+    console.error("[getPublishedArticlePage] sorgu başarısız:", err);
+    throw new DatabaseUnavailableError(err);
+  }
+  if (rows.length === 0) return [];
+
+  const paths = rows.map((row) => `/${row.slug}`);
+  const viewMap = new Map<string, number>();
+  try {
+    const viewCounts = await prisma.pageView.groupBy({
+      by: ["path"],
+      where: { path: { in: paths } },
+      _count: { path: true },
+    });
+    for (const view of viewCounts) viewMap.set(view.path, view._count.path);
+  } catch (err) {
+    console.error("[getPublishedArticlePage] görüntülenme sayacı okunamadı:", err);
+  }
+
+  return rows.map((row) => ({
+    title: row.title,
+    meta: row.meta,
+    keyword: row.keyword || "",
+    category: row.category,
+    image_path: null,
+    source: row.source || "",
+    created_at: (row.publishedAt || row.createdAt).toISOString(),
+    slug: row.slug,
+    filename: row.id,
+    imageUrl: row.imageUrl,
+    views: viewMap.get(`/${row.slug}`) || 0,
+    updatedAt: row.updatedAt.toISOString(),
+  }));
+});
+
+export function getArticlesByCategory(cat: string, limit = 200, offset = 0): Promise<ArticleListItem[]> {
+  return getPublishedArticlePage(cat, limit, offset);
 }
+
+export function getArticlesForArchive(limit = 24, offset = 0, category?: string): Promise<ArticleListItem[]> {
+  return getPublishedArticlePage(category || null, limit, offset);
+}
+
+function normalizeArticleSearch(value: string): string {
+  return value.toLocaleLowerCase("tr-TR")
+    .replace(/ı/g, "i").replace(/İ/g, "i")
+    .replace(/ş/g, "s").replace(/ğ/g, "g")
+    .replace(/ü/g, "u").replace(/ö/g, "o").replace(/ç/g, "c");
+}
+
+export const searchPublishedArticles = cache(async function searchPublishedArticles(
+  query: string,
+  category: string | undefined,
+  limit = 24,
+  offset = 0,
+  includeViews = true,
+): Promise<{ total: number; articles: ArticleListItem[] }> {
+  const needle = normalizeArticleSearch(query.trim());
+  if (!needle || needle.length > 200) return { total: 0, articles: [] };
+  const take = Number.isSafeInteger(limit) && limit > 0 ? Math.min(limit, 200) : 24;
+  const skip = Number.isSafeInteger(offset) && offset >= 0 ? offset : 0;
+  let matches: Awaited<ReturnType<typeof getCachedPublishedSearchRows>>;
+  try {
+    const rows = await getCachedPublishedSearchRows(category || null);
+    matches = rows.filter((row) =>
+      normalizeArticleSearch(row.title).includes(needle)
+      || normalizeArticleSearch(row.meta).includes(needle)
+      || normalizeArticleSearch(row.keyword || "").includes(needle)
+      || normalizeArticleSearch(row.category || "").includes(needle),
+    );
+  } catch (err) {
+    console.error("[searchPublishedArticles] sorgu başarısız:", err);
+    throw new DatabaseUnavailableError(err);
+  }
+
+  const pageRows = matches.slice(skip, skip + take);
+  const viewMap = new Map<string, number>();
+  if (includeViews && pageRows.length) {
+    try {
+      const views = await prisma.pageView.groupBy({
+        by: ["path"],
+        where: { path: { in: pageRows.map((row) => `/${row.slug}`) } },
+        _count: { path: true },
+      });
+      for (const view of views) viewMap.set(view.path, view._count.path);
+    } catch (err) {
+      console.error("[searchPublishedArticles] görüntülenme sayacı okunamadı:", err);
+    }
+  }
+  const articles = pageRows.map((row) => ({
+    title: row.title,
+    meta: row.meta,
+    keyword: row.keyword || "",
+    category: row.category,
+    image_path: null,
+    source: row.source || "",
+    created_at: (row.publishedAt || row.createdAt).toISOString(),
+    slug: row.slug,
+    filename: row.id,
+    imageUrl: row.imageUrl,
+    views: viewMap.get(`/${row.slug}`) || 0,
+    updatedAt: row.updatedAt.toISOString(),
+  }));
+  return { total: matches.length, articles };
+});
 
 /**
  * Rehber (evergreen) şeridinde yayınlanmış makaleler — en yenisi başta.
@@ -303,26 +497,90 @@ export async function getArticlesByCategory(cat: string): Promise<ArticleListIte
  * Bağlantı hatası boş liste değildir; ISR'nin son başarılı arşivi koruması
  * için veritabanı hatası yukarı taşınır.
  */
-export async function getGuides(limit = 100, category?: string): Promise<ArticleListItem[]> {
-  let rows: Array<{ slug: string; cluster: string | null }>;
+export const getGuides = cache(async function getGuides(limit = 100, category?: string): Promise<ArticleListItem[]> {
+  let rows: Array<{
+    title: string;
+    meta: string;
+    keyword: string | null;
+    category: string;
+    source: string | null;
+    publishedAt: Date | null;
+    createdAt: Date;
+    slug: string;
+    id: string;
+    imageUrl: string | null;
+    updatedAt: Date;
+    cluster: string | null;
+  }>;
   try {
-    rows = await prisma.article.findMany({
-      where: { status: "PUBLISHED", track: "GUIDE", ...(category ? { category } : {}) },
-      orderBy: { publishedAt: "desc" },
-      take: limit,
-      select: { slug: true, cluster: true },
-    });
+    const where = { status: "PUBLISHED" as const, track: "GUIDE" as const, ...(category ? { category } : {}) };
+    const baseSelect = {
+      title: true,
+      meta: true,
+      keyword: true,
+      category: true,
+      source: true,
+      publishedAt: true,
+      createdAt: true,
+      slug: true,
+      id: true,
+      imageUrl: true,
+      updatedAt: true,
+    } as const;
+    try {
+      rows = await prisma.article.findMany({
+        where,
+        orderBy: [{ publishedAt: "desc" }, { id: "desc" }],
+        take: limit,
+        select: { ...baseSelect, cluster: true },
+      });
+    } catch (err) {
+      if (!isMissingOptionalColumn(err)) throw err;
+      // `cluster` sonradan eklendi: DB şeması gerideyse rehberleri yine listele.
+      const legacyRows = await prisma.article.findMany({
+        where,
+        orderBy: [{ publishedAt: "desc" }, { id: "desc" }],
+        take: limit,
+        select: baseSelect,
+      });
+      rows = legacyRows.map((row) => ({ ...row, cluster: null }));
+    }
   } catch (err) {
     console.error("[getGuides] sorgu başarısız:", err);
     throw new DatabaseUnavailableError(err);
   }
   if (rows.length === 0) return [];
-  const kume = new Map(rows.map((r) => [r.slug, r.cluster]));
-  const all = await getAllArticles();
-  return all
-    .filter((a) => kume.has(a.slug))
-    .map((a) => ({ ...a, cluster: kume.get(a.slug) ?? null }));
-}
+
+  const paths = rows.map((r) => `/${r.slug}`);
+  const viewMap = new Map<string, number>();
+  try {
+    const viewCounts = await prisma.pageView.groupBy({
+      by: ["path"],
+      where: { path: { in: paths } },
+      _count: { path: true },
+    });
+    for (const view of viewCounts) viewMap.set(view.path, view._count.path);
+  } catch (err) {
+    // Görüntülenme sayacı yardımcı veridir; rehber listesini durdurmamalı.
+    console.error("[getGuides] görüntülenme sayacı okunamadı:", err);
+  }
+
+  return rows.map((r) => ({
+    title: r.title,
+    meta: r.meta,
+    keyword: r.keyword || "",
+    category: r.category,
+    image_path: null,
+    source: r.source || "",
+    created_at: (r.publishedAt || r.createdAt).toISOString(),
+    slug: r.slug,
+    filename: r.id,
+    imageUrl: r.imageUrl,
+    views: viewMap.get(`/${r.slug}`) || 0,
+    updatedAt: r.updatedAt.toISOString(),
+    cluster: r.cluster,
+  }));
+});
 
 /**
  * Premium içerik için ilk ~N kelimelik HTML teaser üretir. HTML etiketlerini

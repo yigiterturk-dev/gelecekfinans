@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { paylasimMeta } from "@/lib/og";
 import Link from "next/link";
+import { serializeJsonLd } from "@/lib/json-ld";
 
 const BASE = "https://gelecekfinans.com";
 
@@ -29,7 +30,7 @@ export default function YayincilikIlkeleri() {
 
   return (
     <div style={{ maxWidth: 760, margin: "0 auto", padding: "60px 24px 100px" }}>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }} />
       <nav className="crumbs" aria-label="Breadcrumb">
         <Link href="/">Ana Sayfa</Link> <span>/</span> <span>Yayıncılık İlkeleri</span>
       </nav>
@@ -44,16 +45,20 @@ export default function YayincilikIlkeleri() {
       <div className="article-prose">
         <h2>1. Kaynak ve doğrulama standardı</h2>
         <p>
-          Haber niteliğindeki her içerik en az iki bağımsız kaynakla araştırılır. Resmî kurum açıklamaları,
-          şirket bildirimleri ve birincil veriler önceliklidir. Tek kaynağa dayanan, kaynağı belirsiz veya
-          birbiriyle çelişen iddialar otomatik olarak yayına alınmaz.
+          Yeni bot haber taslakları en az iki bağımsız kaynakla araştırılır. Resmî kurum açıklamaları,
+          şirket bildirimleri ve birincil veriler önceliklidir. Güncel bot akışı tek kaynağa dayanan,
+          kaynağı belirsiz veya birbiriyle çelişen iddiaları yayına uygun bulmaz. Bazı eski içerikler aynı
+          doğrulama kayıtlarına sahip olmayabilir.
         </p>
 
         <h2>2. Yapay zekâ kullanımı</h2>
         <p>
           Yapay zekâ; kaynak paketini sınıflandırma, taslak oluşturma, iddia eşleştirme ve dil kontrolünde
-          yardımcı olabilir. Modelin belleğinden bilgi eklenmesine izin verilmez. Her somut iddia kaynak
-          paketine bağlanır; ikinci bir model doğrulaması ve intihal denetimi başarısızsa içerik engellenir.
+          yardımcı olabilir. Yeni bot taslaklarında modelin belleğinden bilgi eklenmez; somut iddialar
+          araştırma paketindeki kaynaklara bağlanır. İkinci model doğrulaması veya intihal denetimi
+          başarısızsa taslak yayına uygun bulunmaz.
+          Geçmişte bazı bot haberleri bu otomatik kontrollerden sonra tek tek insan editör incelemesi
+          olmadan yayımlandı; bu ayrımı okurdan saklamıyoruz.
         </p>
 
         <h2>3. Özgünlük ve fayda</h2>
@@ -88,13 +93,13 @@ export default function YayincilikIlkeleri() {
         <h2>7. Yayın ritmi</h2>
         <p>
           Günlük sayı bir hedef değil, üst sınırdır. Sistem günde en fazla ayarlanan sayıda aday hazırlar;
-          yeterli kanıt veya özgün değer yoksa sıfır içerikle tamamlanabilir. Editör onayı kapalıysa hiçbir
-          taslak otomatik olarak siteye çıkmaz.
+          yeterli kanıt veya özgün değer yoksa sıfır içerikle tamamlanabilir. Yeni bot haberleri ve rehberleri
+          editör incelemesi için taslak olarak kaydedilir; editör onayı olmadan otomatik yayımlanmaz.
         </p>
       </div>
 
       <p style={{ marginTop: 40, color: "var(--muted)", fontFamily: "var(--mono)", fontSize: 12 }}>
-        Son güncelleme: 6 Ağustos 2026
+        Son güncelleme: 23 Kasım 2026
       </p>
     </div>
   );

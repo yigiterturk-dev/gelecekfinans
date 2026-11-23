@@ -13,10 +13,27 @@ const JOBS = {
 
 // HTTP 200 tek başına başarılı üretim değildir. Ham yanıtlar (abone/anahtar/
 // sağlayıcı verisi içerebilir) hiçbir zaman loga veya durum dosyasına yazılmaz.
-function classifyResult(status, body) {
+function classifyResult(status, body, job) {
   if (status < 200 || status >= 300) return { level: "error", code: `HTTP_${status}` };
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     return { level: "error", code: "INVALID_RESPONSE" };
+  }
+  // Newsletter responses use sent/failed, not the article pipeline's added/errors.
+  // A 200 with zero deliveries must never update lastSuccessAt.
+  if (job === "newsletter") {
+    if (body.skipped) return { level: "warning", code: "SKIPPED" };
+    const sent = Number(body.sent);
+    const failed = body.failed === undefined ? 0 : Number(body.failed);
+    if (!Number.isInteger(sent) || sent < 0 || !Number.isInteger(failed) || failed < 0) {
+      return { level: "error", code: "INVALID_NEWSLETTER_RESULT" };
+    }
+    if (failed > 0) {
+      return sent > 0
+        ? { level: "warning", code: "PARTIAL_DELIVERY" }
+        : { level: "error", code: "DELIVERY_FAILED" };
+    }
+    if (sent > 0) return { level: "ok", code: "DELIVERY_COMPLETED" };
+    return { level: "warning", code: "NO_CONTENT" };
   }
   // Koşum içi yazar çağrısı tavanı arıza değil: o turda yazılabilen yazıldı.
   if (body.fatalErrorCode === "AI_BUDGET_LIMIT_REACHED") {
@@ -56,24 +73,36 @@ async function runJob(job, { env = process.env, request = fetch } = {}) {
   let counts = {};
   let httpStatus = null;
   const startedAt = new Date().toISOString();
-  const provider = env.ARTICLE_AI_PROVIDER || (env.OPENAI_API_KEY ? "openai" : "anthropic");
+  const provider = env.ARTICLE_AI_PROVIDER?.trim().toLowerCase();
   const providerKey = { openai: "OPENAI_API_KEY", anthropic: "ANTHROPIC_API_KEY", deepseek: "DEEPSEEK_API_KEY" }[provider];
+  const automationDisabled = ["news", "guide"].includes(job)
+    && env.AI_AUTOMATION_ENABLED?.trim().toLowerCase() !== "true";
   const missingAI = ["news", "guide"].includes(job) && (!providerKey || !env[providerKey]);
+  const missingMail = job === "newsletter" && (!env.RESEND_API_KEY || !env.NEWSLETTER_SECRET);
   try {
     if (!env.CRON_SECRET) throw new Error("Missing cron secret");
-    // Anahtar yokken rehber kuyruğuna bile dokunma. Site veri sunmaya devam eder.
-    if (missingAI) throw new Error("Missing AI key");
-    const response = await request(new URL(route, env.GF_CRON_BASE_URL || "https://gelecekfinans.com"), {
-      headers: { authorization: `Bearer ${env.CRON_SECRET}` },
-      signal: AbortSignal.timeout(290_000),
-      redirect: "error",
-    });
-    httpStatus = response.status;
-    let body = null;
-    try { body = await response.json(); } catch { /* malformed response */ }
-    result = classifyResult(response.status, body);
-    for (const key of ["added", "autoPublished", "reviewQueued", "blocked"]) {
-      if (Number.isFinite(body?.[key])) counts[key] = body[key];
+    // Kapalı yazı hattı için endpoint'e bile gitme; model çağrısı yapılmayacağını
+    // uygulama zaten garanti eder, cron da gereksiz isteği ve hatalı alarmı önler.
+    if (automationDisabled) {
+      result = { level: "warning", code: "AI_AUTOMATION_DISABLED" };
+    } else if (missingAI) {
+      throw new Error("Missing AI key");
+    // Resend config yokken endpoint'i çağırma: hiçbir e-posta gönderilemez.
+    } else if (missingMail) {
+      result = { level: "warning", code: "MAIL_NOT_CONFIGURED" };
+    } else {
+      const response = await request(new URL(route, env.GF_CRON_BASE_URL || "https://gelecekfinans.com"), {
+        headers: { authorization: `Bearer ${env.CRON_SECRET}` },
+        signal: AbortSignal.timeout(290_000),
+        redirect: "error",
+      });
+      httpStatus = response.status;
+      let body = null;
+      try { body = await response.json(); } catch { /* malformed response */ }
+      result = classifyResult(response.status, body, job);
+      for (const key of ["added", "autoPublished", "reviewQueued", "blocked", "repaired", "sent", "failed", "recipients", "articles", "sitemapUrls", "attempted", "googleSkippedUnsupported"]) {
+        if (Number.isFinite(body?.[key])) counts[key] = body[key];
+      }
     }
   } catch {
     result = { level: "error", code: !env.CRON_SECRET ? "MISSING_SECRET" : missingAI ? "MISSING_AI_KEY" : "REQUEST_FAILED" };
@@ -81,7 +110,11 @@ async function runJob(job, { env = process.env, request = fetch } = {}) {
   const finishedAt = new Date().toISOString();
   const state = {
     job, startedAt, finishedAt, httpStatus, ...result, ...counts,
-    lastSuccessAt: result.level === "ok" ? finishedAt : previous.lastSuccessAt ?? null,
+    lastSuccessAt: result.level === "ok"
+      ? finishedAt
+      : job === "newsletter"
+        ? null
+        : previous.lastSuccessAt ?? null,
     consecutiveFailures: result.level === "error" ? (previous.consecutiveFailures || 0) + 1 : 0,
   };
   await saveState(stateFile, state);

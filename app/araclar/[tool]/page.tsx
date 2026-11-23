@@ -1,3 +1,4 @@
+import { serializeJsonLd } from "@/lib/json-ld";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -6,6 +7,7 @@ import MarketFaq from "@/components/MarketFaq";
 import ToolsRail from "@/components/ToolsRail";
 import { toolGuide } from "@/lib/tool-guides";
 import { toolFaq } from "@/lib/market-faq";
+import { TOOL_CATALOG, type ToolSlug } from "@/lib/tool-catalog";
 import CurrencyConverter from "@/components/CurrencyConverter";
 import GoldCalculator from "@/components/calculators/GoldCalculator";
 import LoanCalculator from "@/components/calculators/LoanCalculator";
@@ -20,6 +22,8 @@ import CpiTable from "@/components/CpiTable";
 import { cpiToolMeta, getCpiSnapshot, monthLabel, nextMonth } from "@/lib/tufe";
 import DividendCalculator from "@/components/calculators/DividendCalculator";
 import SalaryCalculator from "@/components/calculators/SalaryCalculator";
+import BesStateContributionCalculator from "@/components/calculators/BesStateContributionCalculator";
+import OksContributionCalculator from "@/components/calculators/OksContributionCalculator";
 
 // 1 saat: TÜİK açıklama günü (her ayın 3'ü 10:00) yeni oran en geç 1 saatte görünür.
 export const revalidate = 3600;
@@ -31,11 +35,11 @@ interface ToolDef {
   metaTitle: string;
   desc: string;
   intro: string;
-  component: "doviz" | "altin" | "kredi" | "mevduat" | "enflasyon" | "bilesik" | "hissekz" | "kira" | "emekli" | "memur" | "temettu" | "maas";
+  component: "doviz" | "altin" | "kredi" | "mevduat" | "enflasyon" | "bilesik" | "hissekz" | "kira" | "emekli" | "memur" | "temettu" | "maas" | "bes" | "oks";
   related: { href: string; label: string }[];
 }
 
-const TOOLS: Record<string, ToolDef> = {
+const TOOLS: Record<ToolSlug, ToolDef> = {
   "doviz-cevirici": {
     title: "Döviz Çevirici",
     h1: "Döviz Çevirici",
@@ -53,10 +57,10 @@ const TOOLS: Record<string, ToolDef> = {
   "altin-hesaplama": {
     title: "Altın Hesaplama",
     h1: "Altın Hesaplama Aracı",
-    metaTitle: "Altın Hesaplama — Gram, Çeyrek, Cumhuriyet Altını TL Değeri",
-    desc: "Gram, çeyrek ve cumhuriyet altınının güncel TL değerini hesaplayın. Canlı altın fiyatıyla ücretsiz altın hesaplama.",
+    metaTitle: "Altın Hesaplama — Gram, Çeyrek, Cumhuriyet Altını Metal Değeri",
+    desc: "Gram, çeyrek ve tam Cumhuriyet ziynet altınının yaklaşık TL metal karşılığını hesaplayın.",
     intro:
-      "Elinizdeki altının türünü ve miktarını girerek güncel Türk Lirası karşılığını hesaplayın. Fiyatlar uluslararası ons altından türetilir; kapalıçarşı işçilik ve marjları nedeniyle farklılık gösterebilir.",
+      "Elinizdeki altının türü ve miktarıyla yaklaşık metal karşılığını hesaplayın. Çeyrek ve tam Cumhuriyet ziynet altını Darphane'nin 22 ayar standardına göre hesaplanır; sikke primi, işçilik, alış-satış makası ve kurum marjı dahil değildir.",
     component: "altin",
     related: [
       { href: "/altin/gram-altin", label: "Gram Altın" },
@@ -95,10 +99,10 @@ const TOOLS: Record<string, ToolDef> = {
   "enflasyon-hesaplama": {
     title: "Enflasyon Hesaplama",
     h1: "Enflasyon Hesaplama",
-    metaTitle: "Enflasyon Hesaplama — Para Alım Gücü Hesaplayıcı",
-    desc: "Bir tutarın enflasyon karşısındaki alım gücünü ve güncel karşılığını hesaplayın. Ücretsiz enflasyon hesaplayıcı.",
+    metaTitle: "Enflasyon Hesaplama — Geçmiş ve Bugünkü Tutar Dönüşümü",
+    desc: "Enflasyon oranının yönünü seçerek geçmiş tutarın bugünkü karşılığını veya bugünkü tutarın geçmiş dönemdeki alım gücünü hesaplayın.",
     intro:
-      "Tutar ve dönem enflasyon oranını girerek paranızın güncel karşılığını ve bugünkü alım gücünü hesaplayın. Resmi veriler için TÜİK yayınlarını esas alın.",
+      "Hesap yönünü seçin, tutarı ve dönem enflasyon oranını girin. Araç, geçmiş tutarın bugünkü karşılığını veya bugünkü tutarın geçmiş dönemdeki alım gücünü hesaplar.",
     component: "enflasyon",
     related: [
       { href: "/faiz", label: "Faiz Oranları" },
@@ -123,10 +127,10 @@ const TOOLS: Record<string, ToolDef> = {
   "hisse-kar-zarar-hesaplama": {
     title: "Hisse Kâr/Zarar Hesaplama",
     h1: "Hisse Kâr Zarar Hesaplama",
-    metaTitle: "Hisse Kâr Zarar Hesaplama — Komisyon Dahil Net Getiri (BIST)",
-    desc: "Alış ve satış fiyatı, adet ve komisyona göre hisse işleminin net kâr/zararını ve yüzde getirisini hesaplayın.",
+    metaTitle: "Hisse Kâr Zarar Hesaplama — Komisyon ve BSMV Dahil (BIST)",
+    desc: "Alış ve satış fiyatı, adet, komisyon ve komisyon BSMV'sine göre hisse işleminin net kâr/zararını hesaplayın.",
     intro:
-      "Hisse alış ve satış fiyatını, adedi ve komisyon oranınızı girerek işlemin komisyon sonrası net kâr veya zararını ve yüzde getirisini hesaplayın. Komisyon oranı için aracı kurumunuzun tarifesine bakın.",
+      "Hisse alış ve satış fiyatını, adedi, komisyon oranını ve komisyon üzerinden BSMV oranını girerek net kâr veya zararı hesaplayın. BSMV varsayılanı %5'tir; güncel oranlar ve komisyon için aracı kurumunuzun tarifesine bakın.",
     component: "hissekz",
     related: [
       { href: "/borsa", label: "Borsa İstanbul" },
@@ -151,9 +155,9 @@ const TOOLS: Record<string, ToolDef> = {
     title: "Emekli Zammı Hesaplama",
     h1: "Emekli Maaşı Zam Hesaplama",
     metaTitle: "Emekli Maaşı Zam Hesaplama — Yeni Aylık Tutarı",
-    desc: "Mevcut emekli aylığınız ve zam oranına göre yeni maaşınızı ve yıllık farkı hesaplayın.",
+    desc: "Mevcut emekli aylığınız ve zam oranına göre yeni maaşınızı ve yıllıklandırılmış farkı hesaplayın.",
     intro:
-      "Mevcut aylığınızı ve beklediğiniz ya da açıklanan zam oranını girerek zam tutarını, yeni aylığı ve yıllık farkı görün.",
+      "Mevcut aylığınızı ve beklediğiniz ya da açıklanan zam oranını girerek zam tutarını, yeni aylığı ve 12 aylık yıllıklandırılmış farkı görün.",
     component: "emekli",
     related: [
       { href: "/araclar/memur-zammi-hesaplama", label: "Memur Zammı Hesaplama" },
@@ -205,10 +209,36 @@ const TOOLS: Record<string, ToolDef> = {
       { href: "/araclar", label: "Tüm Araçlar" },
     ],
   },
+  "bes-devlet-katkisi-hesaplama": {
+    title: "BES Devlet Katkısı Hesaplama",
+    h1: "BES Devlet Katkısı Hesaplama 2026",
+    metaTitle: "BES Devlet Katkısı Hesaplama 2026 — Yıllık Tavan ve Katkı",
+    desc: "2026 BES katkı payınıza göre devlet katkısı tahminini, yıllık tavanı ve devreden tutarı hesaplayın.",
+    intro: "2026’da katılımcı adına ödenen gönüllü BES katkı paylarını girerek devlet katkısı tahminini ve yıllık üst sınıra kalan tutarı görün. Hesap, EGM’nin 2026 oranı ve tavanına dayanır.",
+    component: "bes",
+    related: [
+      { href: "/araclar/oks-devlet-katkisi-hesaplama", label: "OKS Devlet Katkısı" },
+      { href: "/araclar/bilesik-faiz-hesaplama", label: "Bileşik Faiz" },
+      { href: "/araclar/mevduat-faiz-hesaplama", label: "Mevduat Faizi" },
+      { href: "/araclar", label: "Tüm Araçlar" },
+    ],
+  },
+  "oks-devlet-katkisi-hesaplama": {
+    title: "OKS Devlet Katkısı Hesaplama",
+    h1: "OKS Devlet Katkısı Hesaplama 2026",
+    metaTitle: "OKS Devlet Katkısı Hesaplama 2026 — %20 Katkı ve 500 TL Başlangıç Tutarı",
+    desc: "2026 OKS katkı payınıza göre devlet katkısı taahhüdünü, yıllık tavanı ve koşullu başlangıç katkısını hesaplayın.",
+    intro: "2026’da aynı katılımcının tüm Otomatik Katılım Sistemi sözleşmelerindeki katkıları ve varsa önceki yıllardan devreden tutarı girin. İki aylık başlangıç dönemi sonunda sistemde kalma durumuna göre tek seferlik ilave katkıyı ayrıca görün.",
+    component: "oks",
+    related: [
+      { href: "/araclar/bes-devlet-katkisi-hesaplama", label: "BES Devlet Katkısı" },
+      { href: "/araclar", label: "Tüm Araçlar" },
+    ],
+  },
 };
 
 export function generateStaticParams() {
-  return Object.keys(TOOLS).map((tool) => ({ tool }));
+  return TOOL_CATALOG.map(({ slug }) => ({ tool: slug }));
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ tool: string }> }): Promise<Metadata> {
@@ -245,6 +275,8 @@ function Calculator({ kind, cpi }: { kind: ToolDef["component"]; cpi: Cpi }) {
     case "memur": return <MemurRaiseCalculator half={cpi?.half ?? null} />;
     case "temettu": return <DividendCalculator />;
     case "maas": return <SalaryCalculator />;
+    case "bes": return <BesStateContributionCalculator />;
+    case "oks": return <OksContributionCalculator />;
   }
 }
 
@@ -279,7 +311,7 @@ export default async function ToolPage({ params }: { params: Promise<{ tool: str
 
   return (
     <div className="container market-page">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }} />
       <nav className="crumbs" aria-label="Breadcrumb">
         <Link href="/">Ana Sayfa</Link> <span>/</span> <Link href="/araclar">Araçlar</Link> <span>/</span> <span>{t.title}</span>
       </nav>

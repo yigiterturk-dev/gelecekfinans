@@ -1,39 +1,69 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runGuidePipeline } from "@/lib/bot/guide-orchestrator";
 import { getSettings } from "@/lib/settings";
+import { prisma } from "@/lib/db";
+import { startOfIstanbulWeek } from "@/lib/bot/ai-budget";
+import { acquireCronLock, releaseCronLock } from "@/lib/bot/cron-lock";
 
 export const maxDuration = 300;
+const PRIVATE_HEADERS = { "Cache-Control": "private, no-store, max-age=0" };
+const WEEKLY_GUIDE_LIMIT = 2;
 
 /**
  * Şerit B — rehber üretimi.
  *
- * Haber cron'undan AYRI çalışır; günde üç koşum (08, 12, 20 UTC).
- *
- * ⚠️ Koşum başına kaç kelime: 2026-09-04'e kadar 1'di ve yorumdaki gerekçe
- * "daha sık çalıştırmak yalnızca maliyeti öne çeker" idi. Ölçüm bunu
- * çürüttü: kuyrukta 47 kelime beklerken yayınlanmış rehber sayısı 5'ti ve
- * günlük yazar çağrısı bütçesinin yalnızca 6/24'ü kullanılıyordu. Yani fren
- * maliyet değil, bu sabitti.
- *
- * Koşum başına 2 → günde en çok 6 rehber. Haber şeridi tipik olarak 6 çağrı
- * kullanıyor; 24'lük ortak bütçeye rahat sığar. Kelime seçimi zaten küme
- * başına bir tane aldığı için tek gün içinde tek konu şişmez
- * (bkz. lib/bot/keywords.ts pickKeywords).
+ * Cron sık çalışsa bile otomatik rehber üretimi haftada iki yeni adayla sınırlı.
+ * Kota, tüm durumlarda oluşturulan bot rehberlerini sayar; yalnızca başarılı
+ * yayınları saymak doğrulayıcı itirazıyla kurtarılan taslakları dışarıda bırakırdı.
  */
 export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
   if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: PRIVATE_HEADERS });
   }
-  const settings = await getSettings();
-  if (settings.autonomy?.cronEnabled === false) {
-    return NextResponse.json({ skipped: true, reason: "Otomatik üretim ayarlardan duraklatıldı" });
+  const lock = await acquireCronLock("bot:publishing-pipeline");
+  if (!lock) {
+    return NextResponse.json({ skipped: true, reason: "Başka bir rehber cron koşumu sürüyor" }, { headers: PRIVATE_HEADERS });
   }
-  const result = await runGuidePipeline({
-    trigger: "cron",
-    count: Number(process.env.GUIDE_COUNT_PER_RUN ?? 2),
-    targetWords: 1200,
-    autoPublish: settings.autonomy?.enabled ?? false,
-  });
-  return NextResponse.json(result);
+
+  try {
+    const settings = await getSettings();
+    if (settings.autonomy?.cronEnabled === false) {
+      return NextResponse.json({ skipped: true, reason: "Otomatik üretim ayarlardan duraklatıldı" }, { headers: PRIVATE_HEADERS });
+    }
+
+    const guidesCreatedThisWeek = await prisma.article.count({
+      where: {
+        articleSource: "BOT",
+        track: "GUIDE",
+        createdAt: { gte: startOfIstanbulWeek() },
+      },
+    });
+    const remainingThisWeek = Math.max(0, WEEKLY_GUIDE_LIMIT - guidesCreatedThisWeek);
+    if (remainingThisWeek === 0) {
+      return NextResponse.json({
+        added: 0,
+        autoPublished: 0,
+        reviewQueued: 0,
+        blocked: 0,
+        errors: [],
+        skipped: true,
+        reason: `Haftalık ${WEEKLY_GUIDE_LIMIT} rehber taslağı sınırına ulaşıldı`,
+      }, { headers: PRIVATE_HEADERS });
+    }
+
+    const configuredCount = Number(process.env.GUIDE_COUNT_PER_RUN ?? WEEKLY_GUIDE_LIMIT);
+    const requestedCount = Number.isSafeInteger(configuredCount) && configuredCount > 0
+      ? configuredCount
+      : WEEKLY_GUIDE_LIMIT;
+    const result = await runGuidePipeline({
+      trigger: "cron",
+      count: Math.min(remainingThisWeek, requestedCount),
+      targetWords: 1200,
+      autoPublish: false,
+    });
+    return NextResponse.json(result, { headers: PRIVATE_HEADERS });
+  } finally {
+    await releaseCronLock(lock).catch(() => {});
+  }
 }

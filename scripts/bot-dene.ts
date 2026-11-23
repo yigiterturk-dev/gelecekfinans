@@ -4,7 +4,7 @@ import { prisma } from "../lib/db";
 
 async function main() {
   const category = process.argv[2] && process.argv[2] !== "otomatik" ? process.argv[2] : undefined;
-  const result = await runPublishingPipeline({ count: 1, trigger: "admin", autoPublish: true, category });
+  const result = await runPublishingPipeline({ count: 1, trigger: "admin", autoPublish: false, category });
   console.log("SONUÇ:", JSON.stringify(result, null, 2));
   const events = await prisma.automationEvent.findMany({
     where: { runId: result.runId }, orderBy: { createdAt: "asc" },

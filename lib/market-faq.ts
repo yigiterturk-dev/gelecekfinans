@@ -5,10 +5,9 @@
  * için kopyalanır, biri güncellenip diğeri unutulurdu. Burada tek yerde
  * duruyor ve her sayfa kendi varlığına ait olanı çağırıyor.
  *
- * ⚠️ KURAL: hiçbir cevapta değişken rakam geçmez (fiyat, kur, yüzde, oran).
- * Sebep iki tane: (1) sayfa bayatlar ve yanlış bilgi verir, (2) botun kalite
- * kapısı "kaynaklarda bulunmayan rakam" diye zaten reddediyor — aynı disiplin
- * elle yazılan metin için de geçerli olmalı.
+ * ⚠️ Canlı ve sürekli değişen rakamları (fiyat, kur, oran) FAQ cevaplarına
+ * koymayın. İstisna: belirli bir yıla sabitlenmiş hesaplama aracının FAQ'sı,
+ * o yılı açıkça yazar ve birincil kaynağa bağlarsa yılın oran/tavanını verebilir.
  */
 
 export interface FaqItem {
@@ -49,7 +48,7 @@ const ALTIN_OZEL: Record<string, FaqItem[]> = {
   "ceyrek-altin": [
     {
       q: "Çeyrek altın kaç gram?",
-      a: "Yeni tarihli çeyrek altın 1,75 gram ağırlığında ve 22 ayar saflıktadır; içindeki saf altın miktarı yaklaşık 1,60 gramdır. Eski tarihli çeyrekler biraz daha ağır olabildiği için aynı gün bile iki çeyrek arasında fiyat farkı görülebilir.",
+      a: "Darphane standardındaki Cumhuriyet ziynet çeyreği 1,754 gram nominal ağırlıktadır ve 916,6 milyem (22 ayar) saflıktadır. Bu sayfadaki spot metal karşılığı, bu standarda göre hesaplanır; sikke primi ve alış-satış makası içermez.",
     },
     {
       q: "Çeyrek altın mı gram altın mı avantajlı?",
@@ -59,11 +58,21 @@ const ALTIN_OZEL: Record<string, FaqItem[]> = {
   "cumhuriyet-altini": [
     {
       q: "Cumhuriyet altını kaç gram?",
-      a: "Tam Cumhuriyet altını 7,216 gram ağırlığında ve 22 ayardır; içerdiği saf altın miktarı yaklaşık 6,6 gramdır. Ata lira olarak da bilinir ve fiyatı içindeki altın miktarının yanı sıra darphane işçiliğini de içerir.",
+      a: "Cumhuriyet ziynet birliği (tam ziynet altını) Darphane standardında 7,016 gram nominal ağırlıkta ve 916,6 milyem (22 ayar) saflıktadır. Sikke türündeki birlik Cumhuriyet altını ise 7,216 gramdır; iki türü karıştırmamak gerekir. Bu sayfadaki hesap ziynet standardının spot metal karşılığıdır.",
     },
     {
       q: "Ziynet altın ile Cumhuriyet altını aynı şey mi?",
-      a: "İkisi de 22 ayardır ancak Cumhuriyet altını Darphane tarafından basılan standart bir sikkedir, ziynet altın ise kuyumcuların ürettiği takı amaçlı basımları kapsar. Standart basım olduğu için Cumhuriyet altınının alım satımı genelde daha kolaydır.",
+      a: "Her ikisi de Darphane'nin ürettiği 22 ayar Cumhuriyet altını grubundadır. Ziynet ve sikke türlerinin ağırlık ve çap standartları ayrıdır; alım satımda ürünün türünü ve ağırlığını kontrol edin.",
+    },
+  ],
+  "yarim-altin": [
+    {
+      q: "Yarım altın kaç gram?",
+      a: "Darphane yarım ziynet altını 3,508 gram nominal ağırlıkta ve 916,6 milyem (22 ayar) saflıktadır. Yarım sikke altın ise 3,608 gramdır; bu sayfadaki spot metal karşılığı ziynet standardına göredir.",
+    },
+    {
+      q: "Yarım ziynet ve yarım sikke altın arasındaki fark nedir?",
+      a: "İkisi farklı ağırlık standardına sahip Cumhuriyet altınlarıdır. Ziynet yarımlık 3,508 gram, sikke yarımlık 3,608 gramdır. Ürünün grubunu kontrol ederek fiyat karşılaştırması yapın.",
     },
   ],
   ons: [
@@ -100,12 +109,12 @@ const DOVIZ_ORTAK: FaqItem[] = [
     a: "Bu sayfadaki değer piyasadaki referans kurudur. Bankalar ve döviz büfeleri bu kurun üzerine kendi alış-satış makasını ekler: size satarken referansın üzerinde, sizden alırken altında fiyat verirler. Aradaki fark kurumun kâr payıdır ve tutara göre değişebilir.",
   },
   {
-    q: "TCMB kuru ile serbest piyasa kuru arasındaki fark nedir?",
-    a: "Merkez Bankası her iş günü gösterge niteliğinde bir kur yayımlar; bu kur resmî işlemlerde, muhasebe kayıtlarında ve sözleşmelerde referans alınır. Serbest piyasa kuru ise gün boyunca arz ve talebe göre değişir. İkisi birbirine yakın seyreder ancak gün içi hareketlerde ayrışabilir.",
+    q: "TCMB kuru ile referans kur arasındaki fark nedir?",
+    a: "TCMB her iş günü resmî işlemler için gösterge niteliğinde döviz ve efektif alış-satış kurları yayımlar. Bu sayfadaki günlük referans kur ise uluslararası kaynaklardan derlenen orta piyasa değeridir; bankaların anlık alış-satış fiyatı değildir.",
   },
   {
-    q: "Kur verisi ne sıklıkla güncelleniyor?",
-    a: "Sayfadaki kurlar yaklaşık on dakikada bir tazelenir. Döviz piyasası hafta içi gün boyu işlediğinden gün içinde birden çok değişim görülebilir; hafta sonu ve resmî tatillerde son işlem değeri gösterilir.",
+    q: "Referans kur verisi ne zaman güncelleniyor?",
+    a: "Sayfadaki değerler günlük referans kurlarıdır; veri sağlayıcı kaynaklarına göre günde bir veya birkaç kez güncellenir. Her kurun yanında referans tarihi gösterilir. Bu değerler gerçek zamanlı işlem fiyatı değildir.",
   },
 ];
 
@@ -121,7 +130,7 @@ const DOVIZ_OZEL: Record<string, FaqItem[]> = {
     },
     {
       q: "Dolar alış ve satış kuru ne anlama gelir?",
-      a: "Alış kuru, bankanın veya döviz büfesinin sizden dolar alırken uyguladığı fiyattır; satış kuru ise size dolar satarken uyguladığı fiyattır. Satış kuru her zaman alış kurundan yüksektir, aradaki farka makas denir ve kurumun kazancını oluşturur. Bu sayfada serbest piyasa kuru ile TCMB döviz ve efektif alış-satış kurları karşılaştırmalı olarak gösterilir.",
+      a: "Alış kuru, bankanın veya döviz büfesinin sizden dolar alırken uyguladığı fiyattır; satış kuru ise size dolar satarken uyguladığı fiyattır. Satış kuru her zaman alış kurundan yüksektir, aradaki farka makas denir. Bu sayfada günlük referans kur ile TCMB döviz ve efektif alış-satış kurları karşılaştırmalı olarak gösterilir.",
     },
   ],
   "eur-try": [
@@ -312,7 +321,59 @@ const ARAC_FAQ: Record<string, FaqItem[]> = {
     },
     {
       q: "Stopaj oranı ve vergi durumum için neye bakmalıyım?",
-      a: "Stopaj oranı ve beyan yükümlülüğü mevzuata ve kişisel durumunuza göre değişebilir. Güncel hükümler için mevzuata veya bir mali müşavire danışın.",
+      a: "Araçtaki %15 varsayılan, GVK 94 kapsamındaki genel kâr payı tevkifat oranıdır (9286 sayılı Cumhurbaşkanı Kararı, 22 Aralık 2024). Alıcının mükellefiyetine ve kurumun türüne göre oran veya beyan durumu farklı olabilir; GİB'in güncel kesinti oranlarını ve kendi vergi durumunuzu kontrol edin.",
+    },
+  ],
+  "bes-devlet-katkisi-hesaplama": [
+    {
+      q: "2026 BES devlet katkısı oranı ve üst sınırı nedir?",
+      a: "EGM’nin 2026 bilgisine göre uygun kişisel katkı paylarında oran %20, yıllık katkı payı üst sınırı 396.360 TL ve buna karşılık gelen azami devlet katkısı 79.272 TL’dir. Takip eden yılların tutarları değişebilir.",
+    },
+    {
+      q: "İşverenin ödediği BES katkısı devlet katkısı kazandırır mı?",
+      a: "Hayır. EGM açıklamasına göre işveren tarafından ödenen katkı payları devlet katkısı hesabında dikkate alınmaz. Araç yalnızca kişinin kendi ödediği uygun katkı payını kullanır.",
+    },
+    {
+      q: "2026 BES devlet katkısı limiti her sözleşme için ayrı mı?",
+      a: "Hayır. EGM yıllık sınırı katılımcı başına tanımlar; gönüllü BES sözleşmelerine katılımcı adına yapılan uygun ödemeleri topluca hesaba katın. İşveren katkıları ve başka hesaptan aktarılan birikimler uygun ödeme sayılmaz.",
+    },
+    {
+      q: "Çocuğumun BES katkılarını kendi devlet katkısı limitime eklemeli miyim?",
+      a: "Hayır. Limit katılımcı bazındadır; çocuğunuzun sözleşmesi onun kendi limiti içinde değerlendirilir. EGM’ye göre çocuk adına yapılan katkılar da devlet katkısından yararlanabilir, ancak her katılımcının sözleşmeleri ayrı hesaplanır.",
+    },
+    {
+      q: "BES katkı payını katılımcı yerine başka biri öderse devlet katkısı alınır mı?",
+      a: "EGM’ye göre katılımcı adına başka biri ödeme yapabilir; ancak katkıyı ödeyen ile katılımcı arasında iş ilişkisi bulunmamalıdır. Yıllık limit katılımcı bazında uygulanır.",
+    },
+    {
+      q: "Önceki yıldan devreden BES katkı payım nasıl hesaplanır?",
+      a: "Yıllık uygun katkı payı sınırını aşan tutar sonraki takvim yıllarına devreder ve ilgili yılın ilk günü şirket hesabına geçmiş ödeme gibi değerlendirilir. Varsa devreden tutarı, o yılki katkılarınızdan ayrı hesaplayıp araca ekleyin.",
+    },
+    {
+      q: "OKS katkı paylarımı BES hesaplamasına eklemeli miyim?",
+      a: "Hayır. EGM, gönüllü BES ve Otomatik Katılım Sistemi (OKS) için yıllık devlet katkısı üst limitlerini ayrı tanımlar. Bu araç yalnızca gönüllü BES katkı paylarını hesaplar; OKS ödemelerinizi ayrı değerlendirin.",
+    },
+    {
+      q: "BES devlet katkısı hesabıma ne zaman geçer?",
+      a: "EGM’ye göre katkı payı emeklilik şirketi hesabına nakden ulaştıktan sonraki ay devlet katkısı BES hesabınıza yatırılır. Gerçekleşen tutarı emeklilik şirketinizin hesabından veya EGM BES Mobil/e-Devlet hizmetinden kontrol edin.",
+    },
+    {
+      q: "BES devlet katkısının tamamı ne zaman alınabilir?",
+      a: "Normal ayrılmada en az üç, altı ve on yıl sistemde kalma için sırasıyla %15, %35 ve %60 hak ediş uygulanır; üç yıldan önce hak ediş oluşmaz. Emeklilik hakkıyla ayrılma, vefat veya maluliyette %100 hak ediş olabilir. Gerçek süre ve tutarı emeklilik şirketiniz ile EGM’den doğrulayın.",
+    },
+  ],
+  "oks-devlet-katkisi-hesaplama": [
+    {
+      q: "2026 OKS devlet katkısı oranı ve yıllık tavanı nedir?",
+      a: "EGM’ye göre 2026’da uygun OKS katkı paylarına %20 oran uygulanır. Kişi başına yıllık katkı payı tavanı 396.360 TL, buna karşılık gelen azami katkı 79.272 TL’dir. OKS ve gönüllü BES için limitler ayrıdır.",
+    },
+    {
+      q: "OKS’de 500 TL ilave devlet katkısını kim alır?",
+      a: "İki aylık başlangıç dönemi sonunda sistemde kalan ve bu tutarı daha önce almamış katılımcıya 2026 itibarıyla tek seferlik 500 TL ilave devlet katkısı taahhüt edilir. Tüm OKS sertifikalarını sonlandırıp çıkan kişi yeniden katıldığında bu katkıdan yararlanamaz. Yalnızca cayma hakkını kullanıp daha önce başlangıç katkısı hesaplanmamış olanlar için yeniden katılım istisnası vardır. Tutar yıllık katkı limitine dahil değildir. Uygunluğu emeklilik şirketinizden doğrulayın.",
+    },
+    {
+      q: "OKS devlet katkısı hemen hesabıma yatırılır mı?",
+      a: "Hayır. EGM, OKS devlet katkısını hak ediş koşullarına bağlı taahhüt olarak çalışan hesabında gösterir. Sistemde kalış süresi ve ayrılma nedeni, alınabilecek tutarı belirler.",
     },
   ],
   "bilesik-faiz-hesaplama": [
@@ -340,7 +401,7 @@ const ARAC_FAQ: Record<string, FaqItem[]> = {
     },
     {
       q: "Hesapta vergi ve diğer masraflar var mı?",
-      a: "Bu araç yalnızca fiyat farkı ve komisyonu hesaplar. BSMV gibi ek masraflar ve olası vergi yükümlülükleri dahil değildir; kendi durumunuz için güncel mevzuata veya bir mali müşavire danışın.",
+      a: "Araç, girdiğiniz oranla komisyon üzerinden BSMV'yi hesaplayıp net kâr/zarara dahil eder. Varsayılan BSMV oranı %5'tir; aracı kurumunuzun tarifesine göre güncelleyin. Saklama ve diğer hesap ücretleri dahil değildir.",
     },
   ],
   "kredi-faiz-hesaplama": [
@@ -364,7 +425,7 @@ const ARAC_FAQ: Record<string, FaqItem[]> = {
     },
     {
       q: "Stopaj ne kadar kesiliyor?",
-      a: "Mevduat faiz gelirinden gelir vergisi stopajı kesilir ve oran vade süresine göre değişir; kısa vadelerde daha yüksek, uzun vadelerde daha düşük uygulanır. Oranlar Cumhurbaşkanı kararıyla dönem dönem güncellendiği için hesaplama öncesinde bankanızdan güncel oranı teyit etmek gerekir.",
+      a: "GİB'in 2026 Geçici 67 rehberine göre 9 Temmuz 2025'ten itibaren açılan veya yenilenen TL vadeli hesaplarda genel oran 6 aya kadar %17,5, 1 yıla kadar %15 ve 1 yıldan uzun vadede %10'dur. Eski açılış/yenileme tarihleri, para birimi ve özel hesap türleri farklı oranlara tabi olabilir. Araç 32 günlük örnek vade için %17,5 ile başlar; kendi hesabınızın oranını bankanızdan ve GİB rehberinden doğrulayın.",
     },
     {
       q: "Vade dolmadan parayı çekersem ne olur?",
@@ -435,7 +496,7 @@ export const FAIZ_FAQ: FaqItem[] = [
 ];
 
 /**
- * "1 euro ne kadar / dolar bugün kaç TL" sorguları için CANLI soru: cevap,
+ * "1 euro ne kadar / dolar bugün kaç TL" sorguları için güncel kur sorusu: cevap,
  * sayfanın zaten çektiği kurdan üretilir (uydurma rakam yok). Kur yoksa soru
  * hiç basılmaz. FAQPage JSON-LD görünür SSS'den üretildiği için ikisi aynıdır.
  */
@@ -459,6 +520,6 @@ export function fxLiveFaq(
     : "";
   return {
     q: `Bugün 1 ${ad} ne kadar, kaç TL?`,
-    a: `${zaman ? `${zaman} itibarıyla` : "Son güncellemeye göre"} 1 ${base} = ₺${fmt.tl(fx.rate, 4)} (serbest piyasa referans kuru).${degisim}${tcmb} Banka ve döviz bürolarında bu kurun üzerine alış-satış makası eklendiği için gişede göreceğiniz fiyat farklı olabilir.`,
+    a: `${zaman ? `${zaman} referans tarihi itibarıyla` : "Son referans verisine göre"} 1 ${base} = ₺${fmt.tl(fx.rate, 4)} (günlük referans kuru).${degisim}${tcmb} Banka ve döviz bürolarında bu kurun üzerine alış-satış makası eklendiği için gişede göreceğiniz fiyat farklı olabilir.`,
   };
 }

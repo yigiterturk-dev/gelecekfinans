@@ -1,3 +1,4 @@
+import { serializeJsonLd } from "@/lib/json-ld";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getAllFx, FX_PAIRS, tl, pctText, fmtUpdated, safeRelatedArticles } from "@/lib/market";
@@ -12,9 +13,9 @@ export const revalidate = 600;
 const BASE = "https://gelecekfinans.com";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const title = "Döviz Kurları — Dolar, Euro, Sterlin Canlı TL Fiyatları";
+  const title = "Döviz Kurları — Dolar, Euro, Sterlin Güncel Referans Kurları";
   const description =
-    "Güncel döviz kurları: Dolar (USD/TRY), Euro (EUR/TRY) ve Sterlin (GBP/TRY) canlı Türk Lirası fiyatları, günlük değişim ve döviz çevirici.";
+    "Dolar (USD/TRY), Euro (EUR/TRY) ve Sterlin (GBP/TRY) için güncel referans kurları, önceki iş gününe göre değişim ve döviz çevirici.";
   return {
     title,
     description,
@@ -25,8 +26,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function DovizHub() {
-  const fx = await getAllFx();
-  const related = await safeRelatedArticles("doviz");
+  const [fx, related] = await Promise.all([getAllFx(), safeRelatedArticles("doviz")]);
   const updated = Object.values(fx).find((f) => f?.updatedAt)?.updatedAt ?? null;
 
   const jsonLd = {
@@ -35,7 +35,7 @@ export default async function DovizHub() {
       {
         "@type": "CollectionPage",
         name: "Döviz Kurları",
-        description: "Dolar, Euro ve Sterlin canlı TL kurları.",
+        description: "Dolar, Euro ve Sterlin için güncel TL referans kurları.",
         url: `${BASE}/doviz`,
         isPartOf: { "@type": "WebSite", name: "GelecekFinans", url: BASE },
       },
@@ -51,14 +51,14 @@ export default async function DovizHub() {
 
   return (
     <div className="container market-page">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }} />
       <nav className="crumbs" aria-label="Breadcrumb">
         <Link href="/">Ana Sayfa</Link> <span>/</span> <span>Döviz</span>
       </nav>
       <h1 className="page-header">Döviz Kurları</h1>
       <p className="market-lede">
-        Dolar, Euro ve Sterlin için canlı Türk Lirası kurları, günlük değişim ve döviz çevirici.
-        {updated && <> Son güncelleme: {fmtUpdated(updated)}.</>}
+        Dolar, Euro ve Sterlin için güncel Türk Lirası referans kurları, önceki iş gününe göre değişim ve döviz çevirici.
+        {updated && <> Referans tarihi: {fmtUpdated(updated)}.</>}
       </p>
 
       <div className="market-grid">
@@ -82,6 +82,10 @@ export default async function DovizHub() {
           );
         })}
       </div>
+
+      <p className="market-spark-cap">
+        Kaynak: <a href="https://frankfurter.dev/" target="_blank" rel="noreferrer">Frankfurter</a>. Bunlar günlük referans kurlarıdır; anlık banka veya döviz bürosu alış-satış fiyatı değildir.
+      </p>
 
       <AdSlot position="inArticle" />
 

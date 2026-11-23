@@ -1,3 +1,5 @@
+import { parseDecimalInput } from "@/lib/parse-decimal-input";
+
 /**
  * TÜFE (Genel, 2003=100) — TÜİK verisi, TCMB EVDS üzerinden.
  *
@@ -15,13 +17,19 @@ export interface CpiPoint { ym: string; idx: number }
 export interface CpiRow {
   ym: string;
   label: string;
-  monthly: number;
+  monthly: number | null;
   annual: number | null;
   /** TBK 344 kira tavanı: son 12 ay ortalaması / önceki 12 ay ortalaması − 1 */
   avg12: number | null;
 }
 
 const MONTHS = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
+
+function percentChange(current: number, base: number): number | null {
+  if (!Number.isFinite(current) || current <= 0 || !Number.isFinite(base) || base <= 0) return null;
+  const change = (current / base - 1) * 100;
+  return Number.isFinite(change) ? change : null;
+}
 
 export function monthLabel(ym: string): string {
   const [y, m] = ym.split("-").map(Number);
@@ -46,11 +54,20 @@ export async function getCpiSeries(): Promise<CpiPoint[] | null> {
     if (!res.ok) return null;
     const data = (await res.json()) as { items?: Array<{ Tarih?: string; TP_GENENDEKS_T1?: string | null }> };
     const points: CpiPoint[] = [];
+    const seenMonths = new Set<string>();
     for (const item of data.items || []) {
-      const v = item.TP_GENENDEKS_T1 ? parseFloat(item.TP_GENENDEKS_T1) : NaN;
-      const [y, m] = (item.Tarih || "").split("-").map(Number);
-      if (!y || !m || !Number.isFinite(v) || v <= 0) continue;
-      points.push({ ym: `${y}-${String(m).padStart(2, "0")}`, idx: v });
+      const v = item.TP_GENENDEKS_T1 ? parseDecimalInput(item.TP_GENENDEKS_T1) : NaN;
+      // EVDS monthly Tarih values may be unpadded (YYYY-M) or padded (YYYY-MM).
+      const date = /^(\d{4})-(\d{1,2})(?:-(\d{1,2}))?$/.exec(item.Tarih || "");
+      if (!date || !Number.isFinite(v) || v <= 0) continue;
+      const y = Number(date[1]);
+      const m = Number(date[2]);
+      const day = date[3] === undefined ? null : Number(date[3]);
+      if (y < 1 || m < 1 || m > 12 || (day !== null && (day < 1 || day > new Date(Date.UTC(y, m, 0)).getUTCDate()))) continue;
+      const ym = `${y}-${String(m).padStart(2, "0")}`;
+      if (seenMonths.has(ym)) return null;
+      seenMonths.add(ym);
+      points.push({ ym, idx: v });
     }
     points.sort((a, b) => a.ym.localeCompare(b.ym));
     return points.length >= 25 ? points : null;
@@ -61,14 +78,26 @@ export async function getCpiSeries(): Promise<CpiPoint[] | null> {
 
 export function buildCpiRows(points: CpiPoint[]): CpiRow[] {
   const rows: CpiRow[] = [];
+  const monthIndex = (ym: string) => {
+    const [year, month] = ym.split("-").map(Number);
+    return year * 12 + month - 1;
+  };
+  const isContinuous = (from: number, to: number) => {
+    for (let i = from + 1; i <= to; i++) {
+      if (monthIndex(points[i].ym) - monthIndex(points[i - 1].ym) !== 1) return false;
+    }
+    return true;
+  };
   for (let i = 1; i < points.length; i++) {
     const p = points[i];
-    const monthly = (p.idx / points[i - 1].idx - 1) * 100;
-    const annual = i >= 12 ? (p.idx / points[i - 12].idx - 1) * 100 : null;
+    const monthly = isContinuous(i - 1, i) ? percentChange(p.idx, points[i - 1].idx) : null;
+    const annual = i >= 12 && isContinuous(i - 12, i)
+      ? percentChange(p.idx, points[i - 12].idx)
+      : null;
     let avg12: number | null = null;
-    if (i >= 23) {
+    if (i >= 23 && isContinuous(i - 23, i)) {
       const sum = (from: number, to: number) => points.slice(from, to + 1).reduce((s, x) => s + x.idx, 0);
-      avg12 = (sum(i - 11, i) / sum(i - 23, i - 12) - 1) * 100;
+      avg12 = percentChange(sum(i - 11, i), sum(i - 23, i - 12));
     }
     rows.push({ ym: p.ym, label: monthLabel(p.ym), monthly, annual, avg12 });
   }
@@ -81,17 +110,29 @@ export function buildCpiRows(points: CpiPoint[]): CpiRow[] {
  * döner; pencere tamamlanmadıysa `complete: false` (tahmin YAPILMAZ).
  */
 export function halfYearCumulative(points: CpiPoint[]) {
+  if (!points.length) return null;
   const last = points.at(-1)!;
   const [y, m] = last.ym.split("-").map(Number);
+  if (!Number.isInteger(y) || !Number.isInteger(m) || m < 1 || m > 12 || !Number.isFinite(last.idx) || last.idx <= 0) return null;
   const baseYm = m <= 6 ? `${y - 1}-12` : `${y}-06`;
   const base = points.find((p) => p.ym === baseYm);
-  if (!base) return null;
+  if (!base || !Number.isFinite(base.idx) || base.idx <= 0) return null;
+  const expectedMonths = m <= 6 ? m : m - 6;
+  const availableMonths = new Set(points.map((point) => point.ym));
+  let cursor = baseYm;
+  for (let i = 0; i < expectedMonths; i++) {
+    cursor = nextMonth(cursor);
+    if (!availableMonths.has(cursor)) return null;
+  }
+  if (cursor !== last.ym) return null;
+  const pct = percentChange(last.idx, base.idx);
+  if (pct === null) return null;
   const firstYm = nextMonth(baseYm);
   return {
     fromLabel: monthLabel(firstYm),
     toLabel: monthLabel(last.ym),
-    months: m <= 6 ? m : m - 6,
-    pct: (last.idx / base.idx - 1) * 100,
+    months: expectedMonths,
+    pct,
     complete: m === 6 || m === 12,
     raiseMonth: m <= 6 ? `Temmuz ${y}` : `Ocak ${y + 1}`,
   };

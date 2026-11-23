@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
+import CoinGeckoAttribution from "@/components/CoinGeckoAttribution";
 
 /**
  * "Piyasa Hareketleri" rayı — en çok yükselen / düşen kripto paralar.
@@ -14,10 +15,14 @@ import type { CSSProperties } from "react";
  * derleme koşuluna bağlı değil → boşluklar her zaman uygulanır.
  */
 interface Coin {
+  id: string;
   symbol: string;
   current_price: number;
-  price_change_percentage_24h: number;
+  price_change_percentage_24h: number | null;
+  last_updated?: string | null;
 }
+
+type MovingCoin = Coin & { price_change_percentage_24h: number };
 
 const mono = "var(--mono), ui-monospace, monospace";
 
@@ -27,8 +32,8 @@ function num(v: number) {
     : v.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function MoverRow({ c, last }: { c: Coin; last: boolean }) {
-  const pct = c.price_change_percentage_24h ?? 0;
+function MoverRow({ c, last }: { c: MovingCoin; last: boolean }) {
+  const pct = c.price_change_percentage_24h;
   const up = pct >= 0;
   return (
     <Link
@@ -109,20 +114,40 @@ export default function MoversRail() {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    const go = () =>
-      fetch("/api/kripto")
-        .then((r) => r.json())
-        .then((d: Coin[]) => Array.isArray(d) && setCoins(d))
-        .catch(() => {})
-        .finally(() => setLoaded(true));
-    go();
-    const id = setInterval(go, 60000);
-    return () => clearInterval(id);
+    let active = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let controller: AbortController | undefined;
+    const go = async () => {
+      controller = new AbortController();
+      try {
+        const response = await fetch("/api/kripto", { signal: controller.signal });
+        if (!response.ok) throw new Error("Kripto fiyatı isteği başarısız");
+        const data: unknown = await response.json();
+        if (active && Array.isArray(data)) setCoins(data as Coin[]);
+      } catch {
+        // Son başarılı piyasa verisini koru ve hata sonrası tekrar dene.
+      } finally {
+        if (active) {
+          setLoaded(true);
+          timer = setTimeout(() => void go(), 60_000);
+        }
+      }
+    };
+    void go();
+    return () => {
+      active = false;
+      if (timer) clearTimeout(timer);
+      controller?.abort();
+    };
   }, []);
 
-  const valid = coins.filter((c) => typeof c.price_change_percentage_24h === "number");
-  const gainers = [...valid].sort((a, b) => b.price_change_percentage_24h - a.price_change_percentage_24h).slice(0, 3);
-  const losers = [...valid].sort((a, b) => a.price_change_percentage_24h - b.price_change_percentage_24h).slice(0, 3);
+  const valid = coins.filter((c): c is MovingCoin =>
+    typeof c.price_change_percentage_24h === "number" && Number.isFinite(c.price_change_percentage_24h)
+  );
+  const gainers = valid.filter((c) => c.price_change_percentage_24h > 0)
+    .sort((a, b) => b.price_change_percentage_24h - a.price_change_percentage_24h).slice(0, 3);
+  const losers = valid.filter((c) => c.price_change_percentage_24h < 0)
+    .sort((a, b) => a.price_change_percentage_24h - b.price_change_percentage_24h).slice(0, 3);
 
   return (
     <div
@@ -152,17 +177,22 @@ export default function MoversRail() {
 
       <div style={subLabel("#15803d")}>Yükselenler</div>
       {loaded && gainers.length ? (
-        gainers.map((c, i) => <MoverRow key={c.symbol} c={c} last={i === gainers.length - 1} />)
+        gainers.map((c, i) => <MoverRow key={c.id} c={c} last={i === gainers.length - 1} />)
+      ) : loaded ? (
+        <p role="status" style={{ margin: "8px", color: "var(--muted)", fontSize: 12 }}>Yükselen fiyat verisi yok.</p>
       ) : (
         <SkelGroup />
       )}
 
       <div style={subLabel("#dc2626")}>Düşenler</div>
       {loaded && losers.length ? (
-        losers.map((c, i) => <MoverRow key={c.symbol} c={c} last={i === losers.length - 1} />)
+        losers.map((c, i) => <MoverRow key={c.id} c={c} last={i === losers.length - 1} />)
+      ) : loaded ? (
+        <p role="status" style={{ margin: "8px", color: "var(--muted)", fontSize: 12 }}>Düşen fiyat verisi yok.</p>
       ) : (
         <SkelGroup />
       )}
+      {loaded && coins.length > 0 && <div style={{ marginTop: 12, paddingTop: 8, borderTop: "1px solid var(--border2)" }}><CoinGeckoAttribution /></div>}
     </div>
   );
 }

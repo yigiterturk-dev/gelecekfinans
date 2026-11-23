@@ -1,11 +1,13 @@
+import { serializeJsonLd } from "@/lib/json-ld";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { getCryptoMarkets, CRYPTO_COINS, tl, pctText, safeRelatedArticles } from "@/lib/market";
+import { getCryptoMarkets, CRYPTO_COINS, tl, pctText, fmtUpdated, safeRelatedArticles } from "@/lib/market";
 import { MedCard } from "@/components/ArticleCard";
 import AdSlot from "@/components/AdSlot";
 import MarketFaq from "@/components/MarketFaq";
 import ToolsRail from "@/components/ToolsRail";
 import { CRYPTO_HUB_FAQ } from "@/lib/market-faq";
+import CoinGeckoAttribution from "@/components/CoinGeckoAttribution";
 
 export const revalidate = 300;
 const BASE = "https://gelecekfinans.com";
@@ -29,8 +31,8 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function KriptoHub() {
-  const markets = await getCryptoMarkets();
-  const related = await safeRelatedArticles("kripto");
+  const [markets, related] = await Promise.all([getCryptoMarkets(), safeRelatedArticles("kripto")]);
+  const updated = markets.find((coin) => coin.updatedAt)?.updatedAt ?? null;
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -54,14 +56,16 @@ export default async function KriptoHub() {
 
   return (
     <div className="container market-page">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }} />
       <nav className="crumbs" aria-label="Breadcrumb">
         <Link href="/">Ana Sayfa</Link> <span>/</span> <span>Kripto Para</span>
       </nav>
       <h1 className="page-header">Kripto Para Fiyatları</h1>
       <p className="market-lede">
         Bitcoin, Ethereum ve en büyük kripto paraların canlı Türk Lirası fiyatları, 24 saatlik değişim ve piyasa değeri.
+        {updated && <> Son güncelleme: {fmtUpdated(updated)}.</>}
       </p>
+      <p className="conv-note"><CoinGeckoAttribution /></p>
 
       {markets.length > 0 ? (
         <div className="crypto-table-wrap">

@@ -6,13 +6,21 @@ import { prisma } from "@/lib/db";
 import { sendSegmentDigest, mailEnabled } from "@/lib/mail";
 import { isSegment } from "@/lib/newsletter";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { z } from "zod";
+
+const PRIVATE_HEADERS = { "Cache-Control": "private, no-store, max-age=0" };
+const newsletterSendSchema = z.object({
+  segment: z.string().refine(isSegment).optional(),
+  subjectA: z.string().trim().min(1).max(150),
+  subjectB: z.string().trim().min(1).max(150).optional(),
+}).strict();
 
 export const maxDuration = 60;
 
 function rateLimitResponse(result: ReturnType<typeof rateLimit>) {
   return NextResponse.json(
     { error: "Too many requests", retryAfter: result.retryAfterSec },
-    { status: 429, headers: { "Retry-After": String(result.retryAfterSec) } }
+    { status: 429, headers: { ...PRIVATE_HEADERS, "Retry-After": String(result.retryAfterSec) } }
   );
 }
 
@@ -27,7 +35,7 @@ export async function POST(req: NextRequest) {
   if (kokenReddi) return kokenReddi;
 
   const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: PRIVATE_HEADERS });
 
   const limit = rateLimit(`admin:newsletter:send:${clientIp(req)}`, { limit: 5, windowMs: 60_000 });
   if (!limit.ok) return rateLimitResponse(limit);
@@ -36,23 +44,21 @@ export async function POST(req: NextRequest) {
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: "Geçersiz istek" }, { status: 400 });
+    return NextResponse.json({ error: "Geçersiz istek" }, { status: 400, headers: PRIVATE_HEADERS });
   }
 
-  const { segment, subjectA, subjectB } = (body || {}) as {
-    segment?: unknown;
-    subjectA?: unknown;
-    subjectB?: unknown;
-  };
-
-  const seg = typeof segment === "string" && segment ? segment : null;
-  if (seg && !isSegment(seg)) {
-    return NextResponse.json({ error: "Geçersiz segment" }, { status: 400 });
+  const parsed = newsletterSendSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Segment veya konu satırları geçersiz" }, { status: 400, headers: PRIVATE_HEADERS });
   }
-  const subA = typeof subjectA === "string" ? subjectA.trim().slice(0, 150) : "";
-  if (!subA) return NextResponse.json({ error: "Konu satırı (A) zorunlu" }, { status: 400 });
-  const subB =
-    typeof subjectB === "string" && subjectB.trim() ? subjectB.trim().slice(0, 150) : undefined;
+  const { segment: seg = null, subjectA: subA, subjectB: subB } = parsed.data;
+
+  if (!mailEnabled()) {
+    return NextResponse.json(
+      { error: "Bülten gönderimi yapılandırılmamış (RESEND_API_KEY / NEWSLETTER_SECRET)." },
+      { status: 503, headers: PRIVATE_HEADERS },
+    );
+  }
 
   // Onaylı + aktif aboneler. Segment varsa: ya tercihi boş (tümü) ya da
   // ilgili kategoriyi içerenler.
@@ -83,7 +89,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       sent: 0,
       reason: articles.length === 0 ? "uygun makale yok" : "alıcı yok",
-    });
+      recipients: subscribers.length,
+      availableArticles: articles.length,
+    }, { headers: PRIVATE_HEADERS });
   }
 
   // Kampanya kaydını önce oluştur (tracking pikseli campaignId kullanır).
@@ -113,5 +121,5 @@ export async function POST(req: NextRequest) {
     campaignId: campaign.id,
     mailEnabled: mailEnabled(),
     ...result,
-  });
+  }, { headers: PRIVATE_HEADERS });
 }

@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { parseDecimalInput } from "@/lib/parse-decimal-input";
 
 /**
  * Kredi taksit hesaplayıcı (anüite). Saf client, bağımlılıksız.
@@ -10,27 +11,26 @@ export default function LoanCalculator() {
   const [rate, setRate] = useState("3.5"); // aylık %
   const [months, setMonths] = useState("12");
 
-  const P = parseFloat(principal.replace(",", "."));
-  const r = parseFloat(rate.replace(",", ".")) / 100;
-  const n = parseInt(months);
-  const valid =
-    !isNaN(P) && P > 0 && isFinite(P) &&
-    !isNaN(r) && r >= 0 && isFinite(r) &&
-    !isNaN(n) && n > 0 && n <= 600;
-
-  let monthly: number | null = null;
-  let total: number | null = null;
-  let interest: number | null = null;
-  if (valid) {
-    if (r === 0) {
-      monthly = P / n;
-    } else {
-      const f = Math.pow(1 + r, n);
-      monthly = (P * r * f) / (f - 1);
-    }
-    total = monthly * n;
-    interest = total - P;
-  }
+  const P = parseDecimalInput(principal);
+  const r = parseDecimalInput(rate) / 100;
+  const n = Number(months);
+  const inputsValid =
+    Number.isFinite(P) && P > 0 &&
+    Number.isFinite(r) && r >= 0 &&
+    Number.isInteger(n) && n > 0 && n <= 600;
+  const discountFactor = inputsValid && r > 0 ? Math.pow(1 + r, -n) : 0;
+  const monthlyEstimate = !inputsValid
+    ? null
+    : r === 0
+      ? P / n
+      : (P * r) / (1 - discountFactor);
+  const totalEstimate = monthlyEstimate === null ? null : monthlyEstimate * n;
+  const valid = inputsValid && Number.isFinite(discountFactor) &&
+    monthlyEstimate !== null && Number.isFinite(monthlyEstimate) &&
+    totalEstimate !== null && Number.isFinite(totalEstimate);
+  const monthly = valid ? monthlyEstimate : null;
+  const total = valid ? totalEstimate : null;
+  const interest = valid && total !== null ? Math.max(0, total - P) : null;
 
   const fmt = (v: number) => "₺" + v.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -55,7 +55,7 @@ export default function LoanCalculator() {
       </div>
       <div className="calc-result calc-result-grid" aria-live="polite">
         {!valid ? (
-          <span className="conv-muted">Tutar, faiz ve vade için geçerli değerler girin.</span>
+          <span className="conv-muted">Tutar ve faiz için geçerli değerler, vade için 1–600 arasında tam ay sayısı girin.</span>
         ) : (
           <>
             <div><span className="calc-result-lbl">Aylık Taksit</span><strong className="calc-out">{fmt(monthly!)}</strong></div>

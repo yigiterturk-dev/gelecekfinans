@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Script from "next/script";
 import { IBM_Plex_Serif, IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
@@ -8,11 +7,13 @@ import SiteFooter from "@/components/SiteFooter";
 import CryptoTicker from "@/components/CryptoTicker";
 import BreakingNews from "@/components/BreakingNews";
 import GoogleAnalytics from "@/components/GoogleAnalytics";
+import GoogleNewsRevenue from "@/components/GoogleNewsRevenue";
 import PageTracker from "@/components/PageTracker";
 import { getSettings } from "@/lib/settings";
 import CookieConsent from "@/components/CookieConsent";
 import { BRAND, BRAND_ALIASES, HOME_TITLE, TITLE_TEMPLATE } from "@/lib/brand";
 import { SAME_AS } from "@/lib/social";
+import { serializeJsonLd } from "@/lib/json-ld";
 
 const BASE = "https://gelecekfinans.com";
 
@@ -109,7 +110,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className="pb-ticker">
-        <script type="application/ld+json" dangerouslySetInnerHTML={{__html:JSON.stringify({
+        <script type="application/ld+json" dangerouslySetInnerHTML={{__html:serializeJsonLd({
           "@context":"https://schema.org",
           "@graph":[
             {
@@ -143,7 +144,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               publisher:{"@id":`${BASE}/#organization`}
             }
           ]
-        }).replace(/</g,"\\u003c")}}/>
+        })}}/>
         <GoogleAnalytics />
         <a href="#main" className="skip-link">İçeriğe geç</a>
         <ChromeGate>
@@ -156,22 +157,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <CryptoTicker />
         </ChromeGate>
         <PageTracker />
-        <Script
-          async
-          id="swg-basic"
-          src="https://news.google.com/swg/js/v1/swg-basic.js"
-          strategy="afterInteractive"
-        />
-        <Script id="swg-basic-init" strategy="afterInteractive">
-          {`(self.SWG_BASIC = self.SWG_BASIC || []).push((basicSubscriptions) => {
-            basicSubscriptions.init({
-              type: "NewsArticle",
-              isPartOfType: ["Product"],
-              isPartOfProductId: "CAowvpvNDA:openaccess",
-              clientOptions: { theme: "light", lang: "tr" },
-            });
-          });`}
-        </Script>
+        <GoogleNewsRevenue />
         <ChromeGate>
           <CookieConsent />
         </ChromeGate>

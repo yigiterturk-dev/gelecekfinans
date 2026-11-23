@@ -8,7 +8,6 @@ import { ensureExternalLink } from "@/lib/bot/external-link";
 import { getArticleImageResult } from "@/lib/bot/images";
 import { getTopics } from "@/lib/bot/topics";
 import { insertToolCta, matchHookTopic } from "@/lib/bot/hook-topics";
-import { notifyGoogleUrlUpdated } from "@/lib/bot/indexing";
 import { notifyIndexNow } from "@/lib/bot/indexnow";
 
 const SITE_URL = process.env.SITE_URL || "https://gelecekfinans.com";
@@ -29,7 +28,8 @@ import {
   type ResearchCandidate,
 } from "@/lib/bot/research";
 import { checkPlagiarism } from "@/lib/bot/plagiarism";
-import { resolveArticleAIBudgetConfig, startOfIstanbulDay } from "@/lib/bot/ai-budget";
+import { isAIAutomationEnabled, resolveArticleAIBudgetConfig, startOfIstanbulDay } from "@/lib/bot/ai-budget";
+import { getOpenAIQuotaGuard, openAIQuotaGuardMessage } from "@/lib/bot/ai-quota-cooldown";
 import { sendBotAlert } from "@/lib/bot/alert";
 
 /**
@@ -80,11 +80,26 @@ async function logEvent(
 }
 
 export async function runPublishingPipeline(options: OrchestratorOptions) {
+  if (!isAIAutomationEnabled()) {
+    return {
+      added: 0, autoPublished: 0, reviewQueued: 0, blocked: 0, duplicatesSkipped: 0,
+      errors: ["AI otomasyonu kapalı; model çağrısı yapılmadı. Açmak için AI_AUTOMATION_ENABLED=true gerekir."],
+      runId: null, skipped: true,
+    };
+  }
   const count = Math.max(1, Math.min(options.count || 1, 10));
   const targetWords = Math.max(400, Math.min(options.targetWords || 650, 1800));
-  const autoPublishEnabled = options.autoPublish === true;
+  // Bot çıktısı yayınlanmadan önce editör onayı almalı.
+  const autoPublishEnabled = false;
   const aiBudget = resolveArticleAIBudgetConfig();
   const aiConfig = resolveArticleAIConfig();
+  const quotaGuard = await getOpenAIQuotaGuard(aiConfig.provider);
+  if (quotaGuard.blocked) {
+    return {
+      added: 0, autoPublished: 0, reviewQueued: 0, blocked: 0, duplicatesSkipped: 0,
+      errors: [openAIQuotaGuardMessage(quotaGuard.reason)], runId: null, skipped: true,
+    };
+  }
   /**
    * Rehbere ayrılan pay haber akışından düşülür; yoksa haber günlük tavanı
    * öğlene kadar tüketip rehberi tamamen aç bırakıyor (12 Kasım 2026 kaydı).
@@ -497,24 +512,9 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
         seoScore: seo.score, imageStrategy: image.strategy,
       }, created.id);
 
-      /**
-       * Yayımlanan adres Google'a bildirilir. Sitemap tek başına yetmiyor:
-       * 3 Eylül taramasında 52 adresin 23'ü hâlâ "URL is unknown to Google"du
-       * ve en iyi sıralayan sayfa Google'ın kaydında 404'te takılıydı.
-       * Hata bilerek yutulur — makale zaten kaydedildi, bildirim tutmadı diye
-       * yayın geri alınmaz; sonuç kayda düşer ki kurulum eksikse görünsün.
-       */
+      // Google Indexing API normal makale sayfalarını desteklemez; Bing ve
+      // diğer katılımcılar için yalnızca uygun IndexNow bildirimi gönderilir.
       if (publication.decision === "AUTO_PUBLISH") {
-        const ping = await notifyGoogleUrlUpdated(`${SITE_URL}/${slug}`);
-        if (!ping.ok) {
-          await logEvent(run.id, "indexing", "Google dizin bildirimi gönderilemedi", {
-            slug, reason: ping.reason, detail: ping.detail,
-          }, created.id, "warning");
-        } else {
-          await logEvent(run.id, "indexing", "Google'a dizin bildirimi gönderildi", { slug }, created.id);
-        }
-        // Bing/Yandex tarafı: IndexNow. Google'dan bağımsız, hatası da ayrı
-        // kayda düşer — biri tutmadı diye diğeri atlanmaz.
         const inPing = await notifyIndexNow([`${SITE_URL}/${slug}`]);
         if (!inPing.ok) {
           await logEvent(run.id, "indexing", "IndexNow bildirimi gönderilemedi", {
@@ -546,6 +546,7 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
             entityResult, created.id);
         }
       } catch (entityError) {
+        if (entityError instanceof AIProviderFatalError) throw entityError;
         await logEvent(run.id, "entity", `Varlık çıkarımı başarısız: ${(entityError as Error).message}`,
           {}, created.id, "warning");
       }
@@ -567,7 +568,12 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
       errors.push(message);
       if (error instanceof AIProviderFatalError) {
         fatalErrorCode = error.code;
-        await logEvent(run.id, "configuration", message, { code: error.code }, undefined, "error");
+        await logEvent(run.id, "configuration", message, {
+          code: error.code,
+          provider: aiConfig.provider,
+          writerModel: aiConfig.writerModel,
+          verifierModel: aiConfig.verifierModel,
+        }, undefined, "error");
         break;
       }
       /**

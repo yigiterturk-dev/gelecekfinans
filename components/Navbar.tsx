@@ -24,6 +24,10 @@ const MARKET=[
   {h:"/rehber",l:"Rehberler"},
 ];
 
+function matchesRoute(path: string, href: string): boolean {
+  return path === href || (href !== "/" && path.startsWith(`${href}/`));
+}
+
 export default function Navbar(){
   const p=usePathname();
   const [theme, setTheme] = useState<"light" | "dark">("light");
@@ -130,20 +134,20 @@ export default function Navbar(){
       </div>
       <nav className="nav-cat-row" aria-label="Ana gezinme">
         <div className="publication-news-links">
-        <Link href="/" className={`nav-cat${p==="/"?" act":""}`}>Tüm Haberler</Link>
+        <Link href="/" className={`nav-cat${p==="/"?" act":""}`} aria-current={p === "/" ? "page" : undefined}>Tüm Haberler</Link>
         {CATS.map(c=> (
-          <Link key={c.k} href={`/kategori/${c.k}`} className={`nav-cat${p===`/kategori/${c.k}`?" act":""}`}>{c.l}</Link>
+          <Link key={c.k} href={`/kategori/${c.k}`} className={`nav-cat${p===`/kategori/${c.k}`?" act":""}`} aria-current={p === `/kategori/${c.k}` ? "page" : undefined}>{c.l}</Link>
         ))}
         </div>
-        <details className="publication-market-menu" key={p}>
-          <summary>Piyasalar <span aria-hidden="true">⌄</span></summary>
+        <details className={`publication-market-menu${MARKET.some(m => matchesRoute(p, m.h)) ? " is-current" : ""}`} key={p}>
+          <summary aria-label={MARKET.some(m => matchesRoute(p, m.h)) ? "Piyasalar menüsü, bu bölümdeki sayfadasınız" : "Piyasalar menüsü"}>Piyasalar <span aria-hidden="true">⌄</span></summary>
           <div className="publication-market-links">
             {MARKET.map(m=> (
-              <Link key={m.h} href={m.h} aria-current={p===m.h ? "page" : undefined}>{m.l}<span aria-hidden="true">↗</span></Link>
+              <Link key={m.h} href={m.h} aria-current={matchesRoute(p, m.h) ? "page" : undefined}>{m.l}<span aria-hidden="true">↗</span></Link>
             ))}
           </div>
         </details>
-        <Link href="/araclar" className="publication-tools-link">Hesaplama araçları <span aria-hidden="true">↗</span></Link>
+        <Link href="/araclar" className="publication-tools-link" aria-current={matchesRoute(p, "/araclar") ? "page" : undefined}>Hesaplama araçları <span aria-hidden="true">↗</span></Link>
       </nav>
     </header>
   );

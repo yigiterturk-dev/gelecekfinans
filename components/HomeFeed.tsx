@@ -8,10 +8,10 @@ export default function HomeFeed({ articles }: { articles: ArticleListItem[] }) 
   const filtered = active ? articles.filter(a => a.category === active) : articles;
   return (
     <>
-      <div className="cat-tabs">
-        <button className={`cat-tab${!active?" on":""}`} onClick={()=>setActive(null)}>Tümü</button>
+      <div className="cat-tabs" role="group" aria-label="Haber kategorisi filtreleri">
+        <button type="button" aria-pressed={!active} className={`cat-tab${!active?" on":""}`} onClick={()=>setActive(null)}>Tümü</button>
         {Object.entries(CATS).map(([k,v])=>(
-          <button key={k} className={`cat-tab${active===k?" on":""}`}
+          <button key={k} type="button" aria-pressed={active===k} className={`cat-tab${active===k?" on":""}`}
             style={active===k?{background:v.c,borderColor:v.c}:{}}
             onClick={()=>setActive(active===k?null:k)}>{v.l}</button>
         ))}

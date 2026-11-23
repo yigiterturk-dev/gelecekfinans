@@ -14,6 +14,7 @@
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
     "seo:indeks-fark": "tsx scripts/indeks-fark.ts",
+    "gsc:ozet": "node scripts/gsc-ozet.mjs",
     "gorsel:adaylar": "tsx scripts/gorsel-adaylar.ts",
     "gorsel:doldur": "tsx scripts/backfill-images.ts",
     "content:legacy:audit": "tsx scripts/archive-legacy-bot-articles.ts",

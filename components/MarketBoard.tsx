@@ -2,6 +2,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
+import { TROY_OUNCE_GRAMS, ziynetGoldFineGrams } from "@/lib/gold-standards";
+import CoinGeckoAttribution from "@/components/CoinGeckoAttribution";
 
 /**
  * Yoğun, taranabilir PİYASA TABLOSU (Investing/Doviz tarzı).
@@ -15,9 +17,9 @@ import type { CSSProperties } from "react";
 
 interface Fiyatlar {
   tcmb?: { usd?: { satis?: number }; eur?: { satis?: number }; gbp?: { satis?: number } };
-  gold?: { price?: number; pct?: number };
-  bist?: { price?: number; pct?: number };
-  btc?: { price?: number; pct?: number };
+  gold?: { price?: number; pct?: number | null };
+  bist?: { price?: number; pct?: number | null };
+  btc?: { price?: number; pct?: number | null };
 }
 interface Coin {
   symbol: string;
@@ -167,9 +169,10 @@ export default function MarketBoard() {
   ];
   const altin: Row[] = [
     { name: "Gram Altın", sub: "24 ayar", href: "/altin/gram-altin", price: f.gold?.price, pct: f.gold?.pct },
-    { name: "Çeyrek Altın", href: "/altin/ceyrek-altin", price: f.gold?.price ? f.gold.price * 1.75 : undefined, pct: f.gold?.pct },
-    { name: "Cumhuriyet", sub: "Tam", href: "/altin/cumhuriyet-altini", price: f.gold?.price ? f.gold.price * 7.016 : undefined, pct: f.gold?.pct },
-    { name: "Ons Altın", sub: "31.1 g", href: "/altin/ons", price: f.gold?.price ? f.gold.price * 31.1035 : undefined, pct: f.gold?.pct, frac: 0 },
+    { name: "Çeyrek Altın", sub: "22 ayar metal", href: "/altin/ceyrek-altin", price: f.gold?.price ? f.gold.price * ziynetGoldFineGrams("quarter") : undefined, pct: f.gold?.pct },
+    { name: "Yarım Altın", sub: "22 ayar metal", href: "/altin/yarim-altin", price: f.gold?.price ? f.gold.price * ziynetGoldFineGrams("half") : undefined, pct: f.gold?.pct },
+    { name: "Cumhuriyet", sub: "Tam · 22 ayar metal", href: "/altin/cumhuriyet-altini", price: f.gold?.price ? f.gold.price * ziynetGoldFineGrams("full") : undefined, pct: f.gold?.pct },
+    { name: "Ons Altın", sub: "31.1 g", href: "/altin/ons", price: f.gold?.price ? f.gold.price * TROY_OUNCE_GRAMS : undefined, pct: f.gold?.pct, frac: 0 },
   ];
   const kripto: Row[] = coins.slice(0, 4).map((c) => ({
     name: c.symbol?.toUpperCase() ?? "",
@@ -255,6 +258,12 @@ export default function MarketBoard() {
           <Table rows={loaded ? kripto : skeleton} all={{ l: "Tüm kripto fiyatları", href: "/kripto" }} />
         </div>
       </div>
+      <p style={{ margin: "0 18px 12px", fontSize: 11, color: "var(--muted)" }}>
+        Çeyrek ve tam altın tutarları Darphane ziynet ağırlığı ve 22 ayar saflıkla hesaplanan yaklaşık metal değeridir; fiziki piyasa fiyatı değildir.
+      </p>
+      {loaded && kripto.length > 0 && (
+        <p style={{ margin: "0 18px 12px", textAlign: "right" }}><CoinGeckoAttribution /></p>
+      )}
     </section>
   );
 }

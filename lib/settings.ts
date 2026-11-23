@@ -1,4 +1,5 @@
 import { prisma } from "./db";
+import { z } from "zod";
 
 export interface Settings {
   ga4Id?: string;
@@ -46,12 +47,61 @@ const DEFAULT_SETTINGS: Settings = {
   adSlots: { headerBanner: false, inArticle: false, sidebar: false, afterArticle: false },
   adSlotIds: { headerBanner: "", inArticle: "", sidebar: "", afterArticle: "" },
   breakingNewsEnabled: true,
-  // enabled=false iken decidePublication her makaleyi REVIEW'a atar ve kimse
-  // kuyruğu boşaltmazsa site hiç güncellenmez. Kalite kapıları (RED konu,
-  // ikinci bağımsız kaynak, kaynak/SEO skoru, kapak görseli) zaten ayrı
-  // çalıştığı için otomatik yayın varsayılan olarak açıktır.
-  autonomy: { cronEnabled: true, enabled: true, dailyArticleCount: 2, targetWords: 650 },
+  // Model çağrıları ve bot yayınları kullanıcı tarafından açıkça açılmadıkça
+  // çalışmamalı. Bot içerikleri varsayılan olarak editör incelemesine gider.
+  autonomy: { cronEnabled: false, enabled: false, dailyArticleCount: 2, targetWords: 650 },
 };
+
+const storedSettingsSchema = z.object({
+  ga4Id: z.string().optional(),
+  adsenseId: z.string().optional(),
+  searchConsoleVerification: z.string().optional(),
+  adSlots: z.object({
+    headerBanner: z.boolean().optional(),
+    inArticle: z.boolean().optional(),
+    sidebar: z.boolean().optional(),
+    afterArticle: z.boolean().optional(),
+  }).strict().optional(),
+  adSlotIds: z.object({
+    headerBanner: z.string().optional(),
+    inArticle: z.string().optional(),
+    sidebar: z.string().optional(),
+    afterArticle: z.string().optional(),
+  }).strict().optional(),
+  breakingNewsEnabled: z.boolean().optional(),
+  autonomy: z.object({
+    cronEnabled: z.boolean().optional(),
+    enabled: z.boolean().optional(),
+    dailyArticleCount: z.number().finite().optional(),
+    targetWords: z.number().finite().optional(),
+  }).strict().optional(),
+}).passthrough();
+
+function mergeSettings(storedValue?: unknown): Settings {
+  if (storedValue == null) {
+    return {
+      ...DEFAULT_SETTINGS,
+      autonomy: { ...DEFAULT_SETTINGS.autonomy },
+      adSlots: { ...DEFAULT_SETTINGS.adSlots },
+      adSlotIds: { ...DEFAULT_SETTINGS.adSlotIds },
+    };
+  }
+  const parsed = storedSettingsSchema.safeParse(storedValue);
+  if (!parsed.success) throw new Error("Stored site settings have an invalid shape");
+  const stored = parsed.data as Settings;
+  return {
+    ...DEFAULT_SETTINGS,
+    ...stored,
+    autonomy: { ...DEFAULT_SETTINGS.autonomy, ...stored.autonomy },
+    adSlots: { ...DEFAULT_SETTINGS.adSlots, ...stored.adSlots },
+    adSlotIds: { ...DEFAULT_SETTINGS.adSlotIds, ...stored.adSlotIds },
+  };
+}
+
+export async function getSettingsStrict(): Promise<Settings> {
+  const row = await prisma.siteSettings.findUnique({ where: { id: "singleton" } });
+  return mergeSettings(row?.value);
+}
 
 export async function getSettings(): Promise<Settings> {
   // Savunmacı: DB geçici olarak erişilemezse (ör. Neon uyku/kesinti, build anı)
@@ -59,23 +109,17 @@ export async function getSettings(): Promise<Settings> {
   // dayandığı için hatayı yutup DEFAULT_SETTINGS döndürürüz. Aksi halde tek bir
   // bağlantı hatası tüm prerender/build'i çökertir.
   try {
-    const row = await prisma.siteSettings.findUnique({ where: { id: "singleton" } });
-    if (!row) return DEFAULT_SETTINGS;
-    const stored = row.value as Settings;
-    return {
-      ...DEFAULT_SETTINGS,
-      ...stored,
-      autonomy: { ...DEFAULT_SETTINGS.autonomy, ...stored.autonomy },
-      adSlots: { ...DEFAULT_SETTINGS.adSlots, ...stored.adSlots },
-    };
+    return await getSettingsStrict();
   } catch (err) {
     console.error("[getSettings] sorgu başarısız, default ayarlar kullanılıyor:", err);
-    return DEFAULT_SETTINGS;
+    return mergeSettings();
   }
 }
 
 export async function updateSettings(data: Partial<Settings>): Promise<Settings> {
-  const current = await getSettings();
+  // Yönetim yazımı, okuma hatasında sessiz varsayılanlarla mevcut ayarları
+  // ezmesin; DB hatası burada çağırana kadar yükseltilir.
+  const current = await getSettingsStrict();
   const requestedCount = data.autonomy?.dailyArticleCount;
   const requestedWords = data.autonomy?.targetWords;
   const merged = {

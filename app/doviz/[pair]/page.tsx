@@ -1,8 +1,9 @@
+import { serializeJsonLd } from "@/lib/json-ld";
 import { datasetDescription } from "@/lib/dataset-desc";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getFx, getFxHistory, getTcmbFx, FX_PAIRS, tl, pctText, fmtUpdated, safeRelatedArticles } from "@/lib/market";
+import { getFxWithHistory, getTcmbFx, FX_PAIRS, tl, pctText, fmtUpdated, safeRelatedArticles } from "@/lib/market";
 import { getGuides } from "@/lib/articles";
 import { MedCard } from "@/components/ArticleCard";
 import AdSlot from "@/components/AdSlot";
@@ -23,8 +24,8 @@ export async function generateMetadata({ params }: { params: Promise<{ pair: str
   const { pair } = await params;
   const cfg = FX_PAIRS[pair];
   if (!cfg) return {};
-  const title = `${cfg.label} Kuru — 1 ${cfg.base} Kaç TL? Canlı Alış Satış (${cfg.base}/TRY)`;
-  const description = `Güncel ${cfg.long} kuru. 1 ${cfg.base} kaç TL? TCMB ve serbest piyasa ${cfg.label} alış satış, günlük değişim, 30 günlük grafik ve canlı ${cfg.base}/TRY fiyatı.`;
+  const title = `${cfg.label} Kuru — 1 ${cfg.base} Kaç TL? Güncel Referans Kur (${cfg.base}/TRY)`;
+  const description = `Güncel ${cfg.long} referans kuru. 1 ${cfg.base} kaç TL? Önceki iş gününe göre değişim, TCMB alış-satış kurları ve 30 günlük grafik.`;
   return {
     title,
     description,
@@ -39,13 +40,14 @@ export default async function DovizDetail({ params }: { params: Promise<{ pair: 
   const cfg = FX_PAIRS[pair];
   if (!cfg) notFound();
 
-  const [d, history, related, guides, tcmb] = await Promise.all([
-    getFx(pair),
-    getFxHistory(cfg.base),
+  const [fxData, related, guides, tcmb] = await Promise.all([
+    getFxWithHistory(cfg.base),
     safeRelatedArticles("doviz"),
     getGuides(3, "doviz"),
     getTcmbFx(cfg.base),
   ]);
+  const d = fxData.rate;
+  const history = fxData.history;
   const up = (d?.changePct ?? 0) >= 0;
   const others = Object.entries(FX_PAIRS).filter(([k]) => k !== pair);
   const spread =
@@ -87,7 +89,7 @@ export default async function DovizDetail({ params }: { params: Promise<{ pair: 
 
   return (
     <div className="container market-page">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }} />
       <nav className="crumbs" aria-label="Breadcrumb">
         <Link href="/">Ana Sayfa</Link> <span>/</span> <Link href="/doviz">Döviz</Link> <span>/</span> <span>{cfg.label}</span>
       </nav>
@@ -97,7 +99,7 @@ export default async function DovizDetail({ params }: { params: Promise<{ pair: 
           <span className="market-flag market-flag-lg" aria-hidden>{cfg.flag}</span>
           <div>
             <h1 className="market-hero-title">{cfg.label} ({cfg.base}/TRY) Kuru</h1>
-            <p className="market-hero-sub">1 {cfg.base} kaç TL? Canlı {cfg.label} alış satış ve günlük değişim</p>
+            <p className="market-hero-sub">1 {cfg.base} kaç TL? Güncel {cfg.label} referans kuru ve günlük değişim</p>
           </div>
         </div>
 
@@ -124,10 +126,10 @@ export default async function DovizDetail({ params }: { params: Promise<{ pair: 
 
       {hasTcmb && (
         <section className="section">
-          <h2 className="market-h2">{cfg.label} Alış Satış — TCMB ve Serbest Piyasa</h2>
+          <h2 className="market-h2">{cfg.label} Alış Satış — TCMB ve Referans Kur</h2>
           <p className="market-prose">
             Aşağıdaki tablo, {cfg.label} için TCMB günlük bültenindeki döviz ve efektif alış-satış
-            kurlarını bu sayfadaki serbest piyasa kuruyla karşılaştırır. Bankalar ve döviz büfeleri
+            kurlarını bu sayfadaki günlük referans kuruyla karşılaştırır. Bankalar ve döviz büfeleri
             kendi makaslarını eklediği için gişede gördüğünüz fiyat bu değerlerden farklı olabilir;
             alış kurları sizden döviz alırken, satış kurları size döviz satarken uygulanır.
           </p>
@@ -141,7 +143,7 @@ export default async function DovizDetail({ params }: { params: Promise<{ pair: 
               </thead>
               <tbody>
                 <tr>
-                  <td>Serbest piyasa (bu sayfa)</td>
+                  <td>Referans kur (bu sayfa)</td>
                   <td className="num">{d ? `₺${tl(d.rate, 4)}` : "—"}</td>
                 </tr>
                 <tr>
@@ -174,8 +176,7 @@ export default async function DovizDetail({ params }: { params: Promise<{ pair: 
             </table>
           </div>
           <p className="market-spark-cap">
-            Kaynak: TCMB günlük döviz bülteni{tcmb?.date ? ` (${tcmb.date})` : ""}. Serbest piyasa
-            kuru yaklaşık 10 dakikada bir, TCMB kurları iş günü bülteniyle güncellenir.
+            Kaynak: <a href="https://frankfurter.dev/" target="_blank" rel="noreferrer">Frankfurter</a> günlük referans kuru; TCMB değerleri günlük döviz bülteninden{tcmb?.date ? ` (${tcmb.date})` : ""}. Veriler anlık banka veya döviz bürosu alış-satış fiyatı değildir.
           </p>
         </section>
       )}
@@ -194,8 +195,7 @@ export default async function DovizDetail({ params }: { params: Promise<{ pair: 
         ))}
         <p className="market-prose">
           Bu sayfadaki
-          1 {cfg.base} = TL kuru, ücretsiz ve güncel piyasa verilerinden derlenir ve yaklaşık 10 dakikada bir
-          yenilenir. Gösterilen değerler bilgilendirme amaçlıdır; bankaların ve döviz bürolarının alış-satış
+          1 {cfg.base} = TL değeri günlük referans kurudur; gerçek zamanlı piyasa fiyatı değildir. Gösterilen değerler bilgilendirme amaçlıdır; bankaların ve döviz bürolarının alış-satış
           kurları farklılık gösterebilir. {cfg.label} ile ilgili son dakika gelişmeleri için{" "}
           <Link href="/kategori/doviz">döviz haberleri</Link> sayfamızı takip edebilirsiniz.
         </p>

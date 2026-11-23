@@ -115,6 +115,8 @@ model Subscriber {
   // Çift-onay (double opt-in): doğrulanana kadar bülten gönderilmez.
   confirmed   Boolean   @default(false)
   confirmedAt DateTime?
+  // Güncel onay token'ının parmak izi; "revoked" iptal edilmiş token'ı gösterir.
+  confirmationTokenHash String?
   createdAt   DateTime  @default(now())
 
   @@index([active, confirmed])

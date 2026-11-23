@@ -32,6 +32,7 @@ import { autoLink } from "../lib/bot/linker";
 import { ensureExternalLink } from "../lib/bot/external-link";
 import { analyzeSeo } from "../lib/seo";
 import { asJson } from "../lib/prisma-json";
+import { isAIAutomationEnabled } from "../lib/bot/ai-budget";
 import type { EvidenceItem, EvidencePacket } from "../lib/bot/research";
 import type { EntityTopic } from "../lib/bot/entity-topic";
 
@@ -174,6 +175,11 @@ async function main() {
 
   if (!APPLY) {
     console.log("kuru çalışma — yazar çağrısı YAPILMADI. Yazmak için --uygula ekle.");
+    return;
+  }
+
+  if (!isAIAutomationEnabled()) {
+    console.log("AI otomasyonu kapalı — ücretli yazar çağrısı yapılmadı.");
     return;
   }
 

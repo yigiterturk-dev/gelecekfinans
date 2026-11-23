@@ -6,12 +6,12 @@ const isProduction = process.env.NODE_ENV === "production";
 
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : ""} https://www.googletagmanager.com https://www.google-analytics.com https://pagead2.googlesyndication.com https://*.googlesyndication.com https://www.googletagservices.com https://adservice.google.com https://news.google.com`,
+  `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : ""} https://www.googletagmanager.com https://www.google-analytics.com https://pagead2.googlesyndication.com https://*.googlesyndication.com https://www.googletagservices.com https://adservice.google.com https://news.google.com https://s3.tradingview.com`,
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data: https://fonts.gstatic.com",
   "connect-src 'self' https://www.google-analytics.com https://*.google-analytics.com https://pagead2.googlesyndication.com https://googleads.g.doubleclick.net https://*.googlesyndication.com https://news.google.com",
-  "frame-src https://googleads.g.doubleclick.net https://*.googlesyndication.com https://*.google.com",
+  "frame-src https://googleads.g.doubleclick.net https://*.googlesyndication.com https://*.google.com https://*.tradingview.com",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",

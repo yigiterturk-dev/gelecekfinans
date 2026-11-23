@@ -16,7 +16,31 @@ function rateLimitResponse(result: ReturnType<typeof rateLimit>) {
 // public/gorseller dizinine yazar. Sadece resim, max ~8MB. Dönen public URL
 // form.imageUrl'e yazılır.
 const MAX_BYTES = 8 * 1024 * 1024; // 8MB
+const MAX_REQUEST_BYTES = MAX_BYTES + 1024 * 1024; // multipart başlıkları ve sınır ayraçları için 1 MiB pay
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"];
+
+async function readRequestBodyLimited(req: NextRequest): Promise<Buffer | null> {
+  if (!req.body) return null;
+  const reader = req.body.getReader();
+  const chunks: Buffer[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > MAX_REQUEST_BYTES) {
+        await reader.cancel();
+        return null;
+      }
+      chunks.push(Buffer.from(value));
+    }
+    return Buffer.concat(chunks, total);
+  } catch {
+    await reader.cancel().catch(() => {});
+    return null;
+  }
+}
 
 export async function POST(req: NextRequest) {
   const kokenReddi = farkliKokenReddi(req);
@@ -30,7 +54,20 @@ export async function POST(req: NextRequest) {
 
   let file: File | null = null;
   try {
-    const formData = await req.formData();
+    const declaredLength = Number(req.headers.get("content-length"));
+    if (Number.isFinite(declaredLength) && declaredLength > MAX_REQUEST_BYTES) {
+      return NextResponse.json({ error: "İstek çok büyük (dosya en fazla 8MB olabilir)." }, { status: 413 });
+    }
+    const body = await readRequestBodyLimited(req);
+    if (!body) {
+      return NextResponse.json({ error: "İstek çok büyük veya okunamadı." }, { status: 413 });
+    }
+    const headers = new Headers(req.headers);
+    headers.delete("content-length");
+    const requestBody = new Uint8Array(body.length);
+    requestBody.set(body);
+    const formRequest = new Request(req.url, { method: "POST", headers, body: requestBody });
+    const formData = await formRequest.formData();
     const f = formData.get("file");
     if (f instanceof File) file = f;
   } catch {
@@ -58,7 +95,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Görsel kaydedilemedi." }, { status: 500 });
     }
     return NextResponse.json({ url });
-  } catch (e) {
-    return NextResponse.json({ error: `Yükleme başarısız: ${(e as Error).message}` }, { status: 500 });
+  } catch (error) {
+    console.error("[admin/upload-image] yükleme başarısız:", error);
+    return NextResponse.json({ error: "Yükleme başarısız. Lütfen daha sonra tekrar deneyin." }, { status: 500 });
   }
 }

@@ -1,8 +1,10 @@
 import SafeImage from "@/components/SafeImage";
-import { publicImageUrl } from "@/lib/image-url";
+import Image from "next/image";
+import { articleCoverAlt, articleCoverFallbackUrl, articleCoverUrl, isIllustrativeCover } from "@/lib/article-cover";
 import { getAllArticles, getGuides } from "@/lib/articles";
 import { HeroCard, MedCard, RankedCard, CATS, catColor, Ago } from "@/components/ArticleCard";
 import Newsletter from "@/components/Newsletter";
+import { mailEnabled } from "@/lib/mail";
 import MarketMini from "@/components/MarketMini";
 import MoversRail from "@/components/MoversRail";
 import AdSlot from "@/components/AdSlot";
@@ -10,7 +12,36 @@ import ToolsRail from "@/components/ToolsRail";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { HOME_TITLE } from "@/lib/brand";
+import type { ArticleListItem } from "@/lib/types";
 export const revalidate = 300;
+
+// Local visual preview only. Production keeps the fail-closed database behavior.
+function localPreviewArticle(title: string, category: string, slug: string, day: number, meta = "Finans gündeminden öne çıkan gelişmeler ve temel bilgiler."): ArticleListItem {
+  return {
+    title, meta, keyword: title, category, image_path: null, source: "",
+    created_at: `2026-11-${String(day).padStart(2, "0")}T09:00:00.000Z`,
+    slug, filename: `local-preview-${slug}`, imageUrl: null, views: 0, premium: false,
+  };
+}
+
+const LOCAL_PREVIEW_ARTICLES: ArticleListItem[] = [
+  localPreviewArticle("Tüketici güven endeksi kasımda yükseldi", "ekonomi", "tuketici-guven-endeksi-kasimda-yukseldi", 23, "TÜİK verilerine göre tüketici güven endeksi kasımda aylık bazda yüzde 2,4 artarak 86,8 oldu."),
+  localPreviewArticle("Altın Alım Satım Makası Nedir? Tanımı, Hesaplaması ve Dikkat Edilecekler", "altin", "altin-alim-satim-makasi-nedir", 22),
+  localPreviewArticle("Fed Tutanaklarında Faiz Artırımı Sinyali: Aralıkta 50 Baz Puan Olasılığı", "ekonomi", "fed-tutanaklarinda-faiz-artirimi-sinyali", 21),
+  localPreviewArticle("Merkez Bankası rezervleri 159 milyar dolar oldu", "ekonomi", "merkez-bankasi-rezervleri-159-milyar-dolar-oldu", 20),
+  localPreviewArticle("Blockchain Nasıl Çalışır? Merkeziyetsiz Teknolojinin Temelleri", "kripto", "blockchain-nasil-calisir-merkeziyetsiz-teknolojinin-temelleri", 19),
+  localPreviewArticle("Fransız Bankası Societe Generale'den Türkiye Ekonomisine Bakış", "ekonomi", "societe-generale-turkiye-ekonomisi", 18),
+  localPreviewArticle("Hindistan Dizel ve Havacılık Yakıtı İhracat Vergilerini Artırdı", "ekonomi", "hindistan-yakit-ihracat-vergilerini-artirdi", 17),
+  localPreviewArticle("Gümrük Denetimleriyle Vergi Kaybının Önlenmesi", "ekonomi", "gumruk-denetimleri-vergi-kaybi", 16),
+  localPreviewArticle("Elektrifikasyon Türkiye İçin Yeni Bir Ekonomik Büyüme Modeli", "ekonomi", "elektrifikasyon-turkiye-ekonomik-buyume-modeli", 15),
+  localPreviewArticle("Resesyon Nedir? Ekonomide Resesyon Ne Demek, Olursa Ne Olur", "ekonomi", "resesyon-nedir", 14),
+  localPreviewArticle("Altın Ons Fiyatı Ekim 2025 Sonrası En Düşük Seviyelerde", "altin", "altin-ons-fiyati-en-dusuk-seviyelerde", 13),
+  localPreviewArticle("VİOP Nedir? Vadeli İşlem ve Opsiyon Piyasası, Teminat ve VİOP Hesabı", "borsa", "viop-nedir-turkiye-vadeli-islem-ve-opsiyon-piyasasi-rehberi", 12),
+  localPreviewArticle("Çin Ekonomisinde Ekim Ayı Verileri: Tüketim ve Konut Piyasasında Daralma", "ekonomi", "cin-ekonomisi-ekim-verileri", 11),
+  localPreviewArticle("Cari Açık Nedir? Ekonomik Etkileri ve Hesaplama Yöntemleri", "ekonomi", "cari-acik-nedir", 10),
+  localPreviewArticle("TCMB'nin 2027 Enflasyon Tahmini ve Varsayımları", "ekonomi", "tcmb-2027-enflasyon-tahmini", 9),
+  localPreviewArticle("Gram Altın Hesaplama: 22 Ayar, Çeyrek ve Ons Formülleri", "altin", "gram-altin-hesaplama", 8),
+];
 
 export const metadata: Metadata = {
   /**
@@ -38,7 +69,18 @@ function SectionHeading({ title, href, link = "Tümünü gör" }: { title: strin
 }
 
 export default async function HomePage() {
-  const [all, guides] = await Promise.all([getAllArticles(), getGuides(6)]);
+  let all: ArticleListItem[];
+  let guides: ArticleListItem[];
+  let localPreview = false;
+  try {
+    [all, guides] = await Promise.all([getAllArticles(), getGuides(6)]);
+  } catch (error) {
+    if (process.env.NODE_ENV !== "development") throw error;
+    console.warn("[homepage] Veritabanı bağlı değil; yerel tasarım önizlemesi gösteriliyor.");
+    all = LOCAL_PREVIEW_ARTICLES;
+    guides = [];
+    localPreview = true;
+  }
   const hero = all[0];
   const secondary = all.slice(1, 4);
   const recent = all.slice(4, 16);
@@ -53,6 +95,7 @@ export default async function HomePage() {
         <div><span className="edition-eyebrow">GELECEK FİNANS</span><p>Gündemin içinden. Piyasanın yanından.</p></div>
         <Link href="/rehber">Finansı anlamaya buradan başlayın <span aria-hidden="true">↗</span></Link>
       </div>
+      {localPreview && <p className="edition-preview-note">Yerel tasarım önizlemesi · Haber veritabanı bağlı değil, kartlar örnek içerik gösteriyor.</p>}
       <div className="edition-layout">
         <div className="edition-main">
           {hero ? (
@@ -60,14 +103,17 @@ export default async function HomePage() {
               <div className="edition-kicker"><span>ÖNE ÇIKAN</span><span>HABER MASASI</span></div>
               <HeroCard article={hero} />
               {secondary.length > 0 && <div className="edition-secondary">
-                {secondary.map(a => <Link key={a.filename} href={`/${a.slug}`} className="edition-secondary-card">
-                  {a.imageUrl && <div className="edition-secondary-image"><SafeImage src={publicImageUrl(a.imageUrl)!} alt={a.title} fill sizes="(max-width: 640px) 110px, (max-width: 980px) 32vw, 280px" style={{ objectFit: "contain" }} /></div>}
-                  <div className="edition-secondary-copy">
-                    <span className="edition-category" style={{ color: catColor(a.category, "var(--accent)") }}>{CATS[a.category]?.l ?? a.category}</span>
-                    <h2>{a.title}</h2>
-                    <time dateTime={a.created_at}>{Ago(a.created_at)}</time>
-                  </div>
-                </Link>)}
+                {secondary.map(a => {
+                  const img = articleCoverUrl(a);
+                  return <Link key={a.filename} href={`/${a.slug}`} className="edition-secondary-card">
+                    {img && <div className="edition-secondary-image"><SafeImage src={img} fallbackSrc={articleCoverFallbackUrl(a)} alt={articleCoverAlt(a)} fill sizes="(max-width: 640px) 110px, (max-width: 980px) 32vw, 280px" style={{ objectFit: "cover" }} />{isIllustrativeCover(a) && <span className="illustrative-badge">Temsili görsel</span>}</div>}
+                    <div className="edition-secondary-copy">
+                      <span className="edition-category" style={{ color: catColor(a.category, "var(--accent)") }}>{CATS[a.category]?.l ?? a.category}</span>
+                      <h2>{a.title}</h2>
+                      <time dateTime={a.created_at}>{Ago(a.created_at)}</time>
+                    </div>
+                  </Link>;
+                })}
               </div>}
               {recent.length > 0 && <section className="edition-latest">
                 <SectionHeading title="Haber akışı" href="/arsiv" link="Haber arşivi" />
@@ -91,6 +137,16 @@ export default async function HomePage() {
           </section>
           <MoversRail />
           <section className="edition-guide">
+            <div className="edition-guide-visual" aria-hidden="true">
+              <Image
+                src="/visuals/financial-literacy-editorial.webp"
+                alt=""
+                width={960}
+                height={543}
+                sizes="(max-width: 980px) 90vw, 340px"
+                quality={80}
+              />
+            </div>
             <span className="edition-eyebrow">FİNANS REHBERİ</span>
             <h2>Bilgiyle atılan<br />ilk adım.</h2>
             <p>Kavramları tanıyın, piyasaları daha rahat takip edin.</p>
@@ -117,7 +173,7 @@ export default async function HomePage() {
       </section>
       <ToolsRail title="Hesaplama Araçları" />
 
-      <section id="bulten" className="edition-newsletter" aria-label="E-posta bülteni"><Newsletter /></section>
+      <section id="bulten" className="edition-newsletter" aria-label="E-posta bülteni"><Newsletter enabled={mailEnabled()} /></section>
     </div>
   );
 }

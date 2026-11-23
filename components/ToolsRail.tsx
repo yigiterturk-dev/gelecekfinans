@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { TOOL_CATALOG } from "@/lib/tool-catalog";
 
 /**
  * Araç sayfalarına gövdeden iç bağlantı.
@@ -11,24 +12,9 @@ import Link from "next/link";
  * tarayıcı gövdedeki bağlam bağlantısını takip eder.
  *
  * Bugün aynı rail ana sayfa, beş piyasa hub'ı, kategori ve makale
- * sayfalarında görünüyor. Yeni bir araç eklendiğinde TEK yerden buraya
- * eklemek yeterli.
+ * sayfalarında görünüyor. Bağlantılar ortak TOOL_CATALOG kaynağından
+ * üretildiği için rail için ayrı bir araç listesi güncellemek gerekmez.
  */
-const TOOLS = [
-  { href: "/araclar/doviz-cevirici", label: "Döviz Çevirici" },
-  { href: "/araclar/altin-hesaplama", label: "Altın Hesaplama" },
-  { href: "/araclar/kredi-faiz-hesaplama", label: "Kredi Faizi" },
-  { href: "/araclar/mevduat-faiz-hesaplama", label: "Mevduat Faizi" },
-  { href: "/araclar/enflasyon-hesaplama", label: "Enflasyon" },
-  { href: "/araclar/bilesik-faiz-hesaplama", label: "Bileşik Faiz" },
-  { href: "/araclar/hisse-kar-zarar-hesaplama", label: "Hisse Kâr/Zarar" },
-  { href: "/araclar/kira-artis-hesaplama", label: "Kira Artışı" },
-  { href: "/araclar/emekli-zammi-hesaplama", label: "Emekli Zammı" },
-  { href: "/araclar/memur-zammi-hesaplama", label: "Memur Zammı" },
-  { href: "/araclar/brut-net-maas-hesaplama", label: "Brüt Net Maaş" },
-  { href: "/araclar/temettu-hesaplama", label: "Temettü" },
-];
-
 export default function ToolsRail({
   title = "Hesaplama Araçları",
   current,
@@ -41,8 +27,8 @@ export default function ToolsRail({
     <section className="section market-links" aria-labelledby="tools-rail-title">
       <h2 className="market-h2" id="tools-rail-title">{title}</h2>
       <div className="market-chips">
-        {TOOLS.filter((t) => t.href !== current).map((t) => (
-          <Link key={t.href} href={t.href} className="market-chip">{t.label}</Link>
+        {TOOL_CATALOG.filter((tool) => `/araclar/${tool.slug}` !== current).map((tool) => (
+          <Link key={tool.slug} href={`/araclar/${tool.slug}`} className="market-chip">{tool.railLabel}</Link>
         ))}
         {current && <Link href="/araclar" className="market-chip">Tüm Araçlar</Link>}
       </div>

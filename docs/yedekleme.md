@@ -67,6 +67,34 @@ docker rm -f gf-prova
 | Tablo | 14 |
 | Veri | AutomationEvent 1428 · PageView 1146 · SearchPerformance 524 · BotRun 204 — canlıyla birebir |
 
+### Son prova — 2026-11-23
+
+22 Kasım tarihli en yeni dump, ağ bağlantısı olmayan geçici `postgres:17-alpine`
+container'ına `pg_restore --exit-on-error` ile geri yüklendi; canlı veritabanına
+bağlanılmadı.
+
+| Ölçüt | Sonuç |
+|---|---|
+| Dump | 22 Kasım 2026, 03:15 · 1.305.632 bayt · `pg_restore --list` başarılı |
+| `pg_restore` | **Hata yok** |
+| Public tablo | 14 |
+| Article | 214 |
+| AutomationEvent | 5431 |
+
+### Yayın öncesi prova — 2026-11-23
+
+Yayın öncesinde yeni custom-format dump alındı ve ağsız geçici
+`postgres:17-alpine` container'ına `pg_restore --exit-on-error` ile geri
+yüklendi. Canlı veritabanına yazılmadı.
+
+| Ölçüt | Sonuç |
+|---|---|
+| Dump | `gelecekfinans-20261123-000918.dump` · 1.323.229 bayt · 14 TABLE DATA girdisi |
+| `pg_restore` | **Hata yok** |
+| Public tablo | 14 |
+| Article | 214 |
+| AutomationEvent | 5526 |
+
 ## ⏳ Kalan
 
 - **Üçüncü kopya yok**: yedek şu an yalnız VPS'te. Sunucu tamamen kaybedilirse

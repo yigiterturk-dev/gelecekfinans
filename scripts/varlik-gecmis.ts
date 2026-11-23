@@ -9,6 +9,7 @@
 import { prisma } from "../lib/db";
 import { extractEntities } from "../lib/bot/writer";
 import { recordEntities } from "../lib/bot/entities";
+import { isAIAutomationEnabled } from "../lib/bot/ai-budget";
 
 const UYGULA = process.argv.includes("--uygula");
 const LIMIT = Number(process.argv.find((a) => a.startsWith("--limit="))?.split("=")[1]) || 25;
@@ -16,6 +17,12 @@ const LIMIT = Number(process.argv.find((a) => a.startsWith("--limit="))?.split("
 interface StoredEvidence { title: string; summary: string; content?: string }
 
 async function main() {
+  if (UYGULA && !isAIAutomationEnabled()) {
+    console.error("AI otomasyonu kapalı; model çağrısı yapılmadı. Açmak için AI_AUTOMATION_ENABLED=true gerekir.");
+    process.exitCode = 1;
+    return;
+  }
+
   const makaleler = await prisma.article.findMany({
     where: { articleSource: "BOT" },
     orderBy: { createdAt: "desc" },

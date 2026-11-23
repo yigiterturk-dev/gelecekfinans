@@ -10,6 +10,8 @@ import { prisma } from "./db";
 
 /** Bu eşiğin altındaki gösterim gürültü sayılır. */
 const MIN_OPPORTUNITY_IMPRESSIONS = 3;
+/** 5 gösterimin altındaki tazeleme sorguları tekil sıralama gürültüsü olabilir. */
+const MIN_REFRESH_QUERY_IMPRESSIONS = 5;
 /** 40. sıranın gerisi "Google bizi alakalı bulmuyor" demek; oraya yazmak boşa. */
 const MAX_OPPORTUNITY_POSITION = 40;
 /** Tazeleme için tatlı nokta: ilk sayfanın hemen dibi. */
@@ -26,13 +28,12 @@ export const COMMODITY_QUERY = /\b(kaç tl|ne kadar|kuru|kur|fiyat[ıi]?|al[ıi]
 interface Aggregate {
   impressions: number;
   clicks: number;
-  positionSum: number;
-  samples: number;
+  weightedPositionSum: number;
   page: string;
 }
 
 function average(agg: Aggregate): number {
-  return agg.samples > 0 ? agg.positionSum / agg.samples : 0;
+  return agg.impressions > 0 ? agg.weightedPositionSum / agg.impressions : 0;
 }
 
 async function aggregate(days: number, by: "query" | "page") {
@@ -43,11 +44,13 @@ async function aggregate(days: number, by: "query" | "page") {
   const map = new Map<string, Aggregate>();
   for (const row of rows) {
     const key = by === "query" ? row.query : row.page;
-    const agg = map.get(key) ?? { impressions: 0, clicks: 0, positionSum: 0, samples: 0, page: row.page };
+    const agg = map.get(key) ?? { impressions: 0, clicks: 0, weightedPositionSum: 0, page: row.page };
     agg.impressions += row.impressions;
     agg.clicks += row.clicks;
-    agg.positionSum += row.position;
-    agg.samples += 1;
+    // Search Console'ın günlük average position değeri gösterimler üzerinden
+    // hesaplanır. Birden fazla günü toplarken günleri eşit değil, gösterim
+    // sayılarıyla ağırlıklandır; aksi hâlde tek gösterimli gün baskın olabilir.
+    agg.weightedPositionSum += row.position * row.impressions;
     map.set(key, agg);
   }
   return map;
@@ -174,11 +177,10 @@ async function queryStats(days: number): Promise<QueryStat[]> {
   const map = new Map<string, Aggregate>();
   for (const row of rows) {
     const key = `${row.page}\u0000${row.query}`;
-    const agg = map.get(key) ?? { impressions: 0, clicks: 0, positionSum: 0, samples: 0, page: row.page };
+    const agg = map.get(key) ?? { impressions: 0, clicks: 0, weightedPositionSum: 0, page: row.page };
     agg.impressions += row.impressions;
     agg.clicks += row.clicks;
-    agg.positionSum += row.position;
-    agg.samples += 1;
+    agg.weightedPositionSum += row.position * row.impressions;
     map.set(key, agg);
   }
 
@@ -212,7 +214,10 @@ export async function getRefreshCandidates(days = 90, limit = 10): Promise<Refre
   const out: RefreshCandidate[] = [];
   for (const [page, list] of byPage) {
     const nearMiss = list
-      .filter((s) => s.position >= REFRESH_MIN_POSITION && s.position <= REFRESH_MAX_POSITION)
+      .filter((s) =>
+        s.impressions >= MIN_REFRESH_QUERY_IMPRESSIONS &&
+        s.position >= REFRESH_MIN_POSITION && s.position <= REFRESH_MAX_POSITION,
+      )
       .sort((a, b) => a.position - b.position);
     if (nearMiss.length === 0) continue;
     out.push({

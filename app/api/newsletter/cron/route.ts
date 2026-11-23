@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { sendDailyDigest, lastBatchResult } from "@/lib/mail";
+import { sendDailyDigest, lastBatchResult, mailEnabled } from "@/lib/mail";
 
 export const maxDuration = 60;
 
@@ -45,6 +45,12 @@ export async function GET(req: NextRequest) {
       articles: articles.length,
     });
     return NextResponse.json({ sent: 0, reason: articles.length === 0 ? "no articles" : "no subscribers" });
+  }
+
+  if (!mailEnabled()) {
+    const reason = "Bülten atlandı: e-posta sağlayıcısı veya abonelik imza anahtarı yapılandırılmamış";
+    await kaydet(reason, { code: "MAIL_NOT_CONFIGURED" }, "warning");
+    return NextResponse.json({ sent: 0, skipped: true, reason: "mail not configured" });
   }
 
   const emails = subscribers.map((s) => s.email);

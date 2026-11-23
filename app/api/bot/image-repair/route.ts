@@ -4,15 +4,26 @@ import { asJson } from "@/lib/prisma-json";
 import { analyzeSeo } from "@/lib/seo";
 import { decidePublication } from "@/lib/bot/autonomy";
 import { getArticleImageResult } from "@/lib/bot/images";
-import { getSettings } from "@/lib/settings";
+import { acquireCronLock, releaseCronLock } from "@/lib/bot/cron-lock";
 
 export const maxDuration = 300;
+const PRIVATE_HEADERS = { "Cache-Control": "private, no-store, max-age=0" };
 
 export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
   if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: PRIVATE_HEADERS });
   }
+
+  const lock = await acquireCronLock("bot:publishing-pipeline");
+  if (!lock) {
+    return NextResponse.json(
+      { repaired: 0, skipped: true, reason: "Başka bir bot akışı sürüyor" },
+      { status: 409, headers: { ...PRIVATE_HEADERS, "Retry-After": "30" } },
+    );
+  }
+
+  try {
 
   // Görselsiz makale filtresi: imageUrl hem null hem boş string olabiliyordu
   // (admin panelinden boş kapakla kaydedilen kayıtlar "" yazıyordu) ve yalnızca
@@ -32,7 +43,7 @@ export async function GET(req: NextRequest) {
       where: { ...missingImage, status: "DRAFT", publicationDecision: "REVIEW" },
       orderBy: { createdAt: "desc" },
     }));
-  if (!article) return NextResponse.json({ repaired: 0, message: "Görsel bekleyen makale yok" });
+  if (!article) return NextResponse.json({ repaired: 0, message: "Görsel bekleyen makale yok" }, { headers: PRIVATE_HEADERS });
 
   const recent = await prisma.article.findMany({
     where: { imageUrl: { not: null }, id: { not: article.id } },
@@ -74,20 +85,19 @@ export async function GET(req: NextRequest) {
       where: { id: article.id },
       data: { automationMeta: asJson(automationMeta), imageStrategy: "NONE" },
     });
-    return NextResponse.json({ repaired: 0, articleId: article.id, audit: image.audit });
+    return NextResponse.json({ repaired: 0, articleId: article.id, audit: image.audit }, { headers: PRIVATE_HEADERS });
   }
 
   const seo = analyzeSeo({
     title: article.title, meta: article.meta, keyword: article.keyword,
     content: article.content, slug: article.slug, imageUrl: image.url,
   });
-  const settings = await getSettings();
   const publication = decidePublication({
     risk: article.riskLevel,
     sourceScore: article.sourceScore || 0,
     seoScore: seo.score,
     hasImage: true,
-    autoPublishEnabled: settings.autonomy?.enabled ?? false,
+    autoPublishEnabled: false,
     verifiedEvidence: previous.verifiedEvidence === true,
   });
   await prisma.article.update({
@@ -114,5 +124,8 @@ export async function GET(req: NextRequest) {
     articleId: article.id,
     decision: publication.decision,
     audit: image.audit,
-  });
+  }, { headers: PRIVATE_HEADERS });
+  } finally {
+    await releaseCronLock(lock).catch(() => {});
+  }
 }

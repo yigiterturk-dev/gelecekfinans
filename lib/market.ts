@@ -6,13 +6,13 @@
  * `null` döner. Sayfalar bu null'a göre CLS-güvenli "veri alınamadı" gösterir.
  *
  * Kaynaklar:
- *  - Döviz: open.er-api.com (anahtarsız, USD bazlı kurlar)
+ *  - Döviz: Frankfurter v2 (anahtarsız referans kurları ve tarihçe)
  *  - Kripto: CoinGecko public API (TL fiyatları + 7g sparkline)
  *  - Altın: ons altın USD (Yahoo GC=F) × USDTRY → gram/çeyrek/cumhuriyet TL
  *  - Faiz: TCMB politika faizi (statik, manuel güncellenir — sadece bilgi amaçlı)
  */
 
-const TROY_OUNCE_GRAMS = 31.1035;
+import { TROY_OUNCE_GRAMS, ziynetGoldFineGrams } from "@/lib/gold-standards";
 
 /** Verilen URL'i timeout + savunmacı şekilde fetch eder. Hata/timeout → null. */
 async function safeFetch<T>(
@@ -87,40 +87,87 @@ export const FX_PAIRS: Record<
   "cad-try": { base: "CAD", label: "Kanada Doları", symbol: "C$", flag: "🇨🇦", long: "Kanada Doları" },
 };
 
-interface ErApiResp {
-  result?: string;
-  rates?: Record<string, number>;
-  time_last_update_utc?: string;
+interface FrankfurterRate {
+  date: string;
+  base: string;
+  quote: string;
+  rate: number;
+}
+
+function inverseFxRate(value: number): number | null {
+  if (!Number.isFinite(value) || value <= 0) return null;
+  const inverse = 1 / value;
+  return Number.isFinite(inverse) && inverse > 0 ? inverse : null;
+}
+
+function isValidIsoDate(value: unknown): value is string {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
+function roundFxRate(value: number): number | null {
+  if (!Number.isFinite(value) || value <= 0) return null;
+  const rounded = Math.round(value * 10000) / 10000;
+  return Number.isFinite(rounded) && rounded > 0 ? rounded : null;
+}
+
+function fxPercentChange(current: number, previous: number | null): number | null {
+  if (!Number.isFinite(current) || current <= 0 || previous === null || !Number.isFinite(previous) || previous <= 0) {
+    return null;
+  }
+  const change = ((current - previous) / previous) * 100;
+  if (!Number.isFinite(change)) return null;
+  const rounded = Math.round(change * 100) / 100;
+  return Number.isFinite(rounded) ? rounded : null;
+}
+
+function fxAbsoluteChange(current: number, previous: number | null): number | null {
+  if (!Number.isFinite(current) || previous === null || !Number.isFinite(previous)) return null;
+  const change = Math.round((current - previous) * 10000) / 10000;
+  return Number.isFinite(change) ? change : null;
 }
 
 /**
- * Tek bir kaynakla (open.er-api.com) tüm pariteleri çeker.
- * USD bazlı tablodan TRY ve hedef para birimini türetir.
+ * TRY bazlı tek istekle tüm pariteleri çeker; gün alanı her para birimi için saklanır.
  */
 async function getFxTable(): Promise<{
   rates: Record<string, number>;
-  updatedAt: string | null;
+  updatedAt: Record<string, string>;
 } | null> {
-  const data = await safeFetch<ErApiResp>(
-    "https://open.er-api.com/v6/latest/USD",
-    600, // 10 dk önbellek — ücretsiz API'yi yormamak için
-  );
-  if (!data || data.result !== "success" || !data.rates?.TRY) return null;
-  return { rates: data.rates, updatedAt: data.time_last_update_utc ?? null };
-}
-
-/** Bir önceki günün kapanışını (open.er-api ücretsiz uçta yok) yaklaşık olarak
- *  exchangerate.host timeseries üzerinden dener. Başarısızsa null (değişim gizlenir). */
-async function getFxPrevRate(base: string): Promise<number | null> {
-  const today = new Date();
-  const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
-  const d = yesterday.toISOString().slice(0, 10);
-  const data = await safeFetch<{ rates?: Record<string, number> }>(
-    `https://api.exchangerate.host/${d}?base=${base}&symbols=TRY`,
+  const quotes = [...new Set(Object.values(FX_PAIRS).map((pair) => pair.base))].join(",");
+  const data = await safeFetch<FrankfurterRate[]>(
+    `https://api.frankfurter.dev/v2/rates?base=TRY&quotes=${quotes}`,
     3600,
   );
-  const r = data?.rates?.TRY;
-  return typeof r === "number" && r > 0 ? r : null;
+  if (!data?.length) return null;
+  const rates: Record<string, number> = {};
+  const updatedAt: Record<string, string> = {};
+  for (const row of data) {
+    if (!row || typeof row.quote !== "string" || !isValidIsoDate(row.date)) continue;
+    const rate = inverseFxRate(row.rate);
+    if (rate === null) continue;
+    rates[row.quote] = rate;
+    updatedAt[row.quote] = row.date;
+  }
+  return Object.keys(rates).length ? { rates, updatedAt } : null;
+}
+
+/** En son yayınlanan referans gününden önceki son iş günü kurunu bulur. */
+async function getFxPrevRate(base: string, currentDate: string | null): Promise<number | null> {
+  if (!isValidIsoDate(currentDate)) return null;
+  const end = new Date(`${currentDate}T00:00:00Z`);
+  const start = new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const from = start.toISOString().slice(0, 10);
+  const data = await safeFetch<FrankfurterRate[]>(
+    `https://api.frankfurter.dev/v2/rates?from=${from}&to=${currentDate}&base=${base}&quotes=TRY`,
+    3600,
+  );
+  const previous = data
+    ?.filter((row) => row && isValidIsoDate(row.date) && row.date < currentDate
+      && Number.isFinite(row.rate) && row.rate > 0)
+    .sort((a, b) => b.date.localeCompare(a.date))[0];
+  return previous?.rate ?? null;
 }
 
 export async function getFx(pair: string): Promise<FxRate | null> {
@@ -129,22 +176,15 @@ export async function getFx(pair: string): Promise<FxRate | null> {
   const table = await getFxTable();
   if (!table) return null;
 
-  const tryPerUsd = table.rates.TRY;
-  let rate: number;
-  if (cfg.base === "USD") {
-    rate = tryPerUsd;
-  } else {
-    const basePerUsd = table.rates[cfg.base];
-    if (!basePerUsd || basePerUsd <= 0) return null;
-    // 1 BASE = (TRY/USD) / (BASE/USD) TL
-    rate = tryPerUsd / basePerUsd;
-  }
-  rate = Math.round(rate * 10000) / 10000;
+  const rawRate = table.rates[cfg.base];
+  const rate = rawRate ? roundFxRate(rawRate) : null;
+  if (rate === null) return null;
 
-  const prevRate = await getFxPrevRate(cfg.base);
-  const changeAbs = prevRate ? Math.round((rate - prevRate) * 10000) / 10000 : null;
-  const changePct =
-    prevRate && prevRate > 0 ? Math.round(((rate - prevRate) / prevRate) * 10000) / 100 : null;
+  const updatedAt = table.updatedAt[cfg.base] ?? null;
+  const rawPrevRate = await getFxPrevRate(cfg.base, updatedAt);
+  const prevRate = rawPrevRate !== null && Number.isFinite(rawPrevRate) && rawPrevRate > 0 ? rawPrevRate : null;
+  const changeAbs = fxAbsoluteChange(rate, prevRate);
+  const changePct = fxPercentChange(rate, prevRate);
 
   return {
     rate,
@@ -153,66 +193,90 @@ export async function getFx(pair: string): Promise<FxRate | null> {
     changePct,
     base: cfg.base,
     quote: "TRY",
-    updatedAt: table.updatedAt,
+    updatedAt,
   };
 }
 
 /** Tüm pariteleri tek tabloyla çeker (hub sayfası + çevirici için verimli). */
 export async function getAllFx(): Promise<Record<string, FxRate | null>> {
-  const table = await getFxTable();
-  const out: Record<string, FxRate | null> = {};
-  for (const key of Object.keys(FX_PAIRS)) {
-    if (!table) {
-      out[key] = null;
-      continue;
-    }
-    const cfg = FX_PAIRS[key];
-    const tryPerUsd = table.rates.TRY;
-    let rate: number | null = null;
-    if (cfg.base === "USD") rate = tryPerUsd;
-    else {
-      const basePerUsd = table.rates[cfg.base];
-      if (basePerUsd && basePerUsd > 0) rate = tryPerUsd / basePerUsd;
-    }
-    if (rate == null) {
-      out[key] = null;
-      continue;
-    }
-    rate = Math.round(rate * 10000) / 10000;
-    const prevRate = await getFxPrevRate(cfg.base);
-    const changeAbs = prevRate ? Math.round((rate - prevRate) * 10000) / 10000 : null;
-    const changePct =
-      prevRate && prevRate > 0 ? Math.round(((rate - prevRate) / prevRate) * 10000) / 100 : null;
-    out[key] = {
-      rate,
-      prevRate,
-      changeAbs,
-      changePct,
-      base: cfg.base,
-      quote: "TRY",
-      updatedAt: table.updatedAt,
-    };
-  }
-  return out;
-}
-
-/** Son ~30 günün kur geçmişini (sparkline için) exchangerate.host'tan çeker.
- *  Başarısız olursa null (grafik gizlenir, sayfa çalışır). */
-export async function getFxHistory(base: string): Promise<number[] | null> {
+  const quotes = [...new Set(Object.values(FX_PAIRS).map((pair) => pair.base))].join(",");
   const end = new Date();
-  const start = new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
-  const s = start.toISOString().slice(0, 10);
-  const e = end.toISOString().slice(0, 10);
-  const data = await safeFetch<{ rates?: Record<string, { TRY?: number }> }>(
-    `https://api.exchangerate.host/timeseries?start_date=${s}&end_date=${e}&base=${base}&symbols=TRY`,
+  const start = new Date(end.getTime() - 14 * 24 * 60 * 60 * 1000);
+  const series = await safeFetch<FrankfurterRate[]>(
+    `https://api.frankfurter.dev/v2/rates?from=${start.toISOString().slice(0, 10)}&to=${end.toISOString().slice(0, 10)}&base=TRY&quotes=${quotes}`,
     3600,
   );
-  if (!data?.rates) return null;
-  const points = Object.keys(data.rates)
-    .sort()
-    .map((day) => data.rates![day]?.TRY)
-    .filter((v): v is number => typeof v === "number" && v > 0);
-  return points.length > 1 ? points : null;
+  const byQuote = new Map<string, FrankfurterRate[]>();
+  for (const row of series || []) {
+    if (
+      !row || typeof row.quote !== "string"
+      || !isValidIsoDate(row.date)
+      || !Number.isFinite(row.rate) || row.rate <= 0
+    ) continue;
+    const rows = byQuote.get(row.quote) || [];
+    rows.push(row);
+    byQuote.set(row.quote, rows);
+  }
+
+  const rows = Object.entries(FX_PAIRS).map(([key, cfg]) => {
+    const observations = byQuote.get(cfg.base)?.sort((a, b) => b.date.localeCompare(a.date)) || [];
+    const current = observations[0];
+    if (!current) return [key, null] as const;
+    const previous = observations.find((row) => row.date < current.date);
+    const inverseRate = inverseFxRate(current.rate);
+    const rate = inverseRate === null ? null : roundFxRate(inverseRate);
+    if (rate === null) return [key, null] as const;
+    const prevInverse = previous ? inverseFxRate(previous.rate) : null;
+    const prevRate = prevInverse === null ? null : prevInverse;
+    const changeAbs = fxAbsoluteChange(rate, prevRate);
+    const changePct = fxPercentChange(rate, prevRate);
+    return [key, { rate, prevRate, changeAbs, changePct, base: cfg.base, quote: "TRY", updatedAt: current.date }] as const;
+  });
+  return Object.fromEntries(rows) as Record<string, FxRate | null>;
+}
+
+/** Tekil parite sayfası için güncel kur, önceki iş günü ve grafiği tek çağrıda al. */
+export async function getFxWithHistory(base: string): Promise<{
+  rate: FxRate | null;
+  history: number[] | null;
+}> {
+  const pair = Object.entries(FX_PAIRS).find(([, config]) => config.base === base)?.[0];
+  if (!pair) {
+    return { rate: null, history: null };
+  }
+  const end = new Date();
+  const start = new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const series = await safeFetch<FrankfurterRate[]>(
+    `https://api.frankfurter.dev/v2/rates?from=${start.toISOString().slice(0, 10)}&to=${end.toISOString().slice(0, 10)}&base=TRY&quotes=${base}`,
+    3600,
+  );
+  const observations = (series || [])
+    .filter((row) => row && row.quote === base && isValidIsoDate(row.date)
+      && Number.isFinite(row.rate) && row.rate > 0)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const current = observations.at(-1);
+  if (!current) {
+    // Tarihçe ucu geçici olarak boşsa, eski tekli uçtan en az güncel kuru koru.
+    return { rate: await getFx(pair), history: null };
+  }
+
+  const previous = [...observations].reverse().find((row) => row.date < current.date);
+  const currentInverse = inverseFxRate(current.rate);
+  const normalizedRate = currentInverse === null ? null : roundFxRate(currentInverse);
+  if (normalizedRate === null) return { rate: await getFx(pair), history: null };
+  const previousInverse = previous ? inverseFxRate(previous.rate) : null;
+  const prevRate = previousInverse === null ? null : previousInverse;
+  const changeAbs = fxAbsoluteChange(normalizedRate, prevRate);
+  const changePct = fxPercentChange(normalizedRate, prevRate);
+  const history = observations
+    .map((row) => inverseFxRate(row.rate))
+    .filter((value): value is number => value !== null && Number.isFinite(value) && value > 0);
+  return {
+    rate: {
+      rate: normalizedRate, prevRate, changeAbs, changePct, base, quote: "TRY", updatedAt: current.date,
+    },
+    history: history.length > 1 ? history : null,
+  };
 }
 
 export interface TcmbFx {
@@ -370,6 +434,10 @@ export interface GoldPrice {
   type: string;
   price: number; // TL
   changePct: number | null;
+  /** Quote provider selected by getGoldUsd; carried through for attribution. */
+  goldSource?: "Yahoo Finance" | "CoinGecko";
+  /** Altın kotasyonunun kaynağında görülen son güncelleme zamanı. */
+  goldUpdatedAt?: string | null;
   updatedAt: string | null;
 }
 
@@ -385,15 +453,21 @@ export const GOLD_TYPES: Record<
   },
   "ceyrek-altin": {
     label: "Çeyrek Altın",
-    long: "Çeyrek Altın",
-    grams: 1.75, // ~1.75 g saf altın içeriği (yaklaşık piyasa standardı)
-    desc: "Çeyrek altının güncel Türk Lirası fiyatı (yaklaşık saf altın içeriğine göre).",
+    long: "Çeyrek Cumhuriyet Ziynet Altını",
+    grams: ziynetGoldFineGrams("quarter"),
+    desc: "Darphane'nin 22 ayar çeyrek ziynet altını standardına göre yaklaşık metal karşılığı.",
+  },
+  "yarim-altin": {
+    label: "Yarım Altın",
+    long: "Yarım Cumhuriyet Ziynet Altını",
+    grams: ziynetGoldFineGrams("half"),
+    desc: "Darphane'nin 22 ayar yarım ziynet altını standardına göre yaklaşık metal karşılığı.",
   },
   "cumhuriyet-altini": {
     label: "Cumhuriyet Altını",
-    long: "Cumhuriyet Altını (Tam)",
-    grams: 7.016, // tam cumhuriyet altını saf altın içeriği
-    desc: "Tam Cumhuriyet altınının güncel Türk Lirası fiyatı.",
+    long: "Cumhuriyet Ziynet Altını (Tam)",
+    grams: ziynetGoldFineGrams("full"),
+    desc: "Darphane'nin 22 ayar tam ziynet altını standardına göre yaklaşık metal karşılığı.",
   },
   ons: {
     label: "Ons Altın",
@@ -404,29 +478,64 @@ export const GOLD_TYPES: Record<
 };
 
 /** Ons altın USD fiyatını Yahoo'dan (GC=F), olmazsa CoinGecko tether-gold'dan çeker. */
-async function getGoldUsd(): Promise<{ price: number; prev: number | null } | null> {
+function validUnixTimestampIso(value: unknown): string | null {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return null;
+  const date = new Date(value * 1000);
+  return Number.isFinite(date.getTime()) ? date.toISOString() : null;
+}
+
+function goldChangePercent(current: number, previous: number | null): number | null {
+  if (!Number.isFinite(current) || current <= 0 || previous === null || !Number.isFinite(previous) || previous <= 0) {
+    return null;
+  }
+  const change = ((current - previous) / previous) * 100;
+  if (!Number.isFinite(change)) return null;
+  const rounded = Math.round(change * 100) / 100;
+  return Number.isFinite(rounded) ? rounded : null;
+}
+
+async function getGoldUsd(): Promise<{
+  price: number;
+  prev: number | null;
+  updatedAt: string | null;
+  source: "Yahoo Finance" | "CoinGecko";
+} | null> {
   const yahoo = await safeFetch<{
-    chart?: { result?: { meta?: { regularMarketPrice?: number; fulldayChange?: number } }[] };
+    chart?: { result?: { meta?: { regularMarketPrice?: number; regularMarketTime?: number; fulldayChange?: number } }[] };
   }>(
     "https://query1.finance.yahoo.com/v8/finance/chart/GC=F?interval=1d&range=2d",
     600,
   );
   const meta = yahoo?.chart?.result?.[0]?.meta;
-  if (meta?.regularMarketPrice) {
-    return { price: meta.regularMarketPrice, prev: yahooDailyPrev(meta) };
+  const yahooPrice = meta?.regularMarketPrice;
+  if (typeof yahooPrice === "number" && Number.isFinite(yahooPrice) && yahooPrice > 0) {
+    const previous = yahooDailyPrev(meta);
+    return {
+      price: yahooPrice,
+      prev: previous !== null && Number.isFinite(previous) && previous > 0 ? previous : null,
+      updatedAt: validUnixTimestampIso(meta?.regularMarketTime),
+      source: "Yahoo Finance",
+    };
   }
   // Fallback: CoinGecko tether-gold (≈ 1 ons altın)
   const cg = await safeFetch<{
-    "tether-gold"?: { usd?: number; usd_24h_change?: number };
+    "tether-gold"?: { usd?: number; usd_24h_change?: number; last_updated_at?: number };
   }>(
-    "https://api.coingecko.com/api/v3/simple/price?ids=tether-gold&vs_currencies=usd&include_24hr_change=true",
+    "https://api.coingecko.com/api/v3/simple/price?ids=tether-gold&vs_currencies=usd&include_24hr_change=true&include_last_updated_at=true",
     600,
   );
   const xaut = cg?.["tether-gold"];
-  if (xaut?.usd) {
-    const pct = xaut.usd_24h_change ?? 0;
-    const prev = pct ? xaut.usd / (1 + pct / 100) : null;
-    return { price: xaut.usd, prev };
+  if (typeof xaut?.usd === "number" && Number.isFinite(xaut.usd) && xaut.usd > 0) {
+    const pct = typeof xaut.usd_24h_change === "number" && Number.isFinite(xaut.usd_24h_change)
+      ? xaut.usd_24h_change
+      : null;
+    const previous = pct !== null && pct > -100 ? xaut.usd / (1 + pct / 100) : null;
+    return {
+      price: xaut.usd,
+      prev: previous !== null && Number.isFinite(previous) && previous > 0 ? previous : null,
+      updatedAt: validUnixTimestampIso(xaut.last_updated_at),
+      source: "CoinGecko",
+    };
   }
   return null;
 }
@@ -439,7 +548,9 @@ export async function getGold(type: string): Promise<GoldPrice | null> {
   if (!usdTry || !goldUsd) return null;
 
   const onsTry = goldUsd.price * usdTry.rate;
-  const prevOnsTry = goldUsd.prev != null ? goldUsd.prev * usdTry.rate : null;
+  const prevOnsTry = goldUsd.prev != null
+    ? goldUsd.prev * (usdTry.prevRate ?? usdTry.rate)
+    : null;
 
   let price: number;
   let prev: number | null;
@@ -453,10 +564,18 @@ export async function getGold(type: string): Promise<GoldPrice | null> {
     prev = prevGramTry != null ? prevGramTry * cfg.grams : null;
   }
   price = Math.round(price * 100) / 100;
-  const changePct =
-    prev && prev > 0 ? Math.round(((price - prev) / prev) * 10000) / 100 : null;
+  if (!Number.isFinite(price) || price <= 0) return null;
+  if (prev !== null && (!Number.isFinite(prev) || prev <= 0)) prev = null;
+  const changePct = goldChangePercent(price, prev);
 
-  return { type, price, changePct, updatedAt: usdTry.updatedAt };
+  return {
+    type,
+    price,
+    changePct,
+    goldSource: goldUsd.source,
+    goldUpdatedAt: goldUsd.updatedAt,
+    updatedAt: usdTry.updatedAt,
+  };
 }
 
 export async function getAllGold(): Promise<Record<string, GoldPrice | null>> {
@@ -470,7 +589,9 @@ export async function getAllGold(): Promise<Record<string, GoldPrice | null>> {
     }
     const cfg = GOLD_TYPES[type];
     const onsTry = goldUsd.price * usdTry.rate;
-    const prevOnsTry = goldUsd.prev != null ? goldUsd.prev * usdTry.rate : null;
+    const prevOnsTry = goldUsd.prev != null
+      ? goldUsd.prev * (usdTry.prevRate ?? usdTry.rate)
+      : null;
     let price: number;
     let prev: number | null;
     if (cfg.grams === "ons") {
@@ -483,8 +604,20 @@ export async function getAllGold(): Promise<Record<string, GoldPrice | null>> {
       prev = prevGramTry != null ? prevGramTry * cfg.grams : null;
     }
     price = Math.round(price * 100) / 100;
-    const changePct = prev && prev > 0 ? Math.round(((price - prev) / prev) * 10000) / 100 : null;
-    out[type] = { type, price, changePct, updatedAt: usdTry.updatedAt };
+    if (!Number.isFinite(price) || price <= 0) {
+      out[type] = null;
+      continue;
+    }
+    if (prev !== null && (!Number.isFinite(prev) || prev <= 0)) prev = null;
+    const changePct = goldChangePercent(price, prev);
+    out[type] = {
+      type,
+      price,
+      changePct,
+      goldSource: goldUsd.source,
+      goldUpdatedAt: goldUsd.updatedAt,
+      updatedAt: usdTry.updatedAt,
+    };
   }
   return out;
 }
@@ -520,62 +653,73 @@ export const CRYPTO_COINS: Record<
   dogecoin: { id: "dogecoin", label: "Dogecoin", symbol: "DOGE" },
 };
 
-interface CgMarket {
-  id: string;
-  symbol: string;
-  name: string;
-  current_price: number;
-  price_change_percentage_24h: number | null;
-  market_cap: number | null;
-  high_24h: number | null;
-  low_24h: number | null;
-  last_updated?: string;
-  sparkline_in_7d?: { price?: number[] };
+function normalizeCoinGeckoMarket(value: unknown): CryptoPrice | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const row = value as Record<string, unknown>;
+  const id = typeof row.id === "string" ? row.id.trim() : "";
+  const symbol = typeof row.symbol === "string" ? row.symbol.trim().slice(0, 20).toUpperCase() : "";
+  const name = typeof row.name === "string" ? row.name.trim() : "";
+  const price = row.current_price;
+  if (!/^[a-z0-9_-]{1,80}$/i.test(id) || !symbol
+    || typeof price !== "number" || !Number.isFinite(price) || price <= 0) return null;
+
+  const finiteValue = (candidate: unknown, positive = false): number | null =>
+    typeof candidate === "number" && Number.isFinite(candidate) && (!positive || candidate > 0)
+      ? candidate
+      : null;
+  const sparkRow = row.sparkline_in_7d;
+  const sparkValues = sparkRow && typeof sparkRow === "object" && !Array.isArray(sparkRow)
+    ? (sparkRow as Record<string, unknown>).price
+    : null;
+  const sparkline = Array.isArray(sparkValues)
+    ? sparkValues.filter((point): point is number => typeof point === "number" && Number.isFinite(point) && point > 0).slice(-168)
+    : null;
+  const updatedAt = typeof row.last_updated === "string" && Number.isFinite(Date.parse(row.last_updated))
+    ? row.last_updated
+    : null;
+
+  return {
+    id,
+    symbol,
+    name: name ? name.slice(0, 100) : symbol,
+    price,
+    changePct: finiteValue(row.price_change_percentage_24h),
+    marketCap: finiteValue(row.market_cap, true),
+    high24h: finiteValue(row.high_24h, true),
+    low24h: finiteValue(row.low_24h, true),
+    sparkline: sparkline?.length ? sparkline : null,
+    updatedAt,
+  };
 }
 
 export async function getCrypto(slug: string): Promise<CryptoPrice | null> {
   const cfg = CRYPTO_COINS[slug];
   if (!cfg) return null;
-  const data = await safeFetch<CgMarket[]>(
+  const data = await safeFetch<unknown>(
     `https://api.coingecko.com/api/v3/coins/markets?vs_currency=try&ids=${cfg.id}&sparkline=true&price_change_percentage=24h`,
     300,
   );
-  const m = data?.[0];
-  if (!m || typeof m.current_price !== "number") return null;
-  const spark = m.sparkline_in_7d?.price;
+  const rows = Array.isArray(data) ? data : [];
+  const market = normalizeCoinGeckoMarket(rows[0]);
+  if (!market || market.id !== cfg.id) return null;
   return {
+    ...market,
     id: cfg.id,
     symbol: cfg.symbol,
     name: cfg.label,
-    price: m.current_price,
-    changePct: m.price_change_percentage_24h ?? null,
-    marketCap: m.market_cap ?? null,
-    high24h: m.high_24h ?? null,
-    low24h: m.low_24h ?? null,
-    sparkline: Array.isArray(spark) && spark.length ? spark : null,
-    updatedAt: m.last_updated ?? null,
   };
 }
 
 /** Hub için piyasa değeri sıralı ilk N kripto. */
 export async function getCryptoMarkets(): Promise<CryptoPrice[]> {
-  const data = await safeFetch<CgMarket[]>(
+  const data = await safeFetch<unknown>(
     "https://api.coingecko.com/api/v3/coins/markets?vs_currency=try&order=market_cap_desc&per_page=20&sparkline=false&price_change_percentage=24h",
     300,
   );
   if (!data || !Array.isArray(data)) return [];
-  return data.map((m) => ({
-    id: m.id,
-    symbol: (m.symbol || "").toUpperCase(),
-    name: m.name,
-    price: m.current_price,
-    changePct: m.price_change_percentage_24h ?? null,
-    marketCap: m.market_cap ?? null,
-    high24h: m.high_24h ?? null,
-    low24h: m.low_24h ?? null,
-    sparkline: null,
-    updatedAt: m.last_updated ?? null,
-  }));
+  return data.map(normalizeCoinGeckoMarket)
+    .filter((market): market is CryptoPrice => market !== null)
+    .slice(0, 20);
 }
 
 /* ----------------------------------------------------------------------------
@@ -591,8 +735,9 @@ export interface RateInfo {
 
 /** TCMB politika faizi vb. — ücretsiz canlı uç güvenilir olmadığından statik referans.
  *  Tarih ile birlikte gösterilir; yatırım tavsiyesi değildir. */
-export const REFERENCE_RATES: { asOf: string; rates: RateInfo[] } = {
-  asOf: "2026-10",
+export const REFERENCE_RATES: { decisionDate: string; sourceUrl: string; rates: RateInfo[] } = {
+  decisionDate: "22 Ekim 2026",
+  sourceUrl: "https://www.tcmb.gov.tr/wps/wcm/connect/tr/tcmb%2Btr/main%2Bmenu/duyurular/basin/2026/duy2026-45",
   rates: [
     {
       label: "TCMB Politika Faizi (1 Hafta Repo)",
@@ -625,8 +770,7 @@ import type { ArticleListItem } from "@/lib/types";
 export async function safeRelatedArticles(cat: string, limit = 4): Promise<ArticleListItem[]> {
   try {
     const { getArticlesByCategory } = await import("@/lib/articles");
-    const arts = await getArticlesByCategory(cat);
-    return arts.slice(0, limit);
+    return await getArticlesByCategory(cat, limit);
   } catch {
     return [];
   }
@@ -706,11 +850,15 @@ export function yahooDailyPrev(
   closes: number[] = [],
 ): number | null {
   const p = meta?.regularMarketPrice;
-  if (typeof p === "number" && typeof meta?.fulldayChange === "number") {
+  if (typeof p === "number" && Number.isFinite(p) && p > 0
+    && typeof meta?.fulldayChange === "number" && Number.isFinite(meta.fulldayChange)) {
     const prev = p - meta.fulldayChange;
-    if (prev > 0) return prev;
+    if (Number.isFinite(prev) && prev > 0) return prev;
   }
-  return closes.length >= 2 ? closes[closes.length - 2] : null;
+  const previousClose = closes.length >= 2 ? closes[closes.length - 2] : null;
+  return typeof previousClose === "number" && Number.isFinite(previousClose) && previousClose > 0
+    ? previousClose
+    : null;
 }
 
 export interface StockStats {
@@ -860,10 +1008,27 @@ export function fmtUpdated(iso: string | null): string {
   if (!iso) return "";
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+    return d.toLocaleDateString("tr-TR", { day: "2-digit", month: "long", timeZone: "Europe/Istanbul" });
+  }
   return d.toLocaleString("tr-TR", {
     day: "2-digit",
     month: "long",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "Europe/Istanbul",
   });
+}
+
+export function fmtGoldQuoteUpdated(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return new Intl.DateTimeFormat("tr-TR", {
+    day: "2-digit",
+    month: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/Istanbul",
+  }).format(d);
 }

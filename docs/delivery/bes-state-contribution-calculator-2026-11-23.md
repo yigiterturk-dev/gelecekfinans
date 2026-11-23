@@ -1,0 +1,9 @@
+# 2026 BES devlet katkısı hesaplayıcısı
+
+Araç, kullanıcının 2026 boyunca kendi ödediği BES katkı payından tahmini devlet katkısını hesaplar. EGM’nin 2026 için açıkladığı %20 oranı ve 396.360 TL uygun katkı payı tavanı kullanılır; azami devlet katkısı 79.272 TL’dir. Tavanı aşan katkı tutarı devreden aşım olarak ayrı gösterilir. İşveren katkıları uygun tutara dahil edilmez.
+
+Eklenenler: hesaplayıcı, araç detay sayfası ve finans araçları hub bağlantısı, içerik rehberi, SSS ve sitemap kaydı. Rehber hak ediş basamaklarını açıklar. İsteğe bağlı ikinci bölüm güncel devlet katkısı hesabı bakiyesine ve kullanıcının girdiği hak edişe esas süreye göre normal ayrılmadaki kazanılmış/kazanılmamış tutarı tahmin eder; özel durumları otomatik belirlemez. Kullanıcıya bu bakiye alanında toplam BES birikimi yerine EGM BES Mobil/e-Devlet’te görünen devlet katkısı hesabını girmesi hatırlatılır. İki hesaplamanın çıktıları ayrı başlıklı ve erişilebilir bölümlerde gösterilir. Boş alan artık sıfır kabul edilmez. Araç rehberi ve SSS kuralı belgelendi: değişken canlı veriler hariç, yıl etiketi ve birincil kaynağı olan yıl-sabitlenmiş hesaplayıcılarda o yılın oran/tavanı verilebilir. Hesaplayıcı tek bir katılımcı için çalışır; aynı kişinin gönüllü BES sözleşmeleri toplanır, çocuk/başka katılımcı sözleşmeleri ayrı limitte tutulur. Üçüncü kişi ödemesi (iş ilişkisi hariç), işveren ödemesi ve transfer istisnaları açıklama ve SSS’ye eklendi. Devreden katkı payı için ayrı giriş eklendi ve EGM rehberindeki 2026 limit/kaydırma yöntemine göre hesaplamaya dahil edildi. Katkının hesaba geçiş zamanı, ayrıca BES/OKS limitlerinin ayrı olduğu bilgisi eklendi.
+
+Kaynak: [Emeklilik Gözetim Merkezi — Devlet katkısı](https://www.egm.org.tr/bireysel-emeklilik/devlet-katkisi/).
+
+Doğrulama: `git diff --check` çalıştırıldı. Test veya build çalıştırılmadı.

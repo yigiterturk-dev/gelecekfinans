@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import Sparkline from "./Sparkline";
+import CoinGeckoAttribution from "@/components/CoinGeckoAttribution";
 
 /**
  * KOMPAKT PİYASA WIDGET'I (sağ ray) — CNBC/Reuters tarzı küçük "Piyasalar" listesi.
@@ -21,19 +22,16 @@ import Sparkline from "./Sparkline";
  */
 
 interface Fiyatlar {
-  tcmb?: { usd?: { satis?: number }; eur?: { satis?: number } };
-  gold?: { price?: number; pct?: number; sparkline?: number[] };
-  bist?: { price?: number; pct?: number; sparkline?: number[] };
-  btc?: { price?: number; pct?: number };
-  usdHistory?: number[];
-  usdPct?: number;
-  eurHistory?: number[];
-  eurPct?: number;
+  tcmb?: { source?: string; usd?: { satis?: number }; eur?: { satis?: number } };
+  gold?: { price?: number; pct?: number | null; sparkline?: number[] };
+  bist?: { price?: number; pct?: number | null; sparkline?: number[]; source?: string; updatedAt?: string | null };
+  btc?: { price?: number; pct?: number | null; updatedAt?: string | null };
 }
 interface Coin {
   symbol: string;
   current_price: number;
-  price_change_percentage_24h: number;
+  price_change_percentage_24h: number | null;
+  last_updated?: string | null;
   sparkline_in_7d?: { price: number[] };
 }
 interface Row {
@@ -45,9 +43,11 @@ interface Row {
   prefix?: string;
   frac?: number;
   sparkline?: number[];
+  checkedAt?: Date | null;
 }
 
 const mono = "var(--mono), ui-monospace, monospace";
+const SOURCE_STALE_AFTER_MS = 6 * 60_000;
 
 function num(v: number, frac = 2) {
   return v.toLocaleString("tr-TR", { minimumFractionDigits: frac, maximumFractionDigits: frac });
@@ -62,8 +62,13 @@ function Pct({ v }: { v: number | null | undefined }) {
     textAlign: "right",
     whiteSpace: "nowrap",
   };
-  if (v == null) return <span style={{ ...s, color: "var(--muted)" }}>—</span>;
-  const up = v >= 0;
+  if (typeof v !== "number" || !Number.isFinite(v)) {
+    return <span style={{ ...s, color: "var(--muted)" }}>—</span>;
+  }
+  if (v === 0) {
+    return <span aria-label="Değişim yok" style={{ ...s, color: "var(--muted)" }}>0.00%</span>;
+  }
+  const up = v > 0;
   return (
     <span style={{ ...s, color: up ? "#16a34a" : "#dc2626" }}>
       {up ? "▲" : "▼"} {Math.abs(v).toFixed(2)}%
@@ -73,43 +78,109 @@ function Pct({ v }: { v: number | null | undefined }) {
 
 export default function MarketMini() {
   const [f, setF] = useState<Fiyatlar>({});
-  const [btc, setBtc] = useState<{ price?: number; pct?: number; sparkline?: number[] }>({});
+  const [btc, setBtc] = useState<{ price?: number; pct?: number | null; sparkline?: number[] }>({});
   const [loaded, setLoaded] = useState(false);
-  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
+  const [marketCheckedAt, setMarketCheckedAt] = useState<Date | null>(null);
+  const [cryptoCheckedAt, setCryptoCheckedAt] = useState<Date | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let requestTimeout: ReturnType<typeof setTimeout> | undefined;
+    let controller: AbortController | undefined;
+
     const go = async () => {
-      try {
-        const [marketResponse, cryptoResponse] = await Promise.all([
-          fetch("/api/fiyatlar"),
-          fetch("/api/kripto"),
-        ]);
-        const market = (await marketResponse.json()) as Fiyatlar;
-        const coins = (await cryptoResponse.json()) as Coin[];
-        setF(market);
-        if (Array.isArray(coins)) {
-          const b = coins.find((c) => c.symbol?.toLowerCase() === "btc");
-          if (b) setBtc({ price: b.current_price, pct: b.price_change_percentage_24h, sparkline: b.sparkline_in_7d?.price });
+      const activeController = new AbortController();
+      controller = activeController;
+      const signal = activeController.signal;
+      requestTimeout = setTimeout(() => activeController.abort(), 15_000);
+      const [marketResult, cryptoResult] = await Promise.allSettled([
+        fetch("/api/fiyatlar", { signal }).then(async (response) => {
+          if (!response.ok) throw new Error("Market request failed");
+          return response.json() as Promise<unknown>;
+        }),
+        fetch("/api/kripto", { signal }).then(async (response) => {
+          if (!response.ok) throw new Error("Crypto request failed");
+          return response.json() as Promise<unknown>;
+        }),
+      ]);
+      if (requestTimeout) clearTimeout(requestTimeout);
+      requestTimeout = undefined;
+      if (cancelled) return;
+
+      if (marketResult.status === "fulfilled") {
+        const market = marketResult.value;
+        if (market && typeof market === "object" && !Array.isArray(market)) {
+          setF(market as Fiyatlar);
+          const marketPrices = market as Fiyatlar;
+          const hasMarketPrice = [
+            marketPrices.tcmb?.usd?.satis,
+            marketPrices.tcmb?.eur?.satis,
+            marketPrices.gold?.price,
+            marketPrices.bist?.price,
+            marketPrices.btc?.price,
+          ].some((price) => typeof price === "number" && Number.isFinite(price) && price > 0);
+          if (hasMarketPrice) setMarketCheckedAt(new Date());
+          if (marketPrices.btc?.updatedAt && Number.isFinite(Date.parse(marketPrices.btc.updatedAt))) {
+            setCryptoCheckedAt(new Date(marketPrices.btc.updatedAt));
+          }
         }
-        setUpdatedAt(new Date());
-      } catch {
-        // Keep the last successful values visible if a provider is temporarily unavailable.
-      } finally {
-        setLoaded(true);
       }
+      if (cryptoResult.status === "fulfilled" && Array.isArray(cryptoResult.value)) {
+        const coins = cryptoResult.value as Coin[];
+        const bitcoin = coins.find((coin) => coin?.symbol?.toLowerCase() === "btc");
+        if (bitcoin && Number.isFinite(bitcoin.current_price) && bitcoin.current_price > 0) {
+          setBtc({
+            price: bitcoin.current_price,
+            pct: bitcoin.price_change_percentage_24h,
+            sparkline: bitcoin.sparkline_in_7d?.price,
+          });
+          setCryptoCheckedAt(
+            typeof bitcoin.last_updated === "string" && Number.isFinite(Date.parse(bitcoin.last_updated))
+              ? new Date(bitcoin.last_updated)
+              : null,
+          );
+        }
+      }
+      setLoaded(true);
+      // Sabit interval yerine tur tamamlandıktan sonra bekle; yavaş istekler üst üste binmez.
+      timer = setTimeout(() => void go(), 60_000);
     };
-    go();
-    const id = setInterval(go, 60000);
-    return () => clearInterval(id);
+    void go();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+      if (requestTimeout) clearTimeout(requestTimeout);
+      controller?.abort();
+    };
   }, []);
 
   const rows: Row[] = [
-    { name: "Dolar", sub: "USD/TRY", href: "/doviz/usd-try", price: f.tcmb?.usd?.satis, pct: f.usdPct, sparkline: f.usdHistory, prefix: "₺", frac: 4 },
-    { name: "Euro", sub: "EUR/TRY", href: "/doviz/eur-try", price: f.tcmb?.eur?.satis, pct: f.eurPct, sparkline: f.eurHistory, prefix: "₺", frac: 4 },
-    { name: "Gram Altın", sub: "24 ayar", href: "/altin/gram-altin", price: f.gold?.price, pct: f.gold?.pct, sparkline: f.gold?.sparkline, prefix: "₺", frac: 2 },
-    { name: "Bitcoin", sub: "BTC/USD", href: "/kripto", price: btc.price ?? f.btc?.price, pct: btc.pct ?? f.btc?.pct, sparkline: btc.sparkline, prefix: "$", frac: 0 },
-    { name: "BIST 100", sub: "Endeks", href: "/borsa", price: f.bist?.price, pct: f.bist?.pct, sparkline: f.bist?.sparkline, prefix: "", frac: 0 },
+    { name: "Dolar", sub: "USD/TRY", href: "/doviz/usd-try", price: f.tcmb?.usd?.satis, prefix: "₺", frac: 4, checkedAt: marketCheckedAt },
+    { name: "Euro", sub: "EUR/TRY", href: "/doviz/eur-try", price: f.tcmb?.eur?.satis, prefix: "₺", frac: 4, checkedAt: marketCheckedAt },
+    { name: "Gram Altın", sub: "24 ayar", href: "/altin/gram-altin", price: f.gold?.price, pct: f.gold?.pct, sparkline: f.gold?.sparkline, prefix: "₺", frac: 2, checkedAt: marketCheckedAt },
+    { name: "Bitcoin", sub: "BTC/TRY", href: "/kripto", price: btc.price ?? f.btc?.price, pct: btc.pct ?? f.btc?.pct, sparkline: btc.sparkline, prefix: "₺", frac: 0, checkedAt: btc.price != null ? cryptoCheckedAt : marketCheckedAt },
+    { name: "BIST 100", sub: "Endeks", href: "/borsa", price: f.bist?.price, pct: f.bist?.pct, sparkline: f.bist?.sparkline, prefix: "", frac: 0, checkedAt: marketCheckedAt },
   ];
+  const pricedRows = rows.filter((row) => typeof row.price === "number" && Number.isFinite(row.price) && row.price > 0);
+  const hasPrice = pricedRows.length > 0;
+  const missingPrices = pricedRows.length < rows.length;
+  const staleData = pricedRows.some((row) => !row.checkedAt || Date.now() - row.checkedAt.getTime() > SOURCE_STALE_AFTER_MS);
+  const statusColor = !loaded || (hasPrice && (staleData || missingPrices)) ? "#d97706" : hasPrice ? "#15803d" : "#dc2626";
+  const statusText = !loaded
+    ? "Veri yükleniyor"
+    : !hasPrice
+      ? "Veri alınamadı"
+      : staleData && missingPrices
+        ? "Bazı fiyatlar eksik veya gecikti"
+        : staleData
+          ? "Bazı yanıtlar gecikti"
+          : missingPrices
+            ? "Bazı fiyatlar alınamadı"
+            : "Yakın zamanda veri alındı";
+  const hasBitcoinPrice =
+    (typeof btc.price === "number" && Number.isFinite(btc.price) && btc.price > 0) ||
+    (typeof f.btc?.price === "number" && Number.isFinite(f.btc.price) && f.btc.price > 0);
 
   return (
     <section
@@ -131,7 +202,7 @@ export default function MarketMini() {
           borderBottom: "1px solid var(--border2)",
         }}
       >
-        <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#15803d", display: "inline-block" }} />
+        <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: "50%", background: statusColor, display: "inline-block" }} />
         <span
           style={{
             fontFamily: mono,
@@ -145,6 +216,9 @@ export default function MarketMini() {
           Piyasalar
         </span>
         <span
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
           style={{
             marginLeft: "auto",
             fontFamily: mono,
@@ -154,7 +228,7 @@ export default function MarketMini() {
             whiteSpace: "nowrap",
           }}
         >
-          {updatedAt ? `Son kontrol ${updatedAt.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}` : "Veri bekleniyor"}
+          {statusText}
         </span>
       </div>
 
@@ -184,10 +258,12 @@ export default function MarketMini() {
               </span>
             </span>
             <div style={{ width: 80, height: 24, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              {loaded && r.sparkline && r.sparkline.length > 1 ? (
+              {!loaded ? (
+                <div style={{ fontFamily: mono, fontSize: 8, color: "var(--muted)", opacity: 0.4 }}>Yükleniyor...</div>
+              ) : r.sparkline && r.sparkline.length > 1 ? (
                 <Sparkline data={r.sparkline} up={(r.pct ?? 0) >= 0} width={80} height={24} bare />
               ) : (
-                <div style={{ fontFamily: mono, fontSize: 8, color: "var(--muted)", opacity: 0.4 }}>Yükleniyor...</div>
+                <span aria-label={`${r.name} için grafik verisi bulunmuyor`} style={{ fontFamily: mono, fontSize: 9, color: "var(--muted)" }}>Grafik yok</span>
               )}
             </div>
             <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
@@ -235,6 +311,9 @@ export default function MarketMini() {
           </Link>
         ))}
       </div>
+      {hasBitcoinPrice && (
+        <div style={{ padding: "0 12px 10px", textAlign: "right" }}><CoinGeckoAttribution /></div>
+      )}
     </section>
   );
 }

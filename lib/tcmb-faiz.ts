@@ -56,6 +56,13 @@ function sonSatir(text: string): { date: string; a: number | null; b: number } |
   return { date: son[1], a: son[2] === "-" ? null : Number(son[2]), b: Number(son[3]) };
 }
 
+function normalizeDate(date: string): string | null {
+  const match = /^(\d{2})\.(\d{2})\.(\d{2}|\d{4})$/.exec(date);
+  if (!match) return null;
+  const year = match[3].length === 2 ? `20${match[3]}` : match[3];
+  return `${match[1]}.${match[2]}.${year}`;
+}
+
 const makul = (n: number | null | undefined) =>
   typeof n === "number" && Number.isFinite(n) && n > 0 && n < 150;
 
@@ -65,6 +72,9 @@ export async function fetchTcmbRates(): Promise<TcmbRates | null> {
   const repo = sonSatir(repoHtml);
   const on = sonSatir(onHtml.slice(onHtml.indexOf("Tarih Borç Alma Borç Verme")));
   if (!repo || !on || !makul(repo.b) || !makul(on.a) || !makul(on.b)) return null;
+  const repoDate = normalizeDate(repo.date);
+  const onDate = normalizeDate(on.date);
+  if (!repoDate || repoDate !== onDate) return null; // farklı yürürlük tarihlerini tek canlı tablo gibi sunma
   if (on.a! >= on.b) return null; // alt bant < üst bant olmalı
   return { policy: repo.b, borrow: on.a!, lend: on.b, date: repo.date };
 }

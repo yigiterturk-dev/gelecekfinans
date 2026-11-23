@@ -11,8 +11,17 @@ import { writeArticle } from "../lib/bot/writer";
 import { getArticleImage } from "../lib/bot/images";
 import { autoLink } from "../lib/bot/linker";
 import { ensureExternalLink } from "../lib/bot/external-link";
+import { isAIAutomationEnabled } from "../lib/bot/ai-budget";
+import { AIProviderFatalError } from "../lib/bot/errors";
 
 async function main() {
+  if (!isAIAutomationEnabled()) {
+    console.error("[fill] AI otomasyonu kapalı; model çağrısı yapılmadı. Açmak için AI_AUTOMATION_ENABLED=true gerekir.");
+    await prisma.$disconnect();
+    process.exitCode = 1;
+    return;
+  }
+
   const count = parseInt(process.argv[2] || "20");
   const targetWords = 1000;
   console.log(`[fill] ${count} makale hedefleniyor...`);
@@ -63,16 +72,19 @@ async function main() {
           ...(article.aiExtras ? { aiExtras: asJson(article.aiExtras) } : {}),
           imageUrl,
           source: article.source, articleSource: "BOT",
-          status: seo.score >= 50 ? "PUBLISHED" : "DRAFT",
+          status: "DRAFT",
           seoScore: seo.score,
-          publishedAt: seo.score >= 50 ? new Date() : null,
+          publicationDecision: "REVIEW",
+          autoPublished: false,
+          publishedAt: null,
         },
       });
 
       recent.push({ id: created.id, title: created.title, content: created.content });
       added++;
-      console.log(`[fill] (${added}/${count}) ${seo.score >= 50 ? "PUBLISHED" : "DRAFT"} [seo ${seo.score}] ${article.title.slice(0, 60)}`);
+      console.log(`[fill] (${added}/${count}) DRAFT [seo ${seo.score}] ${article.title.slice(0, 60)}`);
     } catch (e) {
+      if (e instanceof AIProviderFatalError) throw e;
       console.log(`[fill] HATA: ${topic.title.slice(0, 40)} → ${(e as Error).message}`);
     }
   }

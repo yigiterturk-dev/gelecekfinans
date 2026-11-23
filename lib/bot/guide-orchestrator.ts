@@ -7,7 +7,6 @@ import { analyzeSeo } from "@/lib/seo";
 import { isDuplicate } from "@/lib/duplicate";
 import { autoLink, linkEntitySources, linkGuideCluster } from "@/lib/bot/linker";
 import { ensureExternalLink } from "@/lib/bot/external-link";
-import { notifyGoogleUrlUpdated } from "@/lib/bot/indexing";
 import { notifyIndexNow } from "@/lib/bot/indexnow";
 
 const GUIDE_SITE_URL = process.env.SITE_URL || "https://gelecekfinans.com";
@@ -19,7 +18,8 @@ import { buildEntityTopic, type EntityTopic } from "@/lib/bot/entity-topic";
 import {
   markKeywordFailed, markKeywordInProgress, markKeywordInReview, markKeywordPublished, pickKeywords,
 } from "@/lib/bot/keywords";
-import { resolveArticleAIBudgetConfig, startOfIstanbulDay } from "@/lib/bot/ai-budget";
+import { isAIAutomationEnabled, resolveArticleAIBudgetConfig, startOfIstanbulDay } from "@/lib/bot/ai-budget";
+import { getOpenAIQuotaGuard, openAIQuotaGuardMessage } from "@/lib/bot/ai-quota-cooldown";
 import { AIProviderFatalError } from "@/lib/bot/errors";
 
 /**
@@ -59,9 +59,17 @@ async function logEvent(
 }
 
 export async function runGuidePipeline(options: GuidePipelineOptions) {
+  if (!isAIAutomationEnabled()) {
+    return {
+      added: 0, autoPublished: 0, reviewQueued: 0, blocked: 0,
+      errors: ["AI otomasyonu kapalı; model çağrısı yapılmadı. Açmak için AI_AUTOMATION_ENABLED=true gerekir."],
+      runId: null, skipped: true,
+    };
+  }
   const count = Math.max(1, Math.min(options.count || 1, 5));
   const targetWords = Math.max(900, Math.min(options.targetWords || 1200, 1800));
-  const autoPublishEnabled = options.autoPublish === true;
+  // Rehber taslakları da editör onayı olmadan yayına çıkmaz.
+  const autoPublishEnabled = false;
   const aiBudget = resolveArticleAIBudgetConfig();
   /**
    * YAPILANDIRMA KAPISI — kelime seçilmeden ÖNCE.
@@ -72,7 +80,14 @@ export async function runGuidePipeline(options: GuidePipelineOptions) {
    * arızası, iyi kelimelerin deneme hakkını yakıyordu (1 Kasım 2026: iki
    * koşuda 4 deneme boşa gitti). Artık kelimeye hiç dokunulmadan durur.
    */
-  resolveArticleAIConfig();
+  const aiConfig = resolveArticleAIConfig();
+  const quotaGuard = await getOpenAIQuotaGuard(aiConfig.provider);
+  if (quotaGuard.blocked) {
+    return {
+      added: 0, autoPublished: 0, reviewQueued: 0, blocked: 0,
+      errors: [openAIQuotaGuardMessage(quotaGuard.reason)], runId: null, skipped: true,
+    };
+  }
 
   resetUsageLedger();
   const run = await prisma.botRun.create({ data: { articlesFound: 0 } });
@@ -310,20 +325,9 @@ export async function runGuidePipeline(options: GuidePipelineOptions) {
         wordCount: article.wordCount, cluster: keyword.cluster,
       }, created.id);
 
-      /**
-       * ⚠️ 2026-09-04'e kadar rehber şeridi arama motorlarına HİÇ bildirim
-       * atmıyordu — bildirim yalnızca haber orchestrator'ında vardı. İndeks
-       * taramasında yayındaki rehberlerin "Discovered - currently not indexed"
-       * çıkmasının bir sebebi bu. Haber şeridiyle aynı davranış: iki bildirim
-       * birbirinden bağımsız, hatası yayını geri almaz, kayda düşer.
-       */
+      // Google Indexing API normal rehber sayfalarını desteklemez.
       if (publish) {
         const url = `${GUIDE_SITE_URL}/${created.slug}`;
-        const gPing = await notifyGoogleUrlUpdated(url);
-        await logEvent(run.id, "indexing",
-          gPing.ok ? "Google'a dizin bildirimi gönderildi" : "Google dizin bildirimi gönderilemedi",
-          { slug: created.slug, ...(gPing.ok ? {} : { reason: gPing.reason, detail: gPing.detail }) },
-          created.id, gPing.ok ? undefined : "warning");
         const iPing = await notifyIndexNow([url]);
         await logEvent(run.id, "indexing",
           iPing.ok ? "IndexNow bildirimi gönderildi" : "IndexNow bildirimi gönderilemedi",
@@ -367,7 +371,12 @@ export async function runGuidePipeline(options: GuidePipelineOptions) {
       }
       if (error instanceof AIProviderFatalError) {
         fatalErrorCode = error.code;
-        await logEvent(run.id, "configuration", message, { code: error.code }, undefined, "error");
+        await logEvent(run.id, "configuration", message, {
+          code: error.code,
+          provider: aiConfig.provider,
+          writerModel: aiConfig.writerModel,
+          verifierModel: aiConfig.verifierModel,
+        }, undefined, "error");
         break;
       }
       blocked++;

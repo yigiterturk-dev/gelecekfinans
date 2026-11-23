@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { SOCIAL_PROFILES } from "@/lib/social";
+import { openPrivacyPreferences } from "@/lib/consent";
 
 /* Şemadaki sameAs ile footer'daki ikonlar aynı kaynaktan (lib/social.ts) besleniyor;
    biri eklenip diğeri unutulduğunda oluşan tutarsızlığı baştan engelliyor. */
@@ -69,6 +70,9 @@ export default function SiteFooter() {
             <Link href="/iletisim" className="footer-link">İletişim</Link>
             <Link href="/gizlilik-politikasi" className="footer-link">Gizlilik Politikası</Link>
             <Link href="/cerez-politikasi" className="footer-link">Çerez Politikası</Link>
+            <button type="button" className="footer-link footer-consent-button" onClick={openPrivacyPreferences}>
+              Çerez tercihleri
+            </button>
             <Link href="/kullanim-kosullari" className="footer-link">Kullanım Koşulları</Link>
           </div>
         </div>

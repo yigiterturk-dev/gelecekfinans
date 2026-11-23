@@ -1,6 +1,26 @@
 import { prisma } from "@/lib/db";
 import Link from "next/link";
 
+function startOfIstanbulDay(now = new Date()): Date {
+  const dateParts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Istanbul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+  const value = (type: string) => Number(dateParts.find((part) => part.type === type)?.value);
+  const localMidnightAsUtc = Date.UTC(value("year"), value("month") - 1, value("day"));
+  const offsetLabel = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Europe/Istanbul",
+    timeZoneName: "longOffset",
+  }).formatToParts(now).find((part) => part.type === "timeZoneName")?.value;
+  const offset = offsetLabel?.match(/^GMT([+-])(\d{1,2})(?::?(\d{2}))?$/);
+  const offsetMinutes = offset
+    ? (offset[1] === "+" ? 1 : -1) * (Number(offset[2]) * 60 + Number(offset[3] ?? 0))
+    : 0;
+  return new Date(localMidnightAsUtc - offsetMinutes * 60_000);
+}
+
 export default async function AdminDashboard() {
   const [total, published, draft, rejected, botRuns, subscriberCount, avgSeoResult, noLinkArticles, lowSeoArticles, todayViews] = await Promise.all([
     prisma.article.count(),
@@ -12,7 +32,7 @@ export default async function AdminDashboard() {
     prisma.article.aggregate({ where: { status: "PUBLISHED", seoScore: { not: null } }, _avg: { seoScore: true } }),
     prisma.$queryRaw<[{count: bigint}]>`SELECT COUNT(*) as count FROM "Article" WHERE status = 'PUBLISHED' AND content NOT LIKE '%href="/%'`,
     prisma.article.findMany({ where: { status: "PUBLISHED", seoScore: { lt: 60 } }, select: { id: true, title: true, seoScore: true, slug: true }, orderBy: { seoScore: "asc" }, take: 5 }),
-    prisma.pageView.count({ where: { createdAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) } } }),
+    prisma.pageView.count({ where: { createdAt: { gte: startOfIstanbulDay() } } }),
   ]);
 
   const avgSeo = Math.round(avgSeoResult._avg.seoScore || 0);
@@ -81,7 +101,7 @@ export default async function AdminDashboard() {
               <tbody>
                 {botRuns.map(r => (
                   <tr key={r.id}>
-                    <td style={{ fontFamily: "var(--mono)", fontSize: 12 }}>{r.startedAt.toLocaleString("tr-TR")}</td>
+                    <td style={{ fontFamily: "var(--mono)", fontSize: 12 }}>{r.startedAt.toLocaleString("tr-TR", { timeZone: "Europe/Istanbul" })}</td>
                     <td>{r.articlesFound}</td>
                     <td style={{ color: "var(--up)" }}>{r.articlesAdded}</td>
                     <td style={{ color: "#d97706" }}>{r.duplicatesSkipped}</td>

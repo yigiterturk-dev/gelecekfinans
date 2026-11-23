@@ -75,7 +75,6 @@ export async function getArticleImageResult(article: ArticleImageInput): Promise
       const stored = await storeRemoteImage(
         asset.downloadUrl,
         article.slug || `licensed-${asset.provider}-${asset.assetId}`,
-        false,
       );
       if (stored) return {
         url: stored,
