@@ -1,37 +1,103 @@
 import { prisma } from "../lib/db";
 
-async function main() {
-  const rows = await prisma.searchPerformance.findMany({ where: { source: "gsc" } });
-
-  const byQuery = new Map<string, { imp: number; clk: number; pos: number[]; page: string }>();
-  const byPage = new Map<string, { imp: number; clk: number; pos: number[] }>();
-
-  for (const r of rows) {
-    const q = byQuery.get(r.query) ?? { imp: 0, clk: 0, pos: [], page: r.page };
-    q.imp += r.impressions; q.clk += r.clicks; q.pos.push(r.position);
-    byQuery.set(r.query, q);
-    const p = byPage.get(r.page) ?? { imp: 0, clk: 0, pos: [] };
-    p.imp += r.impressions; p.clk += r.clicks; p.pos.push(r.position);
-    byPage.set(r.page, p);
-  }
-
-  const avg = (a: number[]) => a.reduce((s, x) => s + x, 0) / a.length;
-
-  console.log(`toplam satır: ${rows.length} | tekil sorgu: ${byQuery.size} | tekil sayfa: ${byPage.size}`);
-  console.log(`toplam gösterim: ${rows.reduce((s, r) => s + r.impressions, 0)} | toplam tık: ${rows.reduce((s, r) => s + r.clicks, 0)}`);
-
-  console.log("\n=== SAYFALAR (gösterime göre) ===");
-  [...byPage.entries()].sort((a, b) => b[1].imp - a[1].imp).slice(0, 15)
-    .forEach(([p, v]) => console.log(`gös ${String(v.imp).padStart(4)} | tık ${String(v.clk).padStart(3)} | ort.sıra ${avg(v.pos).toFixed(1).padStart(5)} | ${p.replace("https://gelecekfinans.com", "")}`));
-
-  console.log("\n=== FIRSAT: ort. sıra 8-30 arası sorgular ===");
-  [...byQuery.entries()].filter(([, v]) => { const a = avg(v.pos); return a >= 8 && a <= 30; })
-    .sort((a, b) => b[1].imp - a[1].imp).slice(0, 20)
-    .forEach(([q, v]) => console.log(`gös ${String(v.imp).padStart(3)} | sıra ${avg(v.pos).toFixed(1).padStart(5)} | ${q}  →  ${v.page.replace("https://gelecekfinans.com", "")}`));
-
-  console.log("\n=== EN ÇOK GÖSTERİM ALAN SORGULAR ===");
-  [...byQuery.entries()].sort((a, b) => b[1].imp - a[1].imp).slice(0, 20)
-    .forEach(([q, v]) => console.log(`gös ${String(v.imp).padStart(3)} | tık ${v.clk} | sıra ${avg(v.pos).toFixed(1).padStart(5)} | ${q}`));
+interface Totals {
+  impressions: number;
+  clicks: number;
+  weightedPosition: number;
 }
 
-main().catch((e) => console.error("HATA:", (e as Error).message));
+interface QueryPageTotals extends Totals {
+  query: string;
+  page: string;
+}
+
+function addRow(totals: Totals, row: { impressions: number; clicks: number; position: number }) {
+  totals.impressions += row.impressions;
+  totals.clicks += row.clicks;
+  totals.weightedPosition += row.position * row.impressions;
+}
+
+function averagePosition(totals: Totals): number {
+  return totals.impressions > 0 ? totals.weightedPosition / totals.impressions : 0;
+}
+
+function formatCtr(totals: Totals): string {
+  return totals.impressions > 0 ? `${(100 * totals.clicks / totals.impressions).toFixed(2)}%` : "0.00%";
+}
+
+function formatPage(page: string): string {
+  try {
+    const url = new URL(page);
+    return `${url.hostname}${url.pathname}`;
+  } catch {
+    return page;
+  }
+}
+
+async function main() {
+  const days = Math.max(7, Math.min(180, Number(process.argv[2]) || 28));
+  // Search Console typically trails by a few days. Use completed UTC dates and
+  // retain the requested window instead of mixing every historical snapshot.
+  const endExclusive = new Date();
+  endExclusive.setUTCHours(0, 0, 0, 0);
+  endExclusive.setUTCDate(endExclusive.getUTCDate() - 2);
+  const since = new Date(endExclusive);
+  since.setUTCDate(since.getUTCDate() - days);
+
+  const rows = await prisma.searchPerformance.findMany({
+    where: { source: "gsc", date: { gte: since, lt: endExclusive } },
+    select: { page: true, query: true, clicks: true, impressions: true, position: true },
+  });
+
+  const byQuery = new Map<string, Totals>();
+  const byPage = new Map<string, Totals>();
+  const byQueryPage = new Map<string, QueryPageTotals>();
+
+  const empty = (): Totals => ({ impressions: 0, clicks: 0, weightedPosition: 0 });
+  for (const row of rows) {
+    const query = byQuery.get(row.query) ?? empty();
+    addRow(query, row);
+    byQuery.set(row.query, query);
+
+    const page = byPage.get(row.page) ?? empty();
+    addRow(page, row);
+    byPage.set(row.page, page);
+
+    const key = `${row.query}\u0000${row.page}`;
+    const queryPage = byQueryPage.get(key) ?? { query: row.query, page: row.page, ...empty() };
+    addRow(queryPage, row);
+    byQueryPage.set(key, queryPage);
+  }
+
+  const totals = [...byQuery.values()].reduce((sum, value) => {
+    sum.impressions += value.impressions;
+    sum.clicks += value.clicks;
+    sum.weightedPosition += value.weightedPosition;
+    return sum;
+  }, empty());
+
+  console.log(`GSC aralığı: ${since.toISOString().slice(0, 10)} – ${new Date(endExclusive.getTime() - 86_400_000).toISOString().slice(0, 10)} UTC`);
+  console.log(`satır: ${rows.length} | sorgu: ${byQuery.size} | sayfa: ${byPage.size} | gösterim: ${totals.impressions} | tık: ${totals.clicks} | CTR: ${formatCtr(totals)}`);
+
+  console.log("\n=== SAYFALAR (gösterime göre) ===");
+  [...byPage.entries()].sort((a, b) => b[1].impressions - a[1].impressions).slice(0, 15)
+    .forEach(([page, value]) => console.log(
+      `gös ${String(value.impressions).padStart(4)} | tık ${String(value.clicks).padStart(3)} | CTR ${formatCtr(value).padStart(6)} | ağırlıklı sıra ${averagePosition(value).toFixed(1).padStart(5)} | ${formatPage(page)}`,
+    ));
+
+  console.log("\n=== FIRSAT: ağırlıklı sıra 8–30, sorgu + sayfa bazında ===");
+  [...byQueryPage.values()]
+    .filter((value) => value.impressions >= 2 && averagePosition(value) >= 8 && averagePosition(value) <= 30)
+    .sort((a, b) => b.impressions - a.impressions).slice(0, 20)
+    .forEach((value) => console.log(
+      `gös ${String(value.impressions).padStart(3)} | tık ${value.clicks} | CTR ${formatCtr(value)} | sıra ${averagePosition(value).toFixed(1).padStart(5)} | ${value.query} → ${formatPage(value.page)}`,
+    ));
+
+  console.log("\n=== EN ÇOK GÖSTERİM ALAN SORGULAR ===");
+  [...byQuery.entries()].sort((a, b) => b[1].impressions - a[1].impressions).slice(0, 20)
+    .forEach(([query, value]) => console.log(
+      `gös ${String(value.impressions).padStart(3)} | tık ${value.clicks} | CTR ${formatCtr(value)} | sıra ${averagePosition(value).toFixed(1).padStart(5)} | ${query}`,
+    ));
+}
+
+main().catch((error) => console.error("HATA:", (error as Error).message));
