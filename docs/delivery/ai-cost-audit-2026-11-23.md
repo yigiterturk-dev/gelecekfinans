@@ -684,3 +684,16 @@ unknown; see gemini-provider-normalization-2026-11-24.md for release evidence.
 The next RSS-only threshold comparison and manually reviewed same-event misses
 are recorded in
 [corroboration-threshold-delta-2026-11-24.md](corroboration-threshold-delta-2026-11-24.md).
+
+### Model request boundary recheck — 2026-11-24
+
+A source sweep for OpenAI/Anthropic SDK construction and model request calls
+found the provider clients and request sites in `lib/bot/writer.ts`; no direct
+provider SDK request was found elsewhere under `app/`, `lib/`, or `scripts/`.
+Each OpenAI Responses, Anthropic Messages, and Gemini/DeepSeek-compatible
+request branch records its attempt through `recordCallAttempt` immediately
+before the SDK request. That function persists a maximum-cost reservation via
+`reserveModelSpend`; the guard rejects a zero cap, unknown model price, or
+incomplete same-day history. Live process environment still has automation
+`false` and daily cap `$0`. This was a static source check; no model request or
+test suite was run.
