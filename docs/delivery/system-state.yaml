@@ -152,7 +152,7 @@ open_decisions:
   - Select a licensed editorial media provider and connect its adapter credentials.
   - Configure AdSense publisher ID and a Google-certified CMP before serving ads to regulated regions.
 active_handoff: projects/gelecekfinans/brief/delta-brief.md
-updated_at: 2026-11-24T07:53:44+03:00
+updated_at: 2026-11-24T08:05:00+03:00
 
 # Verified production override (2026-11-24); supersedes the historical
 # Verified production provider and billing state as of 2026-11-24.
@@ -324,7 +324,7 @@ current_runtime_audit:
     daily_spend_limit_usd: 0
     openai_account_balance: unknown
     model_calls_during_build_or_deploy: 0
-    fresh_database_backup_before_deploy_bytes: 1275894
+    fresh_database_backup_before_deploy_bytes: 1279554
     fresh_database_backup_mode: "600"
     judge_not_evaluated_outcomes_distinguished: true
     judge_not_evaluated_reasons:
@@ -411,7 +411,7 @@ current_runtime_audit:
     daily_script_atomic_write: true
     zero_byte_archive_found: gf-20261121.dump
     current_dump: /opt/gelecekfinans-db/yedek/gf-20261124.dump
-    current_dump_bytes: 1275894
+    current_dump_bytes: 1279554
     current_dump_mode: "600"
     pg_restore_list_valid: true
     latest_restore_rehearsal:
@@ -422,6 +422,17 @@ current_runtime_audit:
     scheduled_timer_run: "2026-11-24T03:20:00+01:00"
     scheduled_run_result: success
     scheduled_archive_isolated_restore: successful
+    off_vps_copy_present: true
+    off_vps_copy_file: ~/Yedekler/netcup-nocturn/gelecekfinans/gelecekfinans-20261124-031502.dump
+    off_vps_copy_bytes: 1284716
+    off_vps_copy_mode: "600"
+    off_vps_copy_sha256_matches_server: true
+    off_vps_copy_pg_restore_list_valid: true
+    off_vps_copy_filevault_encryption_enabled: true
+    off_vps_sync_agent: com.nocturn.netcup-yedek-cek
+    off_vps_sync_schedule_local: daily_09_00
+    off_vps_sync_retention_days: 60
+    off_vps_sync_last_success: "2026-11-23T09:00:07+03:00"
     offsite_copy_configured: false
   latest_rss_matching_diagnostic:
     measured_at: 2026-11-24T06:17:45+03:00
@@ -497,4 +508,4 @@ current_runtime_audit:
     direct_smoke_selected_third_variant_as_duplicate: true
     model_calls: 0
   operations_runbook: docs/operations.md
-updated_at: 2026-11-24T07:53:44+03:00
+updated_at: 2026-11-24T08:05:00+03:00

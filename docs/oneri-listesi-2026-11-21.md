@@ -8,9 +8,10 @@
 > servisleri son koşumda başarılı; ilgili timer'lar aktif. Şu anki sürüm ve
 > AI maliyet/harcama korumaları için [canlı release notlarına](delivery/current-live-release-2026-11-23.md)
 > ve [AI maliyet denetimine](delivery/ai-cost-audit-2026-11-23.md) bakın.
-> AI yazı otomasyonu kapalı ve harcama tavanı $0. VPS dışı yedek hedefi ile
-> OpenAI hesap bakiyesi hâlâ doğrulanmadı; sunucuya ait eski ölçümleri güncel
-> durum diye kullanmayın. 24 Kasım kontrolünde `RESEND_API_KEY`, AdSense
+> AI yazı otomasyonu kapalı ve harcama tavanı $0. 24 Kasım'da doğrulanmış
+> GelecekFinans dump'ı FileVault açık Mac'te `600` izinle tutuluyor; ayrı
+> coğrafi/cloud kopya ile OpenAI hesap bakiyesi hâlâ doğrulanmadı. Sunucuya ait
+> eski ölçümleri güncel durum diye kullanmayın. 24 Kasım kontrolünde `RESEND_API_KEY`, AdSense
 > publisher ID'si, newsletter zamanlayıcısı ve canlı sayfadaki AdSense işareti
 > yoktu; bülten ve reklam geliri entegrasyonları hâlâ kurulu değil.
 > VPS'teki çapraz proje Nocturn Gap taraması da son koşumda tahminen $0.166

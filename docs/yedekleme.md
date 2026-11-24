@@ -105,8 +105,8 @@ Canlı `gf-yedek.timer` işi bugün 03:20 CET'te başarıyla tamamlandı; servis
 En yeni günlük dosya `/var/backups/nocturn/gelecekfinans/gelecekfinans-20261123-031501.dump`:
 1.323.298 bayt, mod 600; `pg_restore -l` 14 `TABLE DATA` girdisi gösterdi.
 Günlük başarı damgası güncel ve sonraki timer 24 Kasım 03:20 CET. Bu kontrolde
-geri yükleme provası tekrarlanmadı. Yedekleme yolu `/dev/vda4` kök dosya
-sisteminde; bu nedenle ayrı bir sunucuda/offsite üçüncü kopya hâlâ yok.
+geri yükleme provası tekrarlanmadı. O tarihte yedekleme yolu `/dev/vda4` kök
+dosya sistemindeydi ve Mac kopyası henüz doğrulanmamıştı.
 
 Ek olarak `gf-yedek.timer` her gün 03:20'de `/opt/gelecekfinans-db/yedek.sh`
 çalıştırıyor; 23 Kasım koşumu `Result=success`, çıkış kodu 0 ve sıfır
@@ -144,9 +144,25 @@ kendisi de ağsız geçici PostgreSQL 17 container'ına `pg_restore
 yalnızca elle çalıştırma değil, timer→script→arşiv→geri yükleme yolu da
 doğrulandı. Canlı veritabanına restore yapılmadı.
 
+### Mac kopyası — 2026-11-24
+
+Mac'teki mevcut `com.nocturn.netcup-yedek-cek` LaunchAgent her gün 09:00'da
+`netcup:/var/backups/nocturn/` içeriğini `~/Yedekler/netcup-nocturn/` altına
+SSH ile eşitler; 60 günden eski `.dump` dosyalarını temizler ve yüklenince de
+çalışır. 24 Kasım kontrolünde son başarılı koşum 23 Kasım 09:00, son çıkış kodu
+0 ve toplam koşum sayısı 8'di.
+
+24 Kasım GelecekFinans Nocturn arşivi
+`gelecekfinans-20261124-031502.dump` Mac'teki eşitleme hedefine kopyalandı.
+Boyutu 1.284.716 bayt; dosya modu `600`; sunucu ve Mac SHA-256 değerleri eşit;
+yerel `pg_restore --list` başarılı. Mac'in FileVault'u açık. Ayrıca doğrudan
+güncel `/opt/gelecekfinans-db/yedek/gf-20261124.dump` arşivinin doğrulanmış
+1.279.554 baytlık, `600` izinli bir kopyası `~/Backups/gelecekfinans/` içine
+alındı. İkinci yerel kopya LaunchAgent'in eşitlediği klasörde değildir.
+
 ## ⏳ Kalan
 
-- **Üçüncü kopya yok**: yedek şu an yalnız VPS'te. Sunucu tamamen kaybedilirse
-  yedek de gider. Uzak depolama hesabı, mount veya aktarım betiği sunucuda
-  bulunmadı; mevcut bir offsite hedef sağlanırsa yeni ücretli hizmet açmadan
-  günlük şifreli kopya eklenebilir.
+- Mac'teki doğrulanmış kopya VPS dışıdır; fakat ayrı coğrafi konumda veya bulut
+  depolamada olduğu doğrulanmadı. Otomatik Mac eşitlemesi, kullanıcı oturumu ve
+  Mac'in uyanık olması koşuluna bağlıdır. Bu nedenle coğrafi olarak bağımsız
+  offsite/immutable kopya hâlâ yapılandırılmamıştır.

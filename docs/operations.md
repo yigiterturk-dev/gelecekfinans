@@ -57,8 +57,12 @@ For a restore rehearsal, use a disposable PostgreSQL 17 container with
 `--network none`; never restore a rehearsal into the live `gf-db` container.
 See [the backup guide](yedekleme.md) for the complete tested command sequence.
 The latest verified rehearsal (24 November 2026) restored 14 public tables and
-214 articles. Backups currently remain on the same VPS; no offsite copy is
-configured.
+214 articles. A verified 24 November database dump also exists on the user's
+Mac in `~/Yedekler/netcup-nocturn/gelecekfinans/`; its SHA-256 matches the VPS
+archive, `pg_restore --list` passes, and FileVault is on. The existing
+`com.nocturn.netcup-yedek-cek` LaunchAgent syncs `/var/backups/nocturn/` to that
+Mac daily at 09:00 and keeps 60 days. This is an off-VPS copy, but its separate
+geographic location is unknown and there is no cloud/immutable target.
 
 ## Deployment and rollback
 
