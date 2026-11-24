@@ -72,6 +72,10 @@ runs were made for this review.
 - `npm audit --omit=dev --audit-level=high` reports zero vulnerabilities;
   `npm run lint` and `npx tsc --noEmit` pass. The production build generated
   all 300 static pages. No automated test suite was run.
+- CI now provisions PostgreSQL 17, matching the production database. The repo
+  has `prisma/schema.prisma` and two SQL support files but no Prisma migration
+  history; schema changes therefore need a deliberate migration plan before
+  production rollout.
 
 ## Next evidence-backed actions
 

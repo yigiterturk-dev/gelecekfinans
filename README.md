@@ -1,7 +1,7 @@
 # GelecekFinans
 
 [![CI](https://github.com/yigiterturk-dev/gelecekfinans/actions/workflows/ci.yml/badge.svg)](https://github.com/yigiterturk-dev/gelecekfinans/actions/workflows/ci.yml)
-[![Next.js 16](https://img.shields.io/badge/Next.js-16.3-111111?logo=nextdotjs)](https://nextjs.org/)
+[![Next.js 16](https://img.shields.io/badge/Next.js-16.4.6-111111?logo=nextdotjs)](https://nextjs.org/)
 
 An editorial finance platform with a review-gated article workflow, third-party market-data adapters, SEO tooling, newsletter delivery, and a private operations console. Production AI writing automation is currently off and its daily model spend limit is `$0`; publishing remains under authenticated editor control.
 
@@ -77,7 +77,7 @@ npm run build
 npm audit
 ```
 
-CI runs lint, tests, a production build, and a production-dependency audit against an ephemeral PostgreSQL 16 service. See the [CI workflow](.github/workflows/ci.yml) for the exact commands. For live health, backup verification, AI spend state, and rollback steps, use the [production operations runbook](docs/operations.md).
+CI runs lint, tests, a production build, and a production-dependency audit against an ephemeral PostgreSQL 17 service, matching production. See the [CI workflow](.github/workflows/ci.yml) for the exact commands. For live health, backup verification, AI spend state, and rollback steps, use the [production operations runbook](docs/operations.md).
 
 ## Security model
 
