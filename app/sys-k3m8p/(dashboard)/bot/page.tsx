@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import Select from "@/components/Select";
 
@@ -33,10 +34,18 @@ interface CostSummary {
   today: number;
   week: number;
   month: number;
+  historicalStandardEstimate: number;
+  reservedSpendUsd: number;
+  reservationCalls: number;
   calls: number;
   measuredDays: number;
   projectedMonthly: number;
   byModel: Record<string, number>;
+  byEndpointHost: Record<string, number>;
+  attemptedCalls: number;
+  callsWithoutUsage: number;
+  unverifiedEvents: number;
+  costIsComplete: boolean;
   unpricedModels: string[];
 }
 
@@ -63,7 +72,19 @@ interface DecisionRow {
       status?: string;
       independentSourceCount?: number;
       reasons?: string[];
+      evidence?: Array<{
+        id?: string;
+        source?: string;
+        title?: string;
+        summary?: string;
+        sourceUrl?: string | null;
+        publishedAt?: string | null;
+      }>;
     };
+    blockedBy?: string;
+    reviewReasons?: string[];
+    qualityObjections?: string[];
+    verificationObjections?: string[];
     quality?: {
       passed?: boolean;
       score?: number;
@@ -104,6 +125,23 @@ interface DecisionRow {
   } | null;
 }
 
+function safeHttpUrl(value?: string | null): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+function displayBlockMessage(message: string): string {
+  return message.replace(
+    /OpenAI kredisi tükendi\. Billing bakiyesi yenilenene kadar üretim durduruldu\./g,
+    "Eski OpenAI kota/limit hatası; bu kayıt tek başına bakiyenin sıfır olduğunu kanıtlamaz.",
+  );
+}
+
 interface BotResult {
   added?: number;
   autoPublished?: number;
@@ -119,7 +157,7 @@ interface BotResult {
 interface AIProviderStatus {
   connected: boolean;
   automationEnabled: boolean;
-  provider: "openai" | "anthropic" | "deepseek";
+  provider: "openai" | "anthropic" | "deepseek" | "gemini";
   providerLabel: string;
   billingLabel: string;
   writerModel: string;
@@ -127,9 +165,12 @@ interface AIProviderStatus {
   billingUrl: string;
   dailyWriterCalls: number;
   dailyWriterCallLimit: number;
+  dailySpendLimitUsd: number;
   maxWriterCallsPerRun: number;
   writerMaxOutputTokens: number;
   verifierMaxOutputTokens: number;
+  openAICostStatus: "AVAILABLE" | "ADMIN_KEY_REQUIRED" | "UNAVAILABLE";
+  openAIMonthToDateUsd: number | null;
 }
 
 const CATEGORIES = [
@@ -285,9 +326,15 @@ export default function BotPage() {
       }
 
       if (fatalErrorCode === "OPENAI_QUOTA_EXHAUSTED") {
-        setResult(
-          "Hata: OpenAI API kota/limit hatası. Bakiye ve proje/kuruluş harcama/kullanım limitlerini kontrol edin; hata bakiyenin tükendiğini tek başına kanıtlamaz. Akış durduruldu."
-        );
+        const providerDetail = total.errors.find((error) => error.includes("OpenAI API isteği durduruldu"));
+        setResult(providerDetail
+          ? `Hata: ${providerDetail} Akış durduruldu.`
+          : "Hata: OpenAI API kota/limit hatası. Bakiye ve proje/kuruluş harcama/kullanım limitlerini kontrol edin; hata bakiyenin tükendiğini tek başına kanıtlamaz. Akış durduruldu.");
+      } else if (fatalErrorCode === "AI_PROVIDER_QUOTA_EXHAUSTED") {
+        const providerDetail = total.errors.find((error) => error.includes("Seçili yapay zekâ sağlayıcısı"));
+        setResult(providerDetail
+          ? `Hata: ${providerDetail} Bu hata tek başına bakiye bittiğini kanıtlamaz. Akış durduruldu.`
+          : "Hata: Seçili yapay zekâ sağlayıcısı kota veya harcama sınırına ulaştı. Akış durduruldu; bu, bakiye bittiğini tek başına kanıtlamaz.");
       } else if (fatalErrorCode === "ANTHROPIC_BILLING_ERROR") {
         setResult(
           "Hata: Anthropic API bakiyesi veya ödeme ayarı kullanıma izin vermiyor. platform.claude.com üzerinden billing durumunu kontrol edin."
@@ -295,7 +342,7 @@ export default function BotPage() {
       } else if (fatalErrorCode === "AI_PROVIDER_CONFIGURATION_ERROR") {
         setResult("Hata: Yapay zekâ sağlayıcısının API anahtarı veya model ayarı eksik.");
       } else if (fatalErrorCode === "AI_BUDGET_LIMIT_REACHED") {
-        setResult("Harcama freni devrede: iş veya günlük yazar çağrısı sınırına ulaşıldı; ek API çağrısı yapılmadı.");
+        setResult("Yazar çağrı sınırı doldu: bu iş veya günlük yazar çağrısı tavanı aşıldı; yeni yazar çağrısı yapılmadı.");
       } else {
         setResult(
           `${total.added} makale oluşturuldu · ${total.writerCalls} yazar çağrısı · ${total.autoPublished} otomatik yayında · ${total.reviewQueued} incelemede · ${total.blocked} kalite kapısında durdu · ${total.duplicatesSkipped} benzer içerik atlandı` +
@@ -332,7 +379,7 @@ export default function BotPage() {
         <div role="alert" style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 16, padding: 12, border: "1px solid var(--dn)", borderRadius: 8, color: "var(--dn)" }}>
           <span style={{ flex: 1, fontSize: 13 }}>{sessionExpired ? "Yönetim oturumunuz sona ermiş. Devam etmek için yeniden giriş yapın." : loadError}</span>
           {sessionExpired ? (
-            <a className="adm-btn" href="/sys-k3m8p/giris">Yönetim Girişi</a>
+            <Link className="adm-btn" href="/sys-k3m8p/giris">Yönetim Girişi</Link>
           ) : (
             <button className="adm-btn" onClick={() => { setLoading(true); setLoadError(""); setReloadKey((key) => key + 1); }}>Yeniden Dene</button>
           )}
@@ -343,7 +390,7 @@ export default function BotPage() {
         <div className="adm-card-h">
           <div>
             <b>{aiProvider?.providerLabel || "Yapay Zekâ API"}</b>
-            <small>Makale motoru, model rolleri ve sert harcama frenleri</small>
+            <small>Model rolleri · yazar çağrı sınırı · günlük tahmini harcama tavanı</small>
           </div>
           <span style={{
             whiteSpace: "nowrap",
@@ -376,6 +423,10 @@ export default function BotPage() {
               value={aiProvider ? `${aiProvider.maxWriterCallsPerRun} yazım` : "—"}
             />
             <ProviderMetric
+              label="GÜNLÜK UYGULAMA TAVANI"
+              value={aiProvider ? `$${aiProvider.dailySpendLimitUsd.toFixed(2)}` : "—"}
+            />
+            <ProviderMetric
               label="YAZAR TOKEN TAVANI"
               value={aiProvider ? aiProvider.writerMaxOutputTokens.toLocaleString("tr-TR") : "—"}
             />
@@ -394,11 +445,20 @@ export default function BotPage() {
               {aiProvider?.billingLabel || "Sağlayıcı panelini aç ↗"}
             </a>
             <p style={{ maxWidth: 680, color: "var(--muted)", fontSize: 11, lineHeight: 1.55 }}>
-              Yazar ve doğrulayıcı ayrı modellerdir. Varsayılan olarak yalnızca ilk taslak hazırlanır; kalite
-              kapısında kalan metin için otomatik ücretli onarım çağrısı yapılmaz. ARTICLE_MAX_DRAFT_ATTEMPTS
-              artırılırsa ek denemeler açılır. Günlük limit dolunca motor yeni çağrı yapmadan durur.
+              Yazar çağrı sayısı sınırına ek olarak AI_DAILY_SPEND_LIMIT_USD tüm model aşamalarına uygulama tarafında
+              tahmini dolar tavanı koyar. 0 veya ayar yoksa model isteği gönderilmez; fiyatı ya da gün içi kullanımı
+              ölçülemeyen model/çağrı da durdurulur. İstek öncesi tam çıktı tavanı rezervasyonu gün sonuna kadar
+              tutulur; kullanılmayan rezerv de günlük payı azaltır. Bu tahmin sağlayıcı faturası değildir ve kendi
+              harcama limitinin yerini tutmaz. Doğrulama sonrası ek onarım çağrıları varsayılan olarak kapalıdır.
             </p>
           </div>
+          <p style={{ marginTop: 12, color: "var(--muted)", fontSize: 11, lineHeight: 1.5 }}>
+            OpenAI kurum API kullanımı (bu ay): {aiProvider?.openAICostStatus === "AVAILABLE"
+              ? `$${(aiProvider.openAIMonthToDateUsd ?? 0).toFixed(4)} · tüm kurum projeleri, kredi bakiyesi/tahsilat değil`
+              : aiProvider?.openAICostStatus === "ADMIN_KEY_REQUIRED"
+                ? "Rapor için OPENAI_ADMIN_KEY gerekli; bu anahtar model üretiminde kullanılmaz."
+                : "OpenAI maliyet raporu şu anda alınamıyor."}
+          </p>
         </div>
       </div>
 
@@ -430,19 +490,37 @@ export default function BotPage() {
             <ProviderMetric label="BUGÜN" value={cost ? `$${cost.today.toFixed(4)}` : "—"} />
             <ProviderMetric label="SON 7 GÜN" value={cost ? `$${cost.week.toFixed(2)}` : "—"} />
             <ProviderMetric label="SON 30 GÜN" value={cost ? `$${cost.month.toFixed(2)}` : "—"} />
+            {cost && cost.historicalStandardEstimate > 0 && (
+              <ProviderMetric
+                label="GEÇMİŞ KAYITLAR · STANDART TARİFE"
+                value={`~$${cost.historicalStandardEstimate.toFixed(2)}`}
+              />
+            )}
             <ProviderMetric
-              label={cost?.unpricedModels.length ? "KAYITLI AYLIK TAHMİN" : "TAHMİNİ AYLIK GİDİŞ"}
+              label="30 GÜN ÖN REZERVASYON"
+              value={cost ? `$${cost.reservedSpendUsd.toFixed(2)} · ${cost.reservationCalls} istek` : "—"}
+            />
+            <ProviderMetric
+              label={cost && (cost.unpricedModels.length > 0 || !cost.costIsComplete) ? "EKSİK KAYITLI AYLIK TAHMİN" : "TAHMİNİ AYLIK GİDİŞ"}
               value={cost?.projectedMonthly
-                ? `$${cost.projectedMonthly.toFixed(2)}${cost.unpricedModels.length ? "+" : ""} / $75 eşik`
+                ? `$${cost.projectedMonthly.toFixed(2)}${cost.unpricedModels.length || !cost.costIsComplete ? "+" : ""} / $75 eşik`
                 : "—"}
             />
             {cost && Object.entries(cost.byModel).map(([model, value]) => (
               <ProviderMetric key={model} label={model.toUpperCase()} value={`$${value.toFixed(4)}`} />
             ))}
+            {cost && Object.entries(cost.byEndpointHost).map(([host, value]) => (
+              <ProviderMetric key={host} label={`UÇ: ${host}`} value={`$${value.toFixed(4)}`} />
+            ))}
           </div>
           <p style={{ marginTop: 12, color: "var(--muted)", fontSize: 11 }}>
-            $75 yalnızca kayıtlı tahmin için uyarı eşiğidir; uygulama bu tutarda model çağrılarını otomatik durdurmaz. Gerçek harcama sınırı için sağlayıcı hesabındaki faturalama limitini kullanın.
+            Geçmiş standart tarife karşılaştırması eski kayıtlarda ücreti yazılmamış tokenlara uygulanır; son 30 gün kayıtlı tutarına eklenmez, sağlayıcı faturası veya ücretsiz katman durumunu göstermez. Ön rezervasyonlar ücret değildir; çağrı yanıt vermese bile üst bütçe payı olarak kalabilir. Uç alanı isteğin gittiği hostname bilgisini gösterir. $75 uyarı eşiğidir, otomatik durdurma sınırı değildir.
           </p>
+          {cost && !cost.costIsComplete && (
+            <p style={{ marginTop: 12, color: "var(--dn)", fontSize: 11 }}>
+              Ölçüm tam değil: {cost.callsWithoutUsage} istek kullanım verisi olmadan bitti; {cost.unverifiedEvents} eski koşuda istek denemeleri sayılmamış. Gösterilen maliyet alt sınırdır.
+            </p>
+          )}
           {cost && cost.unpricedModels.length > 0 && (
             <p style={{ marginTop: 12, color: "var(--dn)", fontSize: 11 }}>
               Fiyatı bilinmeyen model: {cost.unpricedModels.join(", ")} — gösterilen tutar eksik; gerçek harcama daha yüksek olabilir.
@@ -481,7 +559,7 @@ export default function BotPage() {
                   }}>
                     {block.stage.toUpperCase()}
                   </span>
-                  <span style={{ fontSize: 12, color: "var(--ink)", overflowWrap: "anywhere" }}>{block.message}</span>
+                  <span style={{ fontSize: 12, color: "var(--ink)", overflowWrap: "anywhere" }}>{displayBlockMessage(block.message)}</span>
                 </li>
               ))}
             </ul>
@@ -507,8 +585,20 @@ export default function BotPage() {
               ariaLabel="Üretilecek makale adedi"
             />
           </div>
-          <button onClick={generate} disabled={generating} className="adm-btn adm-btn-primary">
-            {generating ? "Akış çalışıyor..." : "Akışı Başlat"}
+          <button
+            onClick={generate}
+            disabled={generating || !aiProvider?.automationEnabled || !aiProvider.connected}
+            className="adm-btn adm-btn-primary"
+          >
+            {generating
+              ? "Akış çalışıyor..."
+              : !aiProvider
+                ? "Sağlayıcı durumu yükleniyor..."
+                : !aiProvider.automationEnabled
+                  ? "Otomasyon kapalı"
+                  : !aiProvider.connected
+                    ? "Sağlayıcı ayarı eksik"
+                    : "Akışı Başlat"}
           </button>
         </div>
         <p style={{ marginTop: 6, fontSize: 11, color: "var(--muted)" }}>
@@ -545,6 +635,43 @@ export default function BotPage() {
                           {item.automationMeta.plagiarism?.passed ? ` özgünlük ${item.automationMeta.plagiarism.score ?? 100}/100` : " kopya kontrolü bekliyor"}
                         </p>
                       )}
+                      {item.automationMeta && (
+                        (item.automationMeta.evidencePacket?.evidence?.length ?? 0) > 0 ||
+                        item.automationMeta.blockedBy ||
+                        (item.automationMeta.reviewReasons?.length ?? 0) > 0 ||
+                        (item.automationMeta.qualityObjections?.length ?? 0) > 0 ||
+                        (item.automationMeta.verificationObjections?.length ?? 0) > 0
+                      ) && (
+                        <details style={{ marginTop: 8 }}>
+                          <summary style={{ fontSize: 12, color: "var(--ink2)", cursor: "pointer" }}>
+                            Kaynaklar ve inceleme gerekçeleri
+                          </summary>
+                          <div style={{ marginTop: 8, display: "grid", gap: 8, fontSize: 12, color: "var(--muted)" }}>
+                            {item.automationMeta.blockedBy && (
+                              <p><b style={{ color: "var(--ink2)" }}>Engel:</b> {item.automationMeta.blockedBy}</p>
+                            )}
+                            {[
+                              ["İnceleme nedenleri", item.automationMeta.reviewReasons],
+                              ["Kalite itirazları", item.automationMeta.qualityObjections],
+                              ["Doğrulama itirazları", item.automationMeta.verificationObjections],
+                              ["Kanıt notları", item.automationMeta.evidencePacket?.reasons],
+                            ].map(([label, reasons]) => Array.isArray(reasons) && reasons.length > 0 && (
+                              <p key={String(label)}><b style={{ color: "var(--ink2)" }}>{label}:</b> {reasons.join(" · ")}</p>
+                            ))}
+                            {(item.automationMeta.evidencePacket?.evidence ?? []).map((entry, index) => {
+                              const sourceUrl = safeHttpUrl(entry.sourceUrl);
+                              return (
+                                <div key={entry.id || `${entry.source || "kaynak"}-${index}`} style={{ padding: 8, border: "1px solid var(--border)", borderRadius: 7 }}>
+                                  <p><b style={{ color: "var(--ink2)" }}>{entry.source || "Kaynak"}</b>{entry.publishedAt ? ` · ${new Date(entry.publishedAt).toLocaleDateString("tr-TR")}` : ""}</p>
+                                  {entry.title && <p style={{ marginTop: 3 }}>{entry.title}</p>}
+                                  {entry.summary && <p style={{ marginTop: 3 }}>{entry.summary}</p>}
+                                  {sourceUrl && <a href={sourceUrl} target="_blank" rel="noreferrer" style={{ display: "inline-block", marginTop: 4, color: "var(--link, #2563eb)" }}>Kaynağı aç</a>}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </details>
+                      )}
                       {item.automationMeta?.visual?.brief && (
                         <details style={{ marginTop: 8 }}>
                           <summary style={{ fontSize: 12, color: "var(--ink2)", cursor: "pointer" }}>
@@ -574,13 +701,24 @@ export default function BotPage() {
                         </details>
                       )}
                     </div>
-                    <span style={{
-                      whiteSpace: "nowrap", fontSize: 10, padding: "4px 8px", borderRadius: 5,
-                      background: item.publicationDecision === "AUTO_PUBLISH" ? "var(--up-soft)" : item.riskLevel === "RED" ? "#fef2f2" : "#fffbeb",
-                      color: item.publicationDecision === "AUTO_PUBLISH" ? "var(--up)" : item.riskLevel === "RED" ? "var(--dn)" : "#b45309",
-                    }}>
-                      {item.publicationDecision === "AUTO_PUBLISH" ? "YAYINLANDI" : item.riskLevel === "RED" ? "HASSAS · İNCELE" : "İNCELE"}
-                    </span>
+                    <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: 5 }}>
+                      <span style={{
+                        whiteSpace: "nowrap", fontSize: 10, padding: "4px 8px", borderRadius: 5,
+                        background: item.status === "PUBLISHED" || item.publicationDecision === "AUTO_PUBLISH" ? "var(--up-soft)" : item.riskLevel === "RED" ? "#fef2f2" : "#fffbeb",
+                        color: item.status === "PUBLISHED" || item.publicationDecision === "AUTO_PUBLISH" ? "var(--up)" : item.riskLevel === "RED" ? "var(--dn)" : "#b45309",
+                      }}>
+                        {item.status === "PUBLISHED" ? "YAYINDA" : item.publicationDecision === "AUTO_PUBLISH" ? "YAYINA HAZIR" : item.publicationDecision === "BLOCK" ? "ENGELLENDİ" : item.riskLevel === "RED" ? "HASSAS · İNCELE" : "İNCELE"}
+                      </span>
+                      {item.status === "PUBLISHED" && item.riskLevel !== "GREEN" && (
+                        <span style={{
+                          whiteSpace: "nowrap", fontSize: 10, padding: "4px 8px", borderRadius: 5,
+                          background: item.riskLevel === "RED" ? "#fef2f2" : "#fffbeb",
+                          color: item.riskLevel === "RED" ? "var(--dn)" : "#b45309",
+                        }}>
+                          {item.riskLevel === "RED" ? "RİSK: YÜKSEK" : "RİSK: ORTA"}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -647,7 +785,7 @@ export default function BotPage() {
                 {r.errors && (
                   <details style={{ marginTop: 12 }}>
                     <summary style={{ fontSize: 11, color: "var(--dn)", cursor: "pointer" }}>Hatalar</summary>
-                    <pre style={{ fontSize: 11, color: "var(--dn)", marginTop: 8, whiteSpace: "pre-wrap" }}>{r.errors}</pre>
+                    <pre style={{ fontSize: 11, color: "var(--dn)", marginTop: 8, whiteSpace: "pre-wrap" }}>{displayBlockMessage(r.errors)}</pre>
                   </details>
                 )}
               </div>

@@ -5,10 +5,12 @@
 
 ## Neden gerekli
 
-Neon'un kendi zaman-içinde-geri-alma özelliği yanlış bir `DELETE` ya da bozuk bir
-migration için yeterlidir. Ama **Neon hesabı kaybedilirse** (erişim kaybı, proje
-silinmesi) o yedek de birlikte gider. Site canlı ve gerçek veri tutuyor —
-makaleler, sayfa görüntülemeleri, arama performansı ve **abone e-postaları**.
+Canlı veritabanı yönetilen Neon hizmetinde değil: üretim `DATABASE_URL` host'u
+`127.0.0.1:5434`, sunucu konteyneri `gf-db` (PostgreSQL 17). Bu nedenle Neon
+PITR bu veritabanına uygulanmıyor. Site ile günlük DB kopyaları aynı VPS'te;
+sunucunun/diskin tamamen kaybında ikisi de kaybolabilir. Kalıcı dış yedek bu
+arıza alanından bağımsız tek kopyadır. Veritabanı makaleler, sayfa görüntüleme,
+arama performansı ve abone kayıtlarını içerir.
 
 ## Kurulu (Hetzner 89.167.52.36, 2026-09-05)
 
@@ -95,8 +97,56 @@ yüklendi. Canlı veritabanına yazılmadı.
 | Article | 214 |
 | AutomationEvent | 5526 |
 
+### Günlük yedek kontrolü — 2026-11-23
+
+Canlı `gf-yedek.timer` işi bugün 03:20 CET'te başarıyla tamamlandı; servis
+`Result=success`, `ExecMainStatus=0`, `NRestarts=0`. Nocturn yedek günlüğü
+03:15:01'de GelecekFinans için 1,3 MB ve 14 tablo-verisi girdisi kaydediyor.
+En yeni günlük dosya `/var/backups/nocturn/gelecekfinans/gelecekfinans-20261123-031501.dump`:
+1.323.298 bayt, mod 600; `pg_restore -l` 14 `TABLE DATA` girdisi gösterdi.
+Günlük başarı damgası güncel ve sonraki timer 24 Kasım 03:20 CET. Bu kontrolde
+geri yükleme provası tekrarlanmadı. Yedekleme yolu `/dev/vda4` kök dosya
+sisteminde; bu nedenle ayrı bir sunucuda/offsite üçüncü kopya hâlâ yok.
+
+Ek olarak `gf-yedek.timer` her gün 03:20'de `/opt/gelecekfinans-db/yedek.sh`
+çalıştırıyor; 23 Kasım koşumu `Result=success`, çıkış kodu 0 ve sıfır
+restart'la tamamlandı. Bu ikinci arşiv de aynı `/dev/vda4` diskine yazılıyor,
+dolayısıyla bağımsız bir felaket kurtarma kopyası oluşturmuyor. Sunucuda
+`rclone`/uzak depolama yapılandırması, ağ yedeği mount'u veya offsite aktarım
+betiği bulunmadı.
+
+İzin denetiminde ikinci arşivin klasörü `755`, dump dosyası `644` bulundu.
+23 Kasım'da klasör `700`, mevcut `gf-*.dump` dosyaları `600` yapıldı ve
+`yedek.sh` içine `umask 077` eklendi; sonraki dump'lar da özel izinlerle oluşur.
+
+### Arşiv bütünlüğü ve atomik yazım — 2026-11-24
+
+Kontrolde `gf-20261121.dump` sıfır bayt bulundu; aynı günün `gf-yedek`
+koşumunun systemd çıkış kodu sıfır görünse de dosya geçerli bir yedek değildi.
+Bu nedenle `/opt/gelecekfinans-db/yedek.sh`, dump'ı önce aynı klasörde geçici
+dosyaya yazacak, boş olmayan çıktıyı `pg_restore --list` ile doğrulayacak ve
+ancak sonra günlük hedefe atomik olarak taşıyacak şekilde düzeltildi. Başarısız
+çıktı artık önceki geçerli günlük dump'ın üzerine yazılamaz. Güncel veritabanı
+üzerinden ayrıca alınan `/opt/gelecekfinans-db/yedek/gf-20261124.dump` 1.284.691
+bayt; `pg_restore --list` doğrulamasından geçti ve dosya modu `600`. Aynı
+betik elle çalıştırılarak günlük hedef yeniden üretildi ve doğrulandı. Dump,
+ağsız geçici PostgreSQL 17 container'ına `pg_restore --exit-on-error` ile
+başarıyla geri yüklendi; 14 public tablo ve 214 Article kaydı bulundu. Canlı
+veritabanına restore yapılmadı.
+
+### Zamanlanmış yedek sonrası doğrulama — 2026-11-24
+
+Yeni betiğin ilk zamanlanmış koşumu `gf-yedek.timer` ile 03:20 CET'te
+çalıştı; `Result=success`, `ExecMainStatus=0`. Oluşan günlük arşiv 1.284.691
+bayt, modu `600`; `pg_restore --list` başarılı oldu. Bu zamanlanmış arşivin
+kendisi de ağsız geçici PostgreSQL 17 container'ına `pg_restore
+--exit-on-error` ile yüklendi; 14 public tablo ve 214 makale doğrulandı. Böylece
+yalnızca elle çalıştırma değil, timer→script→arşiv→geri yükleme yolu da
+doğrulandı. Canlı veritabanına restore yapılmadı.
+
 ## ⏳ Kalan
 
 - **Üçüncü kopya yok**: yedek şu an yalnız VPS'te. Sunucu tamamen kaybedilirse
-  yedek de gider — Hetzner Storage Box'a kopyalama eklenmeli.
-- **Neon PITR saklama süresi doğrulanmadı** (ücretsiz planda tipik 24 saat).
+  yedek de gider. Uzak depolama hesabı, mount veya aktarım betiği sunucuda
+  bulunmadı; mevcut bir offsite hedef sağlanırsa yeni ücretli hizmet açmadan
+  günlük şifreli kopya eklenebilir.

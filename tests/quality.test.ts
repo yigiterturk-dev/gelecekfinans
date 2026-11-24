@@ -34,7 +34,7 @@ const packet: EvidencePacket = {
 };
 
 function validDraft(): ArticleDraft {
-  const body = Array.from({ length: 285 }, (_, index) => index % 2 ? "kararın" : "bağlamı").join(" ");
+  const body = Array.from({ length: 655 }, (_, index) => index % 2 ? "kararın" : "bağlamı").join(" ");
   return {
     title: "TCMB politika faizini yüzde 43 seviyesinde sabit tuttu",
     meta: "Faiz kararı kapsamında TCMB, politika faizini yüzde 43 seviyesinde sabit bıraktı; kararın açıklanan ayrıntıları ve mevcut çerçevesi.",

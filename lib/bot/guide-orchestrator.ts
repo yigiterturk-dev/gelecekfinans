@@ -20,7 +20,8 @@ import {
 } from "@/lib/bot/keywords";
 import { isAIAutomationEnabled, resolveArticleAIBudgetConfig, startOfIstanbulDay } from "@/lib/bot/ai-budget";
 import { getOpenAIQuotaGuard, openAIQuotaGuardMessage } from "@/lib/bot/ai-quota-cooldown";
-import { AIProviderFatalError } from "@/lib/bot/errors";
+import { AIProviderBillingError, AIProviderFatalError, AIProviderQuotaError } from "@/lib/bot/errors";
+import { isBotRequestAborted } from "@/lib/bot/request-context";
 
 /**
  * Şerit B — rehber yayın akışı.
@@ -110,7 +111,7 @@ export async function runGuidePipeline(options: GuidePipelineOptions) {
   let dailyWriterCalls = await prisma.automationEvent.count({
     where: { stage: "writer_call_reserved", createdAt: { gte: startOfIstanbulDay() } },
   });
-  const writerStageCalls = () => usageSummary().byStage.writer?.calls ?? 0;
+  const writerStageCalls = () => usageSummary().byStage.writer?.attemptedCalls ?? 0;
 
   let added = 0;
   let autoPublished = 0;
@@ -126,6 +127,7 @@ export async function runGuidePipeline(options: GuidePipelineOptions) {
   });
 
   for (const keyword of keywords) {
+    if (isBotRequestAborted()) break;
     // `catch` bloğu da bunlara bakıyor (bkz. taslak kurtarma), bu yüzden
     // `try` dışında duruyorlar.
     const isEntity = keyword.origin === "entity";
@@ -376,6 +378,7 @@ export async function runGuidePipeline(options: GuidePipelineOptions) {
           provider: aiConfig.provider,
           writerModel: aiConfig.writerModel,
           verifierModel: aiConfig.verifierModel,
+          ...(error instanceof AIProviderQuotaError || error instanceof AIProviderBillingError ? error.toMetadata() : {}),
         }, undefined, "error");
         break;
       }
@@ -389,13 +392,17 @@ export async function runGuidePipeline(options: GuidePipelineOptions) {
   // olsa bile koşu sonucu etkilenmemeli: kayıt hatası yutulur.
   try {
     const usage = usageSummary();
-    if (usage.calls > 0) {
+    const reservedWriterCalls = await prisma.automationEvent.count({
+      where: { runId: run.id, stage: "writer_call_reserved" },
+    });
+    if (usage.calls > 0 || usage.attemptedCalls > 0 || reservedWriterCalls > 0) {
       await logEvent(
         run.id,
         "cost",
-        `${usage.calls} model çağrısı, ${usage.inputTokens + usage.outputTokens} token, ` +
+        `${usage.attemptedCalls} model isteği, ${usage.callsWithoutUsage} kullanım verisi eksik, ` +
+        `${reservedWriterCalls} yazar çağrısı ayrıldı, ${usage.inputTokens + usage.outputTokens} token, ` +
         `$${usage.costUsd.toFixed(4)}`,
-        usage,
+        { ...usage, reservedWriterCalls },
       );
     }
   } catch (usageError) {

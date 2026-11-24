@@ -1,10 +1,14 @@
 export interface ArticleAIBudgetConfig {
+  /** Günlük uygulama tahmini dolar tavanı; 0 ise tüm model çağrıları kapalıdır. */
+  dailySpendLimitUsd: number;
   dailyWriterCallLimit: number;
   /** Haber akışının dokunamayacağı, rehber akışına ayrılmış çağrı payı. */
   guideWriterCallReserve: number;
   maxWriterCallsPerRun: number;
   /** İlk taslağa ek kalite/benzerlik onarım denemeleri. */
   maxDraftAttempts: number;
+  /** Doğrulayıcı retlerinden sonra ek ücretli yazım turu; varsayılan kapalı. */
+  verificationRepairEnabled: boolean;
   writerMaxOutputTokens: number;
   verifierMaxOutputTokens: number;
   evidencePromptCharacterLimit: number;
@@ -27,10 +31,19 @@ function boundedInteger(
   return Math.max(minimum, Math.min(parsed, maximum));
 }
 
+function boundedUsd(value: string | undefined): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return 0;
+  return Math.max(0, Math.min(parsed, 100));
+}
+
 export function resolveArticleAIBudgetConfig(
   env: Record<string, string | undefined> = process.env,
 ): ArticleAIBudgetConfig {
   return {
+    // Bu, sağlayıcı faturası değil uygulama tarafında önceden hesaplanan
+    // üst sınırdır. Harcama riski açıkça kabul edilmedikçe varsayılan sıfır.
+    dailySpendLimitUsd: boundedUsd(env.AI_DAILY_SPEND_LIMIT_USD),
     /**
      * Günlük yazar çağrısı tavanı.
      *
@@ -66,9 +79,11 @@ export function resolveArticleAIBudgetConfig(
     // tek bir onarımlı konu tavanın üçte ikisini yiyor. 6, koşumun 2 makale
     // hedefini bir redde rağmen tutturmaya yeten gerçek çağrı sayısıdır.
     maxWriterCallsPerRun: boundedInteger(env.ARTICLE_MAX_WRITER_CALLS_PER_RUN, 6, 1, 12),
-    // Her onarım yeni ücretli model çağrısıdır. Varsayılan sıfır onarım;
-    // kalite kapısında kalan taslak için otomatik olarak 2-3 kez para yakma.
+    // Bu sayı yalnızca kalite/benzerlik tekrarlarını kapsar; ilk taslak 1'dir.
     maxDraftAttempts: boundedInteger(env.ARTICLE_MAX_DRAFT_ATTEMPTS, 1, 1, 4),
+    // Doğrulama onarımı ayrıca yazar + tekrar doğrulama çağrısı üretir. Maliyet
+    // açıkça kabul edilmedikçe kapalı tut.
+    verificationRepairEnabled: env.ARTICLE_VERIFICATION_REPAIR_ENABLED?.trim().toLowerCase() === "true",
     // 2400 token, 800 kelimelik TÜRKÇE makale JSON'ına yetmiyordu: canlı
     // kayıtta "Unterminated string in JSON at position 7764" ile taslak
     // ortadan kesildi. Türkçe token başına daha az kelime taşır ve claims/faq

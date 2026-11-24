@@ -7,7 +7,7 @@ import { prisma } from "@/lib/db";
 import { asJson } from "@/lib/prisma-json";
 import { slugify } from "@/lib/slug";
 import { analyzeSeo } from "@/lib/seo";
-import { writeArticle } from "@/lib/bot/writer";
+import { resolveArticleAIConfig, writeArticle } from "@/lib/bot/writer";
 import { getArticleImageResult } from "@/lib/bot/images";
 import { autoLink } from "@/lib/bot/linker";
 import { ensureExternalLink } from "@/lib/bot/external-link";
@@ -15,7 +15,10 @@ import { classifyTopicText, findCorroboratedTopic } from "@/lib/bot/topics";
 import { classifyRisk, scoreSource } from "@/lib/bot/autonomy";
 import { checkPlagiarism } from "@/lib/bot/plagiarism";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
-import { isAIAutomationEnabled } from "@/lib/bot/ai-budget";
+import { AIProviderFatalError, AIProviderQuotaError } from "@/lib/bot/errors";
+import { isAIAutomationEnabled, resolveArticleAIBudgetConfig, startOfIstanbulDay } from "@/lib/bot/ai-budget";
+import { resetUsageLedger, usageSummary } from "@/lib/bot/usage";
+import { acquireCronLock, releaseCronLock } from "@/lib/bot/cron-lock";
 import { z } from "zod";
 
 const PRIVATE_HEADERS = { "Cache-Control": "private, no-store, max-age=0" };
@@ -60,6 +63,8 @@ function splitSource(title: string, feedSource: string): { title: string; source
 function isUniqueConstraintError(error: unknown): boolean {
   return !!error && typeof error === "object" && "code" in error && error.code === "P2002";
 }
+
+class DailyWriterBudgetExceededError extends Error {}
 
 // GET ?q=... → Google News RSS araması, ilk ~20 sonucu döndürür.
 export async function GET(req: NextRequest) {
@@ -167,8 +172,61 @@ export async function POST(req: NextRequest) {
     }, { status: 422, headers: PRIVATE_HEADERS });
   }
 
+  // Serialize manual writes with scheduled pipelines and reserve their daily
+  // writer-call budget before the first paid request can be sent.
+  const lock = await acquireCronLock("bot:publishing-pipeline");
+  if (!lock) {
+    return NextResponse.json({ error: "Yazı hattı şu anda çalışıyor; model çağrısı yapılmadı." }, {
+      status: 409,
+      headers: { ...PRIVATE_HEADERS, "Retry-After": "60" },
+    });
+  }
+
+  resetUsageLedger();
+  let botRunId: string | undefined;
+  let articleId: string | undefined;
+  let runStatus = "failed";
+  let runError: string | null = null;
+  let articlesAdded = 0;
+  let duplicatesSkipped = 0;
+  let manualWriterCalls = 0;
   try {
-    const article = await writeArticle(topic, 550);
+    const run = await prisma.botRun.create({ data: { articlesFound: 1 } });
+    botRunId = run.id;
+    const budget = resolveArticleAIBudgetConfig();
+    const newsWriterCallLimit = Math.max(1, budget.dailyWriterCallLimit - budget.guideWriterCallReserve);
+    const reservedToday = await prisma.automationEvent.count({
+      where: { stage: "writer_call_reserved", createdAt: { gte: startOfIstanbulDay() } },
+    });
+    const aiConfig = resolveArticleAIConfig();
+    const reserveWriterCall = async () => {
+      if (
+        manualWriterCalls >= budget.maxWriterCallsPerRun ||
+        reservedToday + manualWriterCalls >= newsWriterCallLimit
+      ) {
+        throw new DailyWriterBudgetExceededError();
+      }
+      manualWriterCalls++;
+      await prisma.automationEvent.create({
+        data: {
+          runId: botRunId,
+          stage: "writer_call_reserved",
+          message: "Admin araştırma yazarı çağrısı günlük bütçeden ayrıldı",
+          metadata: asJson({
+            title: topic.title,
+            trigger: "admin-research",
+            provider: aiConfig.provider,
+            model: aiConfig.writerModel,
+            call: manualWriterCalls,
+            maxWriterCallsPerRun: budget.maxWriterCallsPerRun,
+            dailyCall: reservedToday + manualWriterCalls,
+            dailyWriterCallLimit: newsWriterCallLimit,
+          }),
+        },
+      });
+    };
+
+    const article = await writeArticle(topic, 550, { beforeWriterCall: reserveWriterCall });
     const recent = await prisma.article.findMany({
       where: { createdAt: { gte: new Date(Date.now() - 90 * 86400000) } },
       orderBy: { createdAt: "desc" },
@@ -181,15 +239,28 @@ export async function POST(req: NextRequest) {
       recentDocuments: recent,
     });
     if (!plagiarism.passed) {
+      runError = "PLAGIARISM_BLOCKED";
+      await prisma.automationEvent.create({
+        data: {
+          runId: botRunId,
+          stage: "quality",
+          level: "warning",
+          message: "Admin araştırma taslağı intihal kontrolünü geçemedi",
+          metadata: asJson({ code: "PLAGIARISM_BLOCKED", issues: plagiarism.issues }),
+        },
+      });
       return NextResponse.json({ error: `Kopya kontrolü geçmedi: ${plagiarism.issues.join("; ")}` }, { status: 422, headers: PRIVATE_HEADERS });
     }
     const slug = slugify(article.title);
     if (!slug) {
+      runError = "INVALID_SLUG";
       return NextResponse.json({ error: "Üretilen başlıktan geçerli bir makale adresi üretilemedi." }, { status: 422, headers: PRIVATE_HEADERS });
     }
 
     const existing = await prisma.article.findUnique({ where: { slug } });
     if (existing) {
+      runStatus = "completed";
+      duplicatesSkipped = 1;
       return NextResponse.json({ error: "Bu başlıktan zaten bir makale mevcut.", articleId: existing.id }, { status: 409, headers: PRIVATE_HEADERS });
     }
 
@@ -253,11 +324,94 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    articleId = created.id;
+    articlesAdded = 1;
+    runStatus = "completed";
     return NextResponse.json({ ok: true, articleId: created.id, title: created.title, seoScore: seo.score }, { headers: PRIVATE_HEADERS });
   } catch (error) {
+    if (error instanceof DailyWriterBudgetExceededError) {
+      runError = "AI_BUDGET_LIMIT_REACHED";
+      if (botRunId) {
+        await prisma.automationEvent.create({
+          data: {
+            runId: botRunId,
+            stage: "budget",
+            level: "warning",
+            message: "Admin araştırma yazarı günlük/koşum kotasına ulaştı; ek model çağrısı yapılmadı",
+            metadata: asJson({ code: runError, reservedWriterCalls: manualWriterCalls }),
+          },
+        }).catch(() => {});
+      }
+      return NextResponse.json({ error: "Günlük haber yazarı çağrı kotası doldu; ek model çağrısı yapılmadı." }, {
+        status: 429,
+        headers: PRIVATE_HEADERS,
+      });
+    }
+    if (error instanceof AIProviderFatalError) {
+      runError = error.code;
+      await prisma.automationEvent.create({
+        data: {
+          runId: botRunId,
+          stage: "configuration",
+          level: "error",
+          message: error.message,
+          metadata: asJson({
+            code: error.code,
+            provider: process.env.ARTICLE_AI_PROVIDER || null,
+            ...(error instanceof AIProviderQuotaError ? error.toMetadata() : {}),
+          }),
+        },
+      }).catch(() => {});
+      return NextResponse.json({ error: error.message, code: error.code }, {
+        status: error instanceof AIProviderQuotaError ? 429 : 503,
+        headers: PRIVATE_HEADERS,
+      });
+    }
     if (isUniqueConstraintError(error)) {
+      runStatus = "completed";
+      duplicatesSkipped = 1;
       return NextResponse.json({ error: "Bu makale adresi başka bir kayıt tarafından kullanıldı." }, { status: 409, headers: PRIVATE_HEADERS });
     }
+    runError = error instanceof Error ? error.message.slice(0, 500) : "MANUAL_RESEARCH_FAILED";
     return NextResponse.json({ error: "Makale üretilemedi. Lütfen daha sonra tekrar deneyin." }, { status: 500, headers: PRIVATE_HEADERS });
+  } finally {
+    try {
+      const usage = usageSummary();
+      if (usage.calls > 0 || usage.attemptedCalls > 0 || manualWriterCalls > 0) {
+        await prisma.automationEvent.create({
+          data: {
+            runId: botRunId,
+            articleId,
+            stage: "cost",
+            message: `${usage.attemptedCalls} model isteği; ${usage.callsWithoutUsage} kullanım verisi eksik; ${manualWriterCalls} yazar çağrısı ayrıldı; ${usage.inputTokens + usage.outputTokens} token; $${usage.costUsd.toFixed(4)}`,
+            metadata: asJson({
+              ...usage,
+              trigger: "admin-research",
+              reservedWriterCalls: manualWriterCalls,
+              ...(usage.calls === 0 && manualWriterCalls > 0 ? { costIsComplete: false } : {}),
+            }),
+          },
+        });
+      }
+    } catch (usageError) {
+      console.error("[bot-cost] admin araştırma maliyeti kaydedilemedi:", (usageError as Error).message);
+    }
+    if (botRunId) {
+      await prisma.botRun.update({
+        where: { id: botRunId },
+        data: {
+          finishedAt: new Date(),
+          articlesAdded,
+          duplicatesSkipped,
+          reviewQueued: articlesAdded,
+          blocked: runStatus === "failed" ? 1 : 0,
+          errors: runError,
+          status: runStatus,
+        },
+      }).catch((runErrorUpdate) => {
+        console.error("[bot-run] admin araştırma koşusu kapatılamadı:", (runErrorUpdate as Error).message);
+      });
+    }
+    await releaseCronLock(lock).catch(() => {});
   }
 }

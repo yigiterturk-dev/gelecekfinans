@@ -9,7 +9,13 @@ async function main() {
       r.startedAt.toISOString(), r.status,
       `bulundu=${r.articlesFound}`, `eklendi=${r.articlesAdded}`,
       `yayın=${r.autoPublished}`, `kuyruk=${r.reviewQueued}`, `engel=${r.blocked}`,
-      (r.errors || "").slice(0, 140).replace(/\n/g, " | "),
+      (r.errors || "")
+        .replaceAll(
+          "OpenAI kredisi tükendi. Billing bakiyesi yenilenene kadar üretim durduruldu.",
+          "Eski OpenAI kota/limit hatası; bakiye sıfır olduğunu tek başına kanıtlamaz.",
+        )
+        .slice(0, 140)
+        .replace(/\n/g, " | "),
     );
   }
   const events = await prisma.automationEvent.groupBy({

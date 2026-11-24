@@ -12,7 +12,68 @@ function json(body: unknown, init?: ResponseInit) {
   return Response.json(body, { ...init, headers });
 }
 
-type ProviderId = "openai" | "anthropic" | "deepseek";
+type ProviderId = "openai" | "anthropic" | "deepseek" | "gemini";
+
+type OpenAICostResult = {
+  amount?: { value?: number; currency?: string } | null;
+};
+
+type OpenAICostPage = {
+  data?: Array<{ results?: OpenAICostResult[] }>;
+  has_more?: boolean;
+  next_page?: string | null;
+};
+
+async function currentOpenAIMonthCost() {
+  const adminKey = process.env.OPENAI_ADMIN_KEY?.trim();
+  if (!adminKey) return { openAICostStatus: "ADMIN_KEY_REQUIRED" as const, openAIMonthToDateUsd: null };
+
+  const now = new Date();
+  const startTime = Math.floor(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1) / 1000);
+  const endTime = Math.floor(now.getTime() / 1000);
+  let page: string | null = null;
+  let totalUsd = 0;
+
+  try {
+    for (let pageIndex = 0; pageIndex < 3; pageIndex += 1) {
+      const url = new URL("https://api.openai.com/v1/organization/costs");
+      url.searchParams.set("start_time", String(startTime));
+      url.searchParams.set("end_time", String(endTime));
+      url.searchParams.set("bucket_width", "1d");
+      url.searchParams.set("limit", "180");
+      if (page) url.searchParams.set("page", page);
+
+      const response = await fetch(url, {
+        headers: { Authorization: `Bearer ${adminKey}` },
+        cache: "no-store",
+        signal: AbortSignal.timeout(5_000),
+      });
+      if (!response.ok) throw new Error(`OpenAI costs returned ${response.status}`);
+
+      const payload = await response.json() as OpenAICostPage;
+      for (const bucket of payload.data || []) {
+        for (const result of bucket.results || []) {
+          if (!result.amount) continue;
+          const currency = result.amount.currency?.toLocaleLowerCase("en-US");
+          const value = result.amount.value;
+          if (currency !== "usd" || typeof value !== "number" || !Number.isFinite(value)) {
+            throw new Error("Invalid OpenAI cost amount");
+          }
+          totalUsd += value;
+        }
+      }
+
+      if (!payload.has_more) {
+        return { openAICostStatus: "AVAILABLE" as const, openAIMonthToDateUsd: Number(totalUsd.toFixed(4)) };
+      }
+      if (!payload.next_page) throw new Error("OpenAI costs pagination cursor missing");
+      page = payload.next_page;
+    }
+    throw new Error("OpenAI costs pagination limit reached");
+  } catch {
+    return { openAICostStatus: "UNAVAILABLE" as const, openAIMonthToDateUsd: null };
+  }
+}
 
 function providerPresentation(provider: ProviderId, model: string) {
   if (provider === "openai") {
@@ -27,6 +88,13 @@ function providerPresentation(provider: ProviderId, model: string) {
       providerLabel: "Claude API",
       billingUrl: "https://platform.claude.com/settings/billing",
       billingLabel: "Claude Billing'i Aç ↗",
+    };
+  }
+  if (provider === "gemini") {
+    return {
+      providerLabel: "Google Gemini API",
+      billingUrl: "https://aistudio.google.com/",
+      billingLabel: "Google AI Studio'yu Aç ↗",
     };
   }
 
@@ -63,6 +131,8 @@ export async function GET() {
       createdAt: { gte: startOfIstanbulDay() },
     },
   });
+  // The Admin API key is optional. This read-only report never calls a model.
+  const openAICost = await currentOpenAIMonthCost();
 
   try {
     const config = resolveArticleAIConfig();
@@ -75,12 +145,21 @@ export async function GET() {
       writerModel: config.writerModel,
       verifierModel: config.verifierModel,
       dailyWriterCalls,
+      ...openAICost,
       ...budget,
     });
   } catch {
     const requested = process.env.ARTICLE_AI_PROVIDER?.trim().toLocaleLowerCase("en-US");
-    const provider: ProviderId = requested === "anthropic" ? "anthropic" : requested === "deepseek" ? "deepseek" : "openai";
-    const writerModel = provider === "deepseek"
+    const provider: ProviderId = requested === "anthropic"
+      ? "anthropic"
+      : requested === "deepseek"
+        ? "deepseek"
+        : requested === "gemini"
+          ? "gemini"
+          : "openai";
+    const writerModel = provider === "gemini"
+      ? process.env.GEMINI_ARTICLE_MODEL || "gemini-2.5-flash"
+      : provider === "deepseek"
       ? process.env.DEEPSEEK_ARTICLE_MODEL || "deepseek-chat"
       : provider === "anthropic"
         ? process.env.ANTHROPIC_ARTICLE_MODEL || "claude-haiku-4-5"
@@ -96,8 +175,11 @@ export async function GET() {
         ? process.env.OPENAI_VERIFIER_MODEL || "gpt-5.6-luna"
         : provider === "anthropic"
           ? process.env.ANTHROPIC_VERIFIER_MODEL || "claude-haiku-4-5"
-          : process.env.DEEPSEEK_VERIFIER_MODEL || "deepseek-chat",
+          : provider === "gemini"
+            ? process.env.GEMINI_VERIFIER_MODEL || "gemini-2.5-flash"
+            : process.env.DEEPSEEK_VERIFIER_MODEL || "deepseek-chat",
       dailyWriterCalls,
+      ...openAICost,
       ...budget,
     });
   }

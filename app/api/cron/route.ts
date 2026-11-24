@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { runPublishingPipeline } from "@/lib/bot/orchestrator";
 import { getSettings } from "@/lib/settings";
 import { sendDailyDigest, mailEnabled } from "@/lib/mail";
+import { acquireCronLock, releaseCronLock } from "@/lib/bot/cron-lock";
 
 export const maxDuration = 300;
 
@@ -17,14 +18,25 @@ export async function GET(req: NextRequest) {
   }
 
   const settings = await getSettings();
-  const bot = settings.autonomy?.cronEnabled === false
-    ? { skipped: true, reason: "Otomatik üretim ayarlardan duraklatıldı" }
-    : await runPublishingPipeline({
+  let bot;
+  if (settings.autonomy?.cronEnabled === false) {
+    bot = { skipped: true, reason: "Otomatik üretim ayarlardan duraklatıldı" };
+  } else {
+    const lock = await acquireCronLock("bot:publishing-pipeline");
+    if (!lock) {
+      return NextResponse.json({ error: "Başka bir yayın üretim akışı sürüyor." }, { status: 409 });
+    }
+    try {
+      bot = await runPublishingPipeline({
         trigger: "cron",
         count: settings.autonomy?.dailyArticleCount ?? 1,
         targetWords: settings.autonomy?.targetWords ?? 550,
         autoPublish: false,
       });
+    } finally {
+      await releaseCronLock(lock).catch(() => {});
+    }
+  }
 
   let mailSent = 0;
   let mailError: string | null = null;

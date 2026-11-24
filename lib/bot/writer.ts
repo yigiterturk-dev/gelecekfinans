@@ -1,7 +1,12 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import OpenAI from "openai";
-import { recordUsage } from "@/lib/bot/usage";
+import {
+  recordCallAttempt as recordUsageAttempt,
+  recordUsage as recordMeasuredUsage,
+  type UsageStage,
+} from "@/lib/bot/usage";
+import { reserveModelSpend } from "@/lib/bot/spend-guard";
 import { zodResponseFormat, zodTextFormat } from "openai/helpers/zod";
 import type { ArticleExtras } from "@/lib/types";
 import type { Topic } from "./topics";
@@ -33,23 +38,37 @@ import {
   AIProviderBillingError,
   AIProviderFatalError,
   AIProviderConfigurationError,
+  providerQuotaError,
   VerificationBlockedError,
   AnthropicBillingError,
   isAnthropicBillingError,
-  isOpenAIQuotaError,
+  isProviderQuotaError,
   isProviderBillingError,
   isProviderRequestConfigurationError,
-  OpenAIQuotaError,
   QualityBlockedError,
 } from "./errors";
 import { CallBudget } from "./call-budget";
+import { botRequestOptions, throwIfBotRequestAborted } from "./request-context";
 
-export type ArticleAIProvider = "anthropic" | "openai" | "deepseek";
+export type ArticleAIProvider = "anthropic" | "openai" | "deepseek" | "gemini";
 
 export interface ArticleAIConfig {
   provider: ArticleAIProvider;
   writerModel: string;
   verifierModel: string;
+}
+
+function isLegacyGeminiRoute(env: Record<string, string | undefined>): boolean {
+  const host = (() => {
+    try {
+      return new URL(env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1").hostname;
+    } catch {
+      return "";
+    }
+  })();
+  return host === "generativelanguage.googleapis.com"
+    || env.DEEPSEEK_ARTICLE_MODEL?.toLowerCase().startsWith("gemini-") === true
+    || env.DEEPSEEK_VERIFIER_MODEL?.toLowerCase().startsWith("gemini-") === true;
 }
 
 export function resolveArticleAIConfig(
@@ -61,19 +80,33 @@ export function resolveArticleAIConfig(
       "AI otomasyonu açıkken ARTICLE_AI_PROVIDER açıkça seçilmelidir; API anahtarı sağlayıcıyı otomatik seçmez.",
     );
   }
-  if (requested && requested !== "anthropic" && requested !== "openai" && requested !== "deepseek") {
+  if (requested && !["anthropic", "openai", "deepseek", "gemini"].includes(requested)) {
     throw new AIProviderConfigurationError(`Desteklenmeyen ARTICLE_AI_PROVIDER: ${requested}`);
   }
   const provider: ArticleAIProvider = requested === "anthropic"
     ? "anthropic"
     : requested === "deepseek"
-      ? "deepseek"
+      ? isLegacyGeminiRoute(env) ? "gemini" : "deepseek"
+      : requested === "gemini"
+        ? "gemini"
       : requested === "openai" || Boolean(env.OPENAI_API_KEY)
         ? "openai"
         : "anthropic";
 
+  // OpenAI can spend prepaid API credits directly. Keep it behind a separate,
+  // explicit opt-in so enabling article automation or changing provider
+  // configuration cannot silently start using those credits.
+  if (provider === "openai" && env.AI_OPENAI_SPENDING_ENABLED?.trim().toLowerCase() !== "true") {
+    throw new AIProviderConfigurationError(
+      "OpenAI harcaması kilitli; kullanmak için AI_OPENAI_SPENDING_ENABLED=true açıkça ayarlanmalıdır.",
+    );
+  }
+
   if (provider === "deepseek" && !env.DEEPSEEK_API_KEY) {
     throw new AIProviderConfigurationError("DeepSeek seçili ancak DEEPSEEK_API_KEY tanımlı değil.");
+  }
+  if (provider === "gemini" && !env.GEMINI_API_KEY && !(requested === "deepseek" && env.DEEPSEEK_API_KEY)) {
+    throw new AIProviderConfigurationError("Gemini seçili ancak GEMINI_API_KEY tanımlı değil.");
   }
 
   if (provider === "anthropic" && !env.ANTHROPIC_API_KEY) {
@@ -91,6 +124,13 @@ export function resolveArticleAIConfig(
       verifierModel: env.DEEPSEEK_VERIFIER_MODEL || "deepseek-chat",
     };
   }
+  if (provider === "gemini") {
+    return {
+      provider,
+      writerModel: env.GEMINI_ARTICLE_MODEL || (requested === "deepseek" ? env.DEEPSEEK_ARTICLE_MODEL : undefined) || "gemini-2.5-flash",
+      verifierModel: env.GEMINI_VERIFIER_MODEL || (requested === "deepseek" ? env.DEEPSEEK_VERIFIER_MODEL : undefined) || "gemini-2.5-flash",
+    };
+  }
 
   return provider === "anthropic"
     ? {
@@ -105,6 +145,37 @@ export function resolveArticleAIConfig(
         writerModel: env.OPENAI_ARTICLE_MODEL || "gpt-5",
         verifierModel: env.OPENAI_VERIFIER_MODEL || "gpt-5-mini",
       };
+}
+
+/** Kayıtlara yalnızca hostname yazılır; base URL içindeki path/anahtar bilgisi saklanmaz. */
+function currentModelEndpointHost(): string {
+  const provider = resolveArticleAIConfig().provider;
+  if (provider === "openai") return "api.openai.com";
+  if (provider === "anthropic") return "api.anthropic.com";
+  try {
+    const baseUrl = provider === "gemini"
+      ? process.env.GEMINI_BASE_URL || process.env.DEEPSEEK_BASE_URL || "https://generativelanguage.googleapis.com/v1beta/openai/"
+      : process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1";
+    return new URL(baseUrl).hostname || "unknown";
+  } catch {
+    return "invalid-configured-endpoint";
+  }
+}
+
+async function recordCallAttempt(
+  stage: UsageStage,
+  model: string,
+  prompts: string[],
+  maxOutputTokens: number,
+): Promise<void> {
+  throwIfBotRequestAborted();
+  const endpointHost = currentModelEndpointHost();
+  const reservedCostUsd = await reserveModelSpend({ stage, model, endpointHost, prompts, maxOutputTokens });
+  recordUsageAttempt(stage, model, endpointHost, reservedCostUsd);
+}
+
+function recordUsage(stage: UsageStage, model: string, usage: Parameters<typeof recordMeasuredUsage>[2]): void {
+  recordMeasuredUsage(stage, model, usage, currentModelEndpointHost());
 }
 
 /**
@@ -150,7 +221,9 @@ let openaiClient: OpenAI | null = null;
 let anthropicClient: Anthropic | null = null;
 
 function openai(): OpenAI {
-  openaiClient ||= new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  // Hidden SDK retries can resend billable requests without reaching the
+  // application ledger. Each request is now accounted once; retry policy stays explicit.
+  openaiClient ||= new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 0 });
   return openaiClient;
 }
 
@@ -158,16 +231,26 @@ function openai(): OpenAI {
  * DeepSeek OpenAI-uyumlu bir uç sunuyor, bu yüzden aynı SDK kullanılıyor.
  * Ama Responses API'si YOK: yalnızca chat.completions var ve katı json_schema
  * desteklemiyor, sadece `json_object` modu var. Bu yüzden şema modele metin
- * olarak verilip cevap Zod ile doğrulanıyor (aşağıdaki deepseekJson).
+ * olarak verilip cevap Zod ile doğrulanıyor.
  */
 let deepseekClient: OpenAI | null = null;
+let geminiClient: OpenAI | null = null;
 
-function deepseek(): OpenAI {
-  deepseekClient ||= new OpenAI({
-    apiKey: process.env.DEEPSEEK_API_KEY,
-    baseURL: process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1",
+function openAICompatibleClient(provider: "deepseek" | "gemini"): OpenAI {
+  const client = provider === "gemini" ? geminiClient : deepseekClient;
+  if (client) return client;
+  const nextClient = new OpenAI({
+    apiKey: provider === "gemini"
+      ? process.env.GEMINI_API_KEY || process.env.DEEPSEEK_API_KEY
+      : process.env.DEEPSEEK_API_KEY,
+    baseURL: provider === "gemini"
+      ? process.env.GEMINI_BASE_URL || process.env.DEEPSEEK_BASE_URL || "https://generativelanguage.googleapis.com/v1beta/openai/"
+      : process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1",
+    maxRetries: 0,
   });
-  return deepseekClient;
+  if (provider === "gemini") geminiClient = nextClient;
+  else deepseekClient = nextClient;
+  return nextClient;
 }
 
 /**
@@ -183,7 +266,8 @@ export function extractJsonObject(content: string): string {
   return start >= 0 && end > start ? content.slice(start, end + 1) : content;
 }
 
-async function deepseekJson<T>(args: {
+async function openAICompatibleJson<T>(args: {
+  provider: ArticleAIProvider;
   model: string;
   system: string;
   user: string;
@@ -191,6 +275,9 @@ async function deepseekJson<T>(args: {
   schema: Parameters<typeof zodResponseFormat>[0];
   name: string;
 }): Promise<T> {
+  if (!usesOpenAICompatibleProvider(args.provider)) {
+    throw new AIProviderConfigurationError("Bu model, OpenAI uyumlu sohbet API'si üzerinden çağrılamıyor.");
+  }
   const jsonSchema = (zodResponseFormat(args.schema, args.name) as {
     json_schema: { schema: unknown };
   }).json_schema.schema;
@@ -203,11 +290,16 @@ async function deepseekJson<T>(args: {
   ].join("\n");
 
   let lastError: unknown;
+  const usageStage: UsageStage = args.name.includes("article") ? "writer"
+    : args.name.includes("entities") ? "entity"
+      : args.name.includes("same_story") ? "judge" : "verifier";
   // 2026-11-19: Ollama DeepSeek 1.3 sıcaklıkta zaman zaman bozuk JSON veriyor
   // ("Expected ',' or ']'"). Ayrıştırma hatasından sonra sıcaklık düşürülüyor.
   let jsonBroken = false;
   for (let attempt = 0; attempt < 3; attempt++) {
-    const response = await deepseek().chat.completions.create({
+    throwIfBotRequestAborted();
+    await recordCallAttempt(usageStage, args.model, [system, args.user], args.maxTokens);
+    const response = await openAICompatibleClient(args.provider).chat.completions.create({
       model: args.model,
       max_tokens: args.maxTokens,
       // DeepSeek varsayılan sıcaklıkta kaynak cümlelerini olduğu gibi aktarıyor
@@ -217,30 +309,34 @@ async function deepseekJson<T>(args: {
       // karşılaştırmak, tutarlılık lazım.
       temperature: jsonBroken
         ? 0.7
-        : Number(process.env.DEEPSEEK_TEMPERATURE || (args.name.includes("article") ? 1.3 : 0.3)),
+        : Number(
+            (args.provider === "gemini"
+              ? process.env.GEMINI_TEMPERATURE || process.env.DEEPSEEK_TEMPERATURE
+              : process.env.DEEPSEEK_TEMPERATURE)
+              || (args.name.includes("article") ? (args.provider === "gemini" ? 1 : 1.3) : 0.3),
+          ),
       response_format: { type: "json_object" },
       // Aynı uç Gemini'nin OpenAI uyumlu adresine de bağlanıyor. gemini-2.5-flash
       // düşünme token'larını max_tokens'tan yiyor: hakem çağrısında (300) 243'ü
       // düşünmeye gitti, cevap "length" ile kesildi, 13 konunun 13'ü engellendi
       // (2026-11-07). DEEPSEEK_REASONING_EFFORT=none düşünmeyi kapatır.
-      ...(process.env.DEEPSEEK_REASONING_EFFORT
-        ? { reasoning_effort: process.env.DEEPSEEK_REASONING_EFFORT as OpenAI.ChatCompletionCreateParams["reasoning_effort"] }
+      ...((args.provider === "gemini"
+        ? process.env.GEMINI_REASONING_EFFORT || process.env.DEEPSEEK_REASONING_EFFORT
+        : process.env.DEEPSEEK_REASONING_EFFORT)
+        ? { reasoning_effort: (args.provider === "gemini"
+            ? process.env.GEMINI_REASONING_EFFORT || process.env.DEEPSEEK_REASONING_EFFORT
+            : process.env.DEEPSEEK_REASONING_EFFORT) as OpenAI.ChatCompletionCreateParams["reasoning_effort"] }
         : {}),
       messages: [
         { role: "system", content: system },
         { role: "user", content: args.user },
       ],
-    }).catch((error: unknown) => {
-      if (isProviderBillingError(error)) throw new AIProviderBillingError();
+    }, botRequestOptions()).catch((error: unknown) => {
+      if (isProviderBillingError(error)) throw new AIProviderBillingError(args.provider, error, currentModelEndpointHost());
       throw error;
     });
     // Sağlayıcı ne olursa olsun maliyet ölçülmeli; aşama şema adından çıkarılıyor.
-    recordUsage(
-      args.name.includes("article") ? "writer" : args.name.includes("entities") ? "entity"
-        : args.name.includes("same_story") ? "judge" : "verifier",
-      args.model,
-      response.usage,
-    );
+    recordUsage(usageStage, args.model, response.usage);
     const choice = response.choices[0];
     const content = choice?.message?.content;
     if (choice?.finish_reason === "length") {
@@ -249,7 +345,7 @@ async function deepseekJson<T>(args: {
       lastError = new Error("yanıt max_tokens sınırında kesildi");
       continue;
     }
-    if (!content) { lastError = new Error("DeepSeek boş yanıt döndürdü"); continue; }
+    if (!content) { lastError = new Error("Model sağlayıcısı boş yanıt döndürdü"); continue; }
     try {
       return args.schema.parse(JSON.parse(extractJsonObject(content))) as T;
     } catch (error) {
@@ -257,11 +353,15 @@ async function deepseekJson<T>(args: {
       if (error instanceof SyntaxError) jsonBroken = true;
     }
   }
-  throw new Error(`DeepSeek şemaya uygun çıktı üretemedi: ${(lastError as Error)?.message || "bilinmeyen hata"}`);
+  throw new Error(`Model sağlayıcısı şemaya uygun çıktı üretemedi: ${(lastError as Error)?.message || "bilinmeyen hata"}`);
+}
+
+function usesOpenAICompatibleProvider(provider: ArticleAIProvider): provider is "deepseek" | "gemini" {
+  return provider === "deepseek" || provider === "gemini";
 }
 
 function anthropic(): Anthropic {
-  anthropicClient ||= new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  anthropicClient ||= new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, maxRetries: 0 });
   return anthropicClient;
 }
 
@@ -333,13 +433,11 @@ function articleInstructions(targetWords: number): string {
      * indexed" kutusunda bekleyenlerin çoğunluğuydu — düşük otoriteli bir
      * mülkte 300 kelimelik haber taranmaya değer bulunmuyor.
      *
-     * Düzeltme ÇIPADA yapıldı, KAPIDA değil: kalite kapısının alt sınırı
-     * (280) olduğu gibi duruyor. Kapıyı yükseltmek kısa kalan taslağı
-     * reddedip yayını durdururdu; çıpayı yükseltmek yalnızca modelin
-     * hedeflediği uzunluğu değiştiriyor. Etkisi ölçülecek: birkaç günlük
-     * yayının kelime dağılımına bak, gerekirse kapı da ayrıca ele alınır.
+     * Talimat ve kalite kapısı aynı 650 kelimelik tabanı kullanmalı.
+     * Kanıt 650 kelimelik doğru haberi desteklemiyorsa kapı taslağı reddeder;
+     * kısa metni dolgu veya uydurma ile büyütüp yayınlamaya çalışmaz.
      */
-    `Gövde EN AZ 500, en fazla 800 kelime olmalı; hedef ${Math.max(500, Math.min(targetWords, 800))} kelime. 500 kelimenin altı kabul edilmez; ama doldurmak için tekrar yapma, kanıttaki ayrıntıları ve bağlamı aç: olayın nedeni, önceki gelişmeyle bağı, ilgilileri nasıl etkilediği.`,
+    `Gövde EN AZ 650, en fazla 800 kelime olmalı; hedef ${Math.max(700, Math.min(targetWords, 800))} kelime. 650 kelimenin altı kalite kapısından geçmez. Uzunluğu yalnızca kanıt paketinin desteklediği ayrı olguları ve bağlamı açıklayarak tamamla; kanıtın desteklemediği neden, önceki gelişmeyle bağ veya etki uydurma, tekrar ve dolgu yapma. Kanıt 650 kelimelik doğru bir metni desteklemiyorsa iddia eklemek yerine taslağı reddedilme riskinde bırak.`,
     // Kalite kapısı meta için 110-180 aralığını KATI uyguluyor; sınırı birebir
     // söyleyince model 119 gibi bir karakterle takılıyor. Hedefi aralığın
     // ortasında vermek pay bırakıyor.
@@ -535,10 +633,14 @@ async function generateDraft(
   /**
    * Rehber şeridi aynı üretim makinesini kullanır ama daha çok bölüm ve daha
    * çok SSS ister. Şema dışarıdan geçirilebilir olmasaydı bütün sağlayıcı
-   * dallanması (OpenAI / Anthropic / DeepSeek) ikinci kez kopyalanacaktı.
+   * dallanması (OpenAI / Anthropic / DeepSeek / Gemini) ikinci kez kopyalanacaktı.
    */
   schema: typeof ArticleDraftSchema = ArticleDraftSchema,
+  beforeWriterCall?: () => Promise<void>,
 ): Promise<ArticleDraft> {
+  throwIfBotRequestAborted();
+  await beforeWriterCall?.();
+  throwIfBotRequestAborted();
   const config = resolveArticleAIConfig();
   const quotaGuard = await getOpenAIQuotaGuard(config.provider);
   if (quotaGuard.blocked) {
@@ -560,6 +662,7 @@ async function generateDraft(
       ? `KONU: ${topic.title}\nKATEGORİ: ${topic.category}\n\nKANIT PAKETİ:\n${evidencePrompt(topic)}`
       : `KONU: ${topic.title}\nKATEGORİ: ${topic.category}`;
     if (config.provider === "anthropic") {
+      await recordCallAttempt("writer", config.writerModel, [instructions, userPrompt], 6000);
       const response = await anthropic().messages.parse({
         model: config.writerModel,
         max_tokens: 6000,
@@ -569,13 +672,15 @@ async function generateDraft(
           effort: "low",
           format: zodOutputFormat(schema),
         },
-      });
+      }, botRequestOptions());
+      recordUsage("writer", config.writerModel, response.usage);
       if (!response.parsed_output) throw new Error("Claude yapılandırılmış makale çıktısı alınamadı");
       return response.parsed_output;
     }
 
-    if (config.provider === "deepseek") {
-      return await deepseekJson<ArticleDraft>({
+    if (usesOpenAICompatibleProvider(config.provider)) {
+      return await openAICompatibleJson<ArticleDraft>({
+        provider: config.provider,
         model: config.writerModel,
         system: instructions,
         user: userPrompt,
@@ -594,6 +699,8 @@ async function generateDraft(
       });
     }
 
+    const maxOutputTokens = Math.min(16000, Math.max(budget.writerMaxOutputTokens, targetWords * 6));
+    await recordCallAttempt("writer", config.writerModel, [instructions, userPrompt], maxOutputTokens);
     const response = await openai().responses.parse({
       model: config.writerModel,
       // Tavan hedef uzunlukla ölçeklenmeli: 5000 token 800 kelimelik habere
@@ -601,7 +708,7 @@ async function generateDraft(
       // (1 Eylül 2026: "Unterminated string in JSON at position 8467").
       // Türkçe token başına daha az kelime taşır, claims/faq alanları da bu
       // tavana sayılır: kelime başına 6 token güvenli pay bırakıyor.
-      max_output_tokens: Math.min(16000, Math.max(budget.writerMaxOutputTokens, targetWords * 6)),
+      max_output_tokens: maxOutputTokens,
       // effort: "none" DEĞİL — gpt-5 bunu reddediyor ve koşu 400 ile ölüyor:
       //   "Unsupported value: 'none' is not supported with the 'gpt-5' model.
       //    Supported values are: 'minimal', 'low', 'medium', and 'high'."
@@ -614,14 +721,14 @@ async function generateDraft(
         { role: "user", content: userPrompt },
       ],
       text: { format: zodTextFormat(schema, "gelecekfinans_article") },
-    });
+    }, botRequestOptions());
     recordUsage("writer", config.writerModel, response.usage);
     if (!response.output_parsed) throw new Error("OpenAI yapılandırılmış makale çıktısı alınamadı");
     return response.output_parsed;
   } catch (error) {
     if (config.provider === "anthropic" && isAnthropicBillingError(error)) throw new AnthropicBillingError();
-    if (isProviderBillingError(error)) throw new AIProviderBillingError();
-    if (isOpenAIQuotaError(error)) throw new OpenAIQuotaError();
+    if (isProviderBillingError(error)) throw new AIProviderBillingError(config.provider, error, currentModelEndpointHost());
+    if (isProviderQuotaError(error)) throw providerQuotaError(config.provider, error, currentModelEndpointHost());
     if (isProviderRequestConfigurationError(error)) {
       throw new AIProviderConfigurationError(
         `Model/parametre yapılandırması sağlayıcı tarafından reddedildi: ${(error as Error).message}`,
@@ -632,6 +739,7 @@ async function generateDraft(
 }
 
 async function verifyDraft(topic: Topic, draft: ArticleDraft): Promise<VerificationReport> {
+  throwIfBotRequestAborted();
   const config = resolveArticleAIConfig();
   const budget = resolveArticleAIBudgetConfig();
   try {
@@ -661,19 +769,22 @@ async function verifyDraft(topic: Topic, draft: ArticleDraft): Promise<Verificat
     const userPrompt = `KANITLAR:\n${evidencePrompt(topic)}\n\nTASLAK:\n${JSON.stringify(draft)}`;
 
     if (config.provider === "anthropic") {
+      await recordCallAttempt("verifier", config.verifierModel, [system, userPrompt], 1600);
       const response = await anthropic().messages.parse({
         model: config.verifierModel,
         max_tokens: 1600,
         system,
         messages: [{ role: "user", content: userPrompt }],
         output_config: { format: zodOutputFormat(VerificationSchema) },
-      });
+      }, botRequestOptions());
+      recordUsage("verifier", config.verifierModel, response.usage);
       if (!response.parsed_output) throw new Error("Claude yapılandırılmış doğrulama çıktısı alınamadı");
       return response.parsed_output;
     }
 
-    if (config.provider === "deepseek") {
-      return await deepseekJson<VerificationReport>({
+    if (usesOpenAICompatibleProvider(config.provider)) {
+      return await openAICompatibleJson<VerificationReport>({
+        provider: config.provider,
         model: config.verifierModel,
         system,
         user: userPrompt,
@@ -683,6 +794,7 @@ async function verifyDraft(topic: Topic, draft: ArticleDraft): Promise<Verificat
       });
     }
 
+    await recordCallAttempt("verifier", config.verifierModel, [system, userPrompt], budget.verifierMaxOutputTokens);
     const response = await openai().responses.parse({
       model: config.verifierModel,
       max_output_tokens: budget.verifierMaxOutputTokens,
@@ -698,14 +810,14 @@ async function verifyDraft(topic: Topic, draft: ArticleDraft): Promise<Verificat
         { role: "user", content: userPrompt },
       ],
       text: { format: zodTextFormat(VerificationSchema, "gelecekfinans_verification") },
-    });
+    }, botRequestOptions());
     recordUsage("verifier", config.verifierModel, response.usage);
     if (!response.output_parsed) throw new Error("OpenAI yapılandırılmış doğrulama çıktısı alınamadı");
     return response.output_parsed;
   } catch (error) {
     if (config.provider === "anthropic" && isAnthropicBillingError(error)) throw new AnthropicBillingError();
-    if (isProviderBillingError(error)) throw new AIProviderBillingError();
-    if (isOpenAIQuotaError(error)) throw new OpenAIQuotaError();
+    if (isProviderBillingError(error)) throw new AIProviderBillingError(config.provider, error, currentModelEndpointHost());
+    if (isProviderQuotaError(error)) throw providerQuotaError(config.provider, error, currentModelEndpointHost());
     if (isProviderRequestConfigurationError(error)) {
       throw new AIProviderConfigurationError(
         `Model/parametre yapılandırması sağlayıcı tarafından reddedildi: ${(error as Error).message}`,
@@ -738,6 +850,7 @@ async function verifyDraft(topic: Topic, draft: ArticleDraft): Promise<Verificat
  * katmandır: kapı sayıyı yakalar, model yanlış kuralı yakalar.
  */
 async function verifyGuideDraft(topic: Topic, draft: ArticleDraft): Promise<VerificationReport> {
+  throwIfBotRequestAborted();
   const config = resolveArticleAIConfig();
   const budget = resolveArticleAIBudgetConfig();
   const system = [
@@ -774,30 +887,35 @@ async function verifyGuideDraft(topic: Topic, draft: ArticleDraft): Promise<Veri
 
   try {
     if (config.provider === "anthropic") {
+      await recordCallAttempt("verifier", config.verifierModel, [system, user], budget.verifierMaxOutputTokens);
       const response = await anthropic().messages.parse({
         model: config.verifierModel,
         max_tokens: budget.verifierMaxOutputTokens,
         system,
         messages: [{ role: "user", content: user }],
         output_config: { effort: "low", format: zodOutputFormat(VerificationSchema) },
-      });
+      }, botRequestOptions());
+      recordUsage("verifier", config.verifierModel, response.usage);
       if (!response.parsed_output) throw new Error("Rehber doğrulaması alınamadı");
       return response.parsed_output;
     }
-    if (config.provider === "deepseek") {
-      return await deepseekJson<VerificationReport>({
+    if (usesOpenAICompatibleProvider(config.provider)) {
+      return await openAICompatibleJson<VerificationReport>({
+        provider: config.provider,
         model: config.verifierModel, system, user,
         maxTokens: Math.max(budget.verifierMaxOutputTokens, 1200),
         schema: VerificationSchema, name: "gelecekfinans_guide_verification",
       });
     }
+    const maxOutputTokens = Math.max(budget.verifierMaxOutputTokens, 6000);
+    await recordCallAttempt("verifier", config.verifierModel, [system, user], maxOutputTokens);
     const response = await openai().responses.parse({
       model: config.verifierModel,
       // Rehber doğrulayıcısı haberinkinden daha uzun cevap verir: 900-1800
       // kelimelik metinde bulduğu her sorunu ayrı madde olarak yazıyor.
       // 800 token tavanında cevap ortadan kesiliyor ve `output_parsed` boş
       // dönüyordu — canlı kayıtta "Rehber doğrulaması alınamadı".
-      max_output_tokens: Math.max(budget.verifierMaxOutputTokens, 6000),
+      max_output_tokens: maxOutputTokens,
       // Doğrulayıcı varsayılanı gpt-5-mini, yani AKIL YÜRÜTEN bir model:
       // reasoning token'ları da max_output_tokens'a sayılıyor. Efor
       // belirtilmediğinde model "medium" ile çalışıp 1800 kelimelik rehberi
@@ -808,7 +926,7 @@ async function verifyGuideDraft(topic: Topic, draft: ArticleDraft): Promise<Veri
       ...reasoningParam(config.verifierModel, verifierEffort()),
       input: [{ role: "system", content: system }, { role: "user", content: user }],
       text: { format: zodTextFormat(VerificationSchema, "gelecekfinans_guide_verification") },
-    });
+    }, botRequestOptions());
     recordUsage("verifier", config.verifierModel, response.usage);
     if (!response.output_parsed) {
       throw new Error(
@@ -819,8 +937,8 @@ async function verifyGuideDraft(topic: Topic, draft: ArticleDraft): Promise<Veri
     return response.output_parsed;
   } catch (error) {
     if (config.provider === "anthropic" && isAnthropicBillingError(error)) throw new AnthropicBillingError();
-    if (isProviderBillingError(error)) throw new AIProviderBillingError();
-    if (isOpenAIQuotaError(error)) throw new OpenAIQuotaError();
+    if (isProviderBillingError(error)) throw new AIProviderBillingError(config.provider, error, currentModelEndpointHost());
+    if (isProviderQuotaError(error)) throw providerQuotaError(config.provider, error, currentModelEndpointHost());
     if (isProviderRequestConfigurationError(error)) {
       throw new AIProviderConfigurationError(
         `Model/parametre yapılandırması sağlayıcı tarafından reddedildi: ${(error as Error).message}`,
@@ -849,6 +967,9 @@ const judgeBudget = new CallBudget(JUDGE_MAX_CALLS_PER_RUN);
 
 export function resetSameStoryJudgeBudget(): void {
   judgeBudget.reset();
+  // A verdict is specific to the full pair of reports, not just their
+  // headlines. Keep reuse local to one run and discard it at the next run.
+  judgeCache.clear();
   judgeFailures = 0;
 }
 
@@ -926,17 +1047,27 @@ function judgePrompt(primary: StoryBrief, candidate: StoryBrief): string {
   ].join("\n");
 }
 
-export async function judgeSameStory(primary: StoryBrief, candidate: StoryBrief): Promise<boolean> {
+export async function judgeSameStory(primary: StoryBrief, candidate: StoryBrief): Promise<boolean | null> {
+  throwIfBotRequestAborted();
   if (!isAIAutomationEnabled()) {
     judgeBudget.skip();
-    return false;
+    return null;
   }
-  const cacheKey = `${primary.title}|${candidate.title}`;
+  const cacheKey = JSON.stringify([
+    primary.source,
+    primary.title,
+    primary.summary,
+    primary.pubDate ?? null,
+    candidate.source,
+    candidate.title,
+    candidate.summary,
+    candidate.pubDate ?? null,
+  ]);
   const cached = judgeCache.get(cacheKey);
   if (cached !== undefined) return cached;
   if (!judgeBudget.available()) {
     judgeBudget.skip();
-    return false;
+    return null;
   }
 
   let config: ArticleAIConfig;
@@ -944,7 +1075,7 @@ export async function judgeSameStory(primary: StoryBrief, candidate: StoryBrief)
     config = resolveArticleAIConfig();
   } catch {
     judgeFailures += 1;
-    return false; // sağlayıcı yapılandırılmamışsa kapı kapalı kalır
+    return null; // sağlayıcı yapılandırılmamışsa kapı kapalı kalır; bu bir ret değildir
   }
   judgeBudget.take();
   const user = judgePrompt(primary, candidate);
@@ -952,17 +1083,20 @@ export async function judgeSameStory(primary: StoryBrief, candidate: StoryBrief)
   try {
     let verdict: SameStoryVerdict;
     if (config.provider === "anthropic") {
+      await recordCallAttempt("judge", config.verifierModel, [JUDGE_SYSTEM, user], 300);
       const response = await anthropic().messages.parse({
         model: config.verifierModel,
         max_tokens: 300,
         system: JUDGE_SYSTEM,
         messages: [{ role: "user", content: user }],
         output_config: { format: zodOutputFormat(SameStorySchema) },
-      });
-      if (!response.parsed_output) { judgeFailures += 1; return false; }
+      }, botRequestOptions());
+      recordUsage("judge", config.verifierModel, response.usage);
+      if (!response.parsed_output) { judgeFailures += 1; return null; }
       verdict = response.parsed_output;
-    } else if (config.provider === "deepseek") {
-      verdict = await deepseekJson<SameStoryVerdict>({
+    } else if (usesOpenAICompatibleProvider(config.provider)) {
+      verdict = await openAICompatibleJson<SameStoryVerdict>({
+        provider: config.provider,
         model: config.verifierModel,
         system: JUDGE_SYSTEM,
         user,
@@ -971,6 +1105,7 @@ export async function judgeSameStory(primary: StoryBrief, candidate: StoryBrief)
         name: "gelecekfinans_same_story",
       });
     } else {
+      await recordCallAttempt("judge", config.verifierModel, [JUDGE_SYSTEM, user], 300);
       const response = await openai().responses.parse({
         model: config.verifierModel,
         max_output_tokens: 300,
@@ -980,20 +1115,21 @@ export async function judgeSameStory(primary: StoryBrief, candidate: StoryBrief)
           { role: "user", content: user },
         ],
         text: { format: zodTextFormat(SameStorySchema, "gelecekfinans_same_story") },
-      });
+      }, botRequestOptions());
       recordUsage("judge", config.verifierModel, response.usage);
-      if (!response.output_parsed) { judgeFailures += 1; return false; }
+      if (!response.output_parsed) { judgeFailures += 1; return null; }
       verdict = response.output_parsed;
     }
     const result = verdict.sameEvent === true;
     judgeCache.set(cacheKey, result);
     return result;
   } catch (error) {
+    throwIfBotRequestAborted();
     if (error instanceof AIProviderFatalError) throw error;
     // Kota, ağ hatası, bozuk çıktı: hepsi "doğrulanmadı" demektir. Ama bu bir
     // KARAR değil ARIZA; sayaca yazılıyor ki kayıtta gerçek retten ayrılsın.
     judgeFailures += 1;
-    return false;
+    return null;
   }
 }
 
@@ -1009,6 +1145,8 @@ export interface WriteArticleOptions {
   minEvidenceChars?: number;
   /** Kanıt kapısı geçilmediğinde atılacak hata metni. */
   researchBlockedMessage?: string;
+  /** Called immediately before each writer-model request, including repairs. */
+  beforeWriterCall?: () => Promise<void>;
 }
 
 /**
@@ -1144,6 +1282,7 @@ export async function writeArticle(
   }
   const preset = options.preset ?? NEWS_QUALITY_PRESET;
   const schema = options.schema ?? ArticleDraftSchema;
+  const budget = resolveArticleAIBudgetConfig();
   const attributedSource = topic.evidencePacket?.status === "ATTRIBUTED"
     ? topic.evidencePacket.evidence[0]?.source
     : undefined;
@@ -1267,7 +1406,7 @@ export async function writeArticle(
    */
   const MAX_ATTEMPTS = resolveArticleAIBudgetConfig().maxDraftAttempts;
   let draft = trimMeta(normalizeKeyword(normalizeEvidenceIds(
-    await generateDraft(topic, targetWords, baseInstructions, schema),
+    await generateDraft(topic, targetWords, baseInstructions, schema, options.beforeWriterCall),
   )));
   let quality = validateDraft(draft, packet, preset);
   let content = quality.passed ? renderDraftHtml(draft, packet) : "";
@@ -1282,7 +1421,7 @@ export async function writeArticle(
       ? plagiarismRepairInstructions(targetWords, plagiarism, baseInstructions)
       : qualityRepairInstructions(targetWords, quality.issues, baseInstructions);
     draft = trimMeta(normalizeKeyword(normalizeEvidenceIds(
-      await generateDraft(topic, targetWords, feedback, schema),
+      await generateDraft(topic, targetWords, feedback, schema, options.beforeWriterCall),
     )));
     repairApplied = true;
     quality = validateDraft(draft, packet, preset);
@@ -1319,6 +1458,7 @@ export async function writeArticle(
             source: packet.evidence.map((item) => item.source).join(", "),
             wordCount: quality.wordCount,
             objections: quality.issues,
+            evidencePacket: packet,
           },
         );
       }
@@ -1374,13 +1514,14 @@ export async function writeArticle(
 
   // Onarım hakkı bir kere: ikinci tur ölçülebilir kazanç getirmiyor, faturayı
   // katlıyor (kalite kapısında aynı ölçüm yapılmıştı: kazanç ilk turda).
-  if (verificationObjections.length) {
+  if (verificationObjections.length && budget.verificationRepairEnabled) {
     const repairedDraft = trimMeta(normalizeKeyword(normalizeEvidenceIds(
       await generateDraft(
         topic,
         targetWords,
         verificationRepairInstructions(targetWords, verificationObjections, baseInstructions, lane),
         schema,
+        options.beforeWriterCall,
       ),
     )));
     // Onarılan taslak ÖNCE kalite ve intihal kapılarından yeniden geçmeli:
@@ -1409,8 +1550,8 @@ export async function writeArticle(
   }
 
   if (verificationObjections.length) {
-    // Buraya gelindiyse onarım turu ya yapıldı ve tutmadı ya da kalite/intihal
-    // kapısında düştü; ikisi de "bir tur denendi" demek.
+    // Onarım kapalıysa ya da açık olduğu hâlde başarısız olduysa taslak
+    // doğrulama engeliyle incelemeye gider; ikinci ücretli tur kendiliğinden açılmaz.
     //
     // Taslak hataya EKLENİYOR: metin bitmiş, yazar çağrısının parası ödenmiş,
     // kalite ve intihal kapıları geçilmiş durumda. Orchestrator bunu `DRAFT`
@@ -1429,6 +1570,7 @@ export async function writeArticle(
         source: packet.evidence.map((item) => item.source).join(", "),
         wordCount: quality.wordCount,
         objections: verificationObjections,
+        evidencePacket: packet,
       },
     );
   }
@@ -1642,6 +1784,7 @@ export async function extractEntities(
   headline: string,
   evidence: Array<{ title: string; summary: string; content?: string }>,
 ): Promise<ExtractedEntity[]> {
+  throwIfBotRequestAborted();
   if (!isAIAutomationEnabled()) return [];
   const material = evidence
     .map((item) => [item.title, item.content || item.summary].filter(Boolean).join(". "))
@@ -1654,17 +1797,20 @@ export async function extractEntities(
 
   try {
     if (config.provider === "anthropic") {
+      await recordCallAttempt("entity", config.verifierModel, [ENTITY_SYSTEM, user], 900);
       const response = await anthropic().messages.parse({
         model: config.verifierModel,
         max_tokens: 900,
         system: ENTITY_SYSTEM,
         messages: [{ role: "user", content: user }],
         output_config: { format: zodOutputFormat(EntityExtractionSchema) },
-      });
+      }, botRequestOptions());
+      recordUsage("entity", config.verifierModel, response.usage);
       return response.parsed_output?.entities ?? [];
     }
-    if (config.provider === "deepseek") {
-      const parsed = await deepseekJson<{ entities: ExtractedEntity[] }>({
+    if (usesOpenAICompatibleProvider(config.provider)) {
+      const parsed = await openAICompatibleJson<{ entities: ExtractedEntity[] }>({
+        provider: config.provider,
         model: config.verifierModel,
         system: ENTITY_SYSTEM,
         user,
@@ -1674,6 +1820,7 @@ export async function extractEntities(
       });
       return parsed.entities ?? [];
     }
+    await recordCallAttempt("entity", config.verifierModel, [ENTITY_SYSTEM, user], 1600);
     const response = await openai().responses.parse({
       model: config.verifierModel,
       max_output_tokens: 1600,
@@ -1683,10 +1830,11 @@ export async function extractEntities(
         { role: "user", content: user },
       ],
       text: { format: zodTextFormat(EntityExtractionSchema, "gelecekfinans_entities") },
-    });
+    }, botRequestOptions());
     recordUsage("entity", config.verifierModel, response.usage);
     return response.output_parsed?.entities ?? [];
   } catch (error) {
+    throwIfBotRequestAborted();
     if (error instanceof AIProviderFatalError) throw error;
     // Sessiz düşüş bilinçli: bu çağrı yayının yan ürünü, şartı değil.
     return [];

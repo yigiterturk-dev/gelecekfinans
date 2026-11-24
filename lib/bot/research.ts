@@ -280,7 +280,7 @@ function hasStoryPhase(value: string, phase: "OPEN" | "CLOSE"): boolean {
   return patterns.some((pattern) => normalized.includes(pattern));
 }
 
-function hasSameStoryPhase(a: string, b: string): boolean {
+export function hasSameStoryPhase(a: string, b: string): boolean {
   return (
     (hasStoryPhase(a, "OPEN") && hasStoryPhase(b, "OPEN")) ||
     (hasStoryPhase(a, "CLOSE") && hasStoryPhase(b, "CLOSE"))
@@ -376,8 +376,62 @@ export const STORY_MATCH_THRESHOLD = 0.44;
  */
 export const STORY_GRAY_BAND_MIN = Number(process.env.STORY_GRAY_BAND_MIN) || 0.2;
 
-function storyText(candidate: ResearchCandidate): string {
+function storyText(candidate: Pick<ResearchCandidate, "title" | "summary">): string {
   return `${candidate.title} ${candidate.summary}`;
+}
+
+export interface GrayBandMatchSignal {
+  titleSimilarity: number;
+  titleTokenJaccard: number;
+  combinedTextSimilarity: number;
+  pensionEventSimilarity: number;
+  pensionEventTokenJaccard: number;
+  selectedBy: "combined_text" | "headline_overlap" | "pension_cut_wording" | "below_floor";
+}
+
+function pensionEventTokens(value: string): Set<string> {
+  return new Set(storyTokens(value).map((token) => {
+    if (token.startsWith("emekl")) return "retiree";
+    if (token.startsWith("aylig") || token.startsWith("aylik") || token.startsWith("maas")) return "pension_income";
+    if (token.startsWith("kesil") || token.startsWith("kesint")) return "benefit_cut";
+    return token;
+  }));
+}
+
+function tokenSetSimilarity(left: Set<string>, right: Set<string>) {
+  const intersection = [...left].filter((token) => right.has(token)).length;
+  const union = new Set([...left, ...right]).size;
+  const jaccard = union ? intersection / union : 0;
+  const containment = intersection / Math.max(1, Math.min(left.size, right.size));
+  return { jaccard, similarity: Math.max(jaccard, containment * 0.82) };
+}
+
+/** Detailed, non-model signals for the cheap gray-band prefilter. */
+export function grayBandMatchSignal(
+  primary: Pick<ResearchCandidate, "title" | "summary">,
+  candidate: Pick<ResearchCandidate, "title" | "summary">,
+): GrayBandMatchSignal {
+  const titleSimilarity = storySimilarity(primary.title, candidate.title);
+  const combinedTextSimilarity = storySimilarity(storyText(primary), storyText(candidate));
+  const titleTokens = tokenSetSimilarity(new Set(storyTokens(primary.title)), new Set(storyTokens(candidate.title)));
+  const pensionTokens = tokenSetSimilarity(pensionEventTokens(primary.title), pensionEventTokens(candidate.title));
+  const hasHeadlineOverlap = titleTokens.jaccard >= 0.2 && titleSimilarity >= 0.4;
+  const hasPensionCutWording = pensionTokens.jaccard >= 0.2 && pensionTokens.similarity >= 0.4;
+  const selectedBy = hasHeadlineOverlap
+    ? "headline_overlap"
+    : combinedTextSimilarity >= STORY_GRAY_BAND_MIN
+      ? "combined_text"
+      : hasPensionCutWording
+        ? "pension_cut_wording"
+        : "below_floor";
+  return {
+    titleSimilarity,
+    titleTokenJaccard: titleTokens.jaccard,
+    combinedTextSimilarity,
+    pensionEventSimilarity: pensionTokens.similarity,
+    pensionEventTokenJaccard: pensionTokens.jaccard,
+    selectedBy,
+  };
 }
 
 /**
@@ -427,25 +481,52 @@ export function grayBandCandidates(
   primary: ResearchCandidate,
   candidates: ResearchCandidate[],
   limit = 3,
+  minimumTextSimilarity = STORY_GRAY_BAND_MIN,
 ): ResearchCandidate[] {
   const primaryPublisher = publisherKey(primary);
   const seen = new Set<string>([primaryPublisher]);
   const output: ResearchCandidate[] = [];
-  const primaryText = storyText(primary);
-  const ranked = eligibleCandidates(primary, candidates)
+  const eligible = eligibleCandidates(primary, candidates)
     .filter(({ candidate, similarity }) =>
       candidate !== primary &&
       Boolean(candidate.sourceUrl) &&
       similarity < STORY_MATCH_THRESHOLD)
-    .map(({ candidate }) => ({ candidate, textSimilarity: storySimilarity(primaryText, storyText(candidate)) }))
-    .filter(({ textSimilarity }) => textSimilarity >= STORY_GRAY_BAND_MIN)
-    .sort((a, b) => b.textSimilarity - a.textSimilarity || b.candidate.sourcePriority - a.candidate.sourcePriority);
+    .map(({ candidate }) => {
+      const signal = grayBandMatchSignal(primary, candidate);
+      // Uzun RSS özetleri aynı olaydaki manşet örtüşmesini seyreltebilir.
+      // Başlık puanını ancak ortak, ayırt edici kelimeler yeterliyse kullan;
+      // böylece "istihdam" gibi tek genel kelimeden aday üretme.
+      const screeningScore = signal.titleTokenJaccard >= 0.2 && signal.titleSimilarity >= 0.4
+        ? Math.max(signal.combinedTextSimilarity, signal.titleSimilarity)
+        : signal.combinedTextSimilarity;
+      return { candidate, signal, screeningScore };
+    });
+  const ranked = eligible
+    .filter(({ screeningScore }) => screeningScore >= minimumTextSimilarity)
+    .sort((a, b) => b.screeningScore - a.screeningScore || b.candidate.sourcePriority - a.candidate.sourcePriority);
   for (const { candidate } of ranked) {
     const key = publisherKey(candidate);
     if (seen.has(key)) continue;
     seen.add(key);
     output.push(candidate);
     if (output.length >= limit) break;
+  }
+  if (output.length < limit) {
+    const rescueCandidates = eligible
+      .filter(({ signal }) =>
+        signal.pensionEventTokenJaccard >= 0.2 &&
+        signal.pensionEventSimilarity >= 0.4 &&
+        Math.max(signal.combinedTextSimilarity, signal.pensionEventSimilarity) >= minimumTextSimilarity)
+      .sort((a, b) =>
+        b.signal.pensionEventSimilarity - a.signal.pensionEventSimilarity ||
+        b.candidate.sourcePriority - a.candidate.sourcePriority);
+    for (const { candidate } of rescueCandidates) {
+      const key = publisherKey(candidate);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      output.push(candidate);
+      if (output.length >= limit) break;
+    }
   }
   return output;
 }

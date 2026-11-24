@@ -237,12 +237,17 @@ const TOOLS: Record<ToolSlug, ToolDef> = {
   },
 };
 
+function isToolSlug(value: string): value is ToolSlug {
+  return TOOL_CATALOG.some(({ slug }) => slug === value);
+}
+
 export function generateStaticParams() {
   return TOOL_CATALOG.map(({ slug }) => ({ tool: slug }));
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ tool: string }> }): Promise<Metadata> {
   const { tool } = await params;
+  if (!isToolSlug(tool)) return {};
   const t = TOOLS[tool];
   if (!t) return {};
   const cpiKind = t.component === "kira" || t.component === "emekli" || t.component === "memur" ? t.component : null;
@@ -282,6 +287,7 @@ function Calculator({ kind, cpi }: { kind: ToolDef["component"]; cpi: Cpi }) {
 
 export default async function ToolPage({ params }: { params: Promise<{ tool: string }> }) {
   const { tool } = await params;
+  if (!isToolSlug(tool)) notFound();
   const t = TOOLS[tool];
   if (!t) notFound();
   const cpi = t.component === "kira" || t.component === "emekli" || t.component === "memur" ? await getCpiSnapshot() : null;

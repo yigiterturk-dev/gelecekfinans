@@ -17,13 +17,16 @@ import { recordEntities } from "@/lib/bot/entities";
 import {
   classifyRisk, decidePublication, scoreSource,
 } from "@/lib/bot/autonomy";
-import { AIBudgetLimitError, AIProviderFatalError, isBlockedDraftError } from "@/lib/bot/errors";
+import { AIBudgetLimitError, AIProviderBillingError, AIProviderFatalError, AIProviderQuotaError, isBlockedDraftError } from "@/lib/bot/errors";
 import { saveBlockedDraft } from "@/lib/bot/blocked-draft";
 import {
   MIN_EVIDENCE_MATERIAL_CHARS,
   buildEvidencePacket,
   enrichEvidencePacket,
   evidenceMaterialCharacterCount,
+  grayBandMatchSignal,
+  STORY_GRAY_BAND_MIN,
+  STORY_MATCH_THRESHOLD,
   toAttributedPacket,
   type ResearchCandidate,
 } from "@/lib/bot/research";
@@ -31,6 +34,7 @@ import { checkPlagiarism } from "@/lib/bot/plagiarism";
 import { isAIAutomationEnabled, resolveArticleAIBudgetConfig, startOfIstanbulDay } from "@/lib/bot/ai-budget";
 import { getOpenAIQuotaGuard, openAIQuotaGuardMessage } from "@/lib/bot/ai-quota-cooldown";
 import { sendBotAlert } from "@/lib/bot/alert";
+import { isBotRequestAborted } from "@/lib/bot/request-context";
 
 /**
  * İncelemede bekleyen taslak bir gün içinde bayatlar: "BIST 100 günü kapattı"
@@ -208,7 +212,7 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
    * Bu liste, koşu içinde yazara GÖNDERİLMİŞ konuları da karşılaştırmaya sokar.
    */
   const attemptedInRun: { id: string; title: string; content: string }[] = [];
-  const writerStageCalls = () => usageSummary().byStage.writer?.calls ?? 0;
+  const writerStageCalls = () => usageSummary().byStage.writer?.attemptedCalls ?? 0;
   let dailyWriterCalls = await prisma.automationEvent.count({
     where: {
       stage: "writer_call_reserved",
@@ -222,6 +226,7 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
   resetUsageLedger();
 
   for (const topic of topics) {
+    if (isBotRequestAborted()) break;
     if (added >= count) break;
     try {
       /**
@@ -247,6 +252,11 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
         });
         continue;
       }
+      if (isDuplicate(topic.title, topic.summary, [...recent, ...attemptedInRun]).duplicate) {
+        duplicatesSkipped++;
+        await logEvent(run.id, "duplicate", "Benzer başlık hakem çağrısından önce atlandı", { title: topic.title });
+        continue;
+      }
       /**
        * Başlık benzerliği tutmadığı için doğrulanmamış konularda son bir şans:
        * aynı olayı farklı manşetle veriyor olabilecek adaylar hakeme sorulur.
@@ -269,11 +279,40 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
       };
       if (packet && packet.status !== "VERIFIED" && candidates.length) {
         const confirmed = new Set<ResearchCandidate>();
-        const verdicts: Array<{ source: string; sameEvent: boolean }> = [];
+        const verdicts: Array<{
+          source: string;
+          sameEvent: boolean | null;
+          outcome: "same_event" | "different_event" | "not_evaluated";
+          notEvaluatedReason?: "automation_disabled" | "budget_limit" | "provider_failure" | "unknown";
+          selectionReason: "combined_text" | "headline_overlap" | "pension_cut_wording" | "below_floor";
+          titleSimilarity: number;
+          titleTokenJaccard: number;
+          combinedTextSimilarity: number;
+          pensionEventSimilarity: number;
+          pensionEventTokenJaccard: number;
+        }> = [];
         for (const candidate of candidates) {
+          const skippedBefore = sameStoryJudgeSkipped();
+          const failuresBefore = sameStoryJudgeFailures();
+          const screening = grayBandMatchSignal(topic, candidate);
           const sameEvent = await judgeSameStory(topic, candidate);
-          verdicts.push({ source: candidate.source, sameEvent });
-          if (sameEvent) { confirmed.add(candidate); break; }
+          const notEvaluatedReason = sameEvent !== null ? undefined
+            : !isAIAutomationEnabled() ? "automation_disabled"
+              : sameStoryJudgeSkipped() > skippedBefore ? "budget_limit"
+                : sameStoryJudgeFailures() > failuresBefore ? "provider_failure" : "unknown";
+          verdicts.push({
+            source: candidate.source,
+            sameEvent,
+            outcome: sameEvent === true ? "same_event" : sameEvent === false ? "different_event" : "not_evaluated",
+            ...(notEvaluatedReason ? { notEvaluatedReason } : {}),
+            selectionReason: screening.selectedBy,
+            titleSimilarity: screening.titleSimilarity,
+            titleTokenJaccard: screening.titleTokenJaccard,
+            combinedTextSimilarity: screening.combinedTextSimilarity,
+            pensionEventSimilarity: screening.pensionEventSimilarity,
+            pensionEventTokenJaccard: screening.pensionEventTokenJaccard,
+          });
+          if (sameEvent === true) { confirmed.add(candidate); break; }
         }
         if (confirmed.size) {
           packet = await enrichEvidencePacket(
@@ -287,6 +326,8 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
         await logEvent(run.id, "corroboration_judge", "İkinci kaynak adayları hakeme soruldu", {
           title: topic.title,
           askedCandidates: candidates.length,
+          titleMatchThreshold: STORY_MATCH_THRESHOLD,
+          grayBandMinimumSimilarity: STORY_GRAY_BAND_MIN,
           verdicts,
           resolved: confirmed.size > 0,
           skippedByBudget: sameStoryJudgeSkipped(),
@@ -347,12 +388,6 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
           reason: packetRepeat.reason,
           key: packetRepeat.key,
         });
-        continue;
-      }
-
-      if (isDuplicate(topic.title, topic.summary, [...recent, ...attemptedInRun]).duplicate) {
-        duplicatesSkipped++;
-        await logEvent(run.id, "duplicate", "Benzer başlık atlandı", { title: topic.title });
         continue;
       }
 
@@ -573,6 +608,7 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
           provider: aiConfig.provider,
           writerModel: aiConfig.writerModel,
           verifierModel: aiConfig.verifierModel,
+          ...(error instanceof AIProviderQuotaError || error instanceof AIProviderBillingError ? error.toMetadata() : {}),
         }, undefined, "error");
         break;
       }
@@ -586,7 +622,8 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
           const rescued = await saveBlockedDraft(error, {
             trigger: options.trigger,
             track: "NEWS",
-            sourceScore: 0,
+            sourceScore: scoreSource(topic).score,
+            evidencePacket: error.draft.evidencePacket,
           });
           if (rescued) {
             await logEvent(run.id, "decision",
@@ -617,13 +654,17 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
   // olsa bile koşu sonucu etkilenmemeli: kayıt hatası yutulur.
   try {
     const usage = usageSummary();
-    if (usage.calls > 0) {
+    const reservedWriterCalls = await prisma.automationEvent.count({
+      where: { runId: run.id, stage: "writer_call_reserved" },
+    });
+    if (usage.calls > 0 || usage.attemptedCalls > 0 || reservedWriterCalls > 0) {
       await logEvent(
         run.id,
         "cost",
-        `${usage.calls} model çağrısı, ${usage.inputTokens + usage.outputTokens} token, ` +
+        `${usage.attemptedCalls} model isteği, ${usage.callsWithoutUsage} kullanım verisi eksik, ` +
+        `${reservedWriterCalls} yazar çağrısı ayrıldı, ${usage.inputTokens + usage.outputTokens} token, ` +
         `$${usage.costUsd.toFixed(4)}`,
-        usage,
+        { ...usage, reservedWriterCalls },
       );
     }
   } catch (usageError) {

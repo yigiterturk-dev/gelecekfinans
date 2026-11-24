@@ -34,11 +34,24 @@ const STOPWORDS = new Set([
   "üzerinde", "üzerine", "karşı", "doğru", "altında", "üstünde",
 ]);
 
+const TURKISH_SUFFIXES = [
+  "larından", "lerinden", "larının", "lerinin", "larda", "lerde", "lara", "lere",
+  "ları", "leri", "lardan", "lerden", "ların", "lerin", "dan", "den", "tan", "ten",
+  "nda", "nde", "da", "de", "ta", "te", "nın", "nin", "nun", "nün", "ın", "in",
+  "un", "ün", "ya", "ye", "yı", "yi", "yu", "yü", "lar", "ler", "ı", "i", "u", "ü",
+].sort((a, b) => b.length - a.length);
+
+function stemTurkishWord(word: string): string {
+  const suffix = TURKISH_SUFFIXES.find((item) => word.length - item.length >= 3 && word.endsWith(item));
+  return suffix ? word.slice(0, -suffix.length) : word;
+}
+
 // Başlığı anlamlı token kümesine çevirir (normalize + stopword + kısa token at).
 function meaningfulTokens(text: string): Set<string> {
   return new Set(
     normalize(text)
       .split(" ")
+      .map(stemTurkishWord)
       .filter((w) => w.length >= 3 && !STOPWORDS.has(w)),
   );
 }

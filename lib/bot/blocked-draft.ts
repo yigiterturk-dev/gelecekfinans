@@ -8,19 +8,19 @@ import { ensureExternalLink } from "./external-link";
 import type { BlockedDraftError } from "./errors";
 
 /**
- * Doğrulayıcının reddettiği BİTMİŞ makaleyi kurtarma.
+ * Kalite veya doğrulama kapısında incelemeye alınan BİTMİŞ taslağı kurtarma.
  *
- * Neden: yazar çağrısı ödenmiş, metin yazılmış, kalite ve intihal kapıları
- * geçilmiş; yalnızca doğrulayıcı bir-iki cümleye itiraz etmiş ve onarım turu
- * tutmamış. Eski akışta bu metin tamamen kayboluyordu ve gün sıfır makaleyle
+ * Neden: yazar çağrısı ödenmiş, metin yazılmış ve esasa ilişkin güvenlik
+ * kapıları geçilmiş; yalnızca editoryal uzunluk veya doğrulayıcı itirazı
+ * kalmış. Eski akışta bu metin tamamen kaybolabiliyor ve gün sıfır makaleyle
  * kapanıyordu (1 Eylül 2026: üç koşum, üçü de sıfır). Artık `DRAFT` olarak
  * kaydediliyor.
  *
  * 🔒 Güvenlik: kayıt HER ZAMAN `status: "DRAFT"` + `publicationDecision:
  * "REVIEW"` + `autoPublished: false`. Yayına çıkma yolu yok; sitede
- * görünmez, yalnızca panelde onay bekler. Doğrulayıcının itirazları
- * `automationMeta.verificationObjections` içinde duruyor ki Yiğit neyi
- * kontrol edeceğini bilsin.
+ * görünmez, yalnızca panelde onay bekler. Engel kodu, itirazlar ve kanıt
+ * paketi `automationMeta` içinde saklanır ki editör neyi kontrol edeceğini
+ * ve iddiaların hangi kaynaklara dayandığını görebilsin.
  *
  * Kapak görseli TASLAK KAYDEDİLİRKEN üretiliyor (2026-09-02). Eskiden
  * üretilmiyordu — "makale zaten yayımlanmayacak" gerekçesiyle — ama panelde
@@ -134,8 +134,11 @@ export async function saveBlockedDraft(
       automationMeta: asJson({
         trigger: context.trigger,
         track: context.track,
-        blockedBy: "VERIFICATION",
-        verificationObjections: draft.objections,
+        blockedBy: error.code,
+        reviewReasons: draft.objections,
+        ...(error.code === "VERIFICATION_BLOCKED"
+          ? { verificationObjections: draft.objections }
+          : { qualityObjections: draft.objections }),
         wordCount: draft.wordCount,
         visual: {
           strategy: image.strategy,
@@ -145,7 +148,9 @@ export async function saveBlockedDraft(
           licensedAsset: image.licensedAsset,
         },
         seoIssues: seo.issues,
-        ...(context.evidencePacket ? { evidencePacket: context.evidencePacket } : {}),
+        ...((context.evidencePacket ?? draft.evidencePacket)
+          ? { evidencePacket: context.evidencePacket ?? draft.evidencePacket }
+          : {}),
       }),
     },
     select: { id: true, slug: true },

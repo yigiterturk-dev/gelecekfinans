@@ -75,6 +75,8 @@ seo_geo_revision:
     target_body_words: 650
     auto_publish: false
   local_qa: 47_tests_lint_build_pass
+# Historical 2026-08 provider configuration; current production state is recorded
+# under current_runtime_audit and latest_deployment below.
 ai_provider_revision:
   status: production_active_openai_cost_guarded
   preferred_provider: openai
@@ -150,4 +152,344 @@ open_decisions:
   - Select a licensed editorial media provider and connect its adapter credentials.
   - Configure AdSense publisher ID and a Google-certified CMP before serving ads to regulated regions.
 active_handoff: projects/gelecekfinans/brief/delta-brief.md
-updated_at: 2026-08-06T11:13:15+03:00
+updated_at: 2026-11-24T07:11:57+03:00
+
+# Verified production override (2026-11-24); supersedes the historical
+# Verified production provider and billing state as of 2026-11-24.
+current_runtime_audit:
+  audited_at: 2026-11-24
+  ai_automation_enabled: false
+  application_daily_spend_limit_usd: 0
+  selected_adapter_name: gemini
+  legacy_environment_provider_name: deepseek
+  provider_resolution_evidence: Google_endpoint_host_and_gemini_model
+  configured_upstream: Google_Generative_Language_OpenAI_compatible_endpoint
+  writer_model: gemini-2.5-flash
+  verifier_model: gemini-2.5-flash
+  openai_selected: false
+  openai_key_configured_but_not_selected: true
+  scheduled_bot_timer: gf-nobet_active_but_exits_before_llm_when_automation_off
+  last_recorded_cost_event: 2026-11-23
+  rolling_30_day_ledger:
+    cost_events: 90
+    calls_with_usage: 1071
+    gpt_5_model_estimate_usd: 0.5013
+    openai_adapter_known_calls: 60
+    openai_adapter_known_estimate_usd: 0.2136
+    gpt_5_mini_calls_without_provider_record: 32
+    gpt_5_mini_unattributed_estimate_usd: 0.2877
+    gemini_2_5_flash_calls_unpriced: 879
+    gemini_calls_with_run_start_provider: 690
+    gemini_calls_without_provider_record: 189
+    deepseek_cloud_calls_unpriced: 100
+    deepseek_cloud_calls_with_run_start_provider: 61
+    deepseek_cloud_calls_without_provider_record: 39
+    provider_invoice_reconciled: false
+    bot_runs: 122
+    bot_runs_without_articles: 72
+    cost_summary_runs_without_articles: 40
+    cost_summary_runs_without_articles_priced_estimate_usd: 0.5013
+    cost_summary_runs_without_articles_unpriced_gemini_calls: 274
+    cost_summary_runs_without_articles_gemini_current_tariff_comparison_usd: 0.9496
+    cost_summary_runs_without_articles_unpriced_deepseek_cloud_calls: 55
+    zero_article_runs_without_cost_summary: 32
+    zero_article_runs_without_writer_reservation: 18
+    zero_article_runs_with_writer_reservation_but_no_cost_summary: 23
+    zero_article_missing_second_source_blocks: 158
+    zero_article_corroboration_judge_event_records: 165
+    corroboration_topic_events_30d: 338
+    stored_candidate_verdict_entries_30d: 747
+    stored_candidate_verdicts_same_event: 66
+    legacy_stored_candidate_verdicts_false_or_not_evaluated: 681
+    legacy_stored_candidate_verdict_true_share: 0.088
+    legacy_model_acceptance_rate: unknown
+    news_timer_active: false
+    guide_timer_active: false
+    writer_call_reservations_since_2026_11_23_00_utc: 0
+    cost_events_since_2026_11_23_00_utc: 0
+    per_call_spend_reservations_since_2026_11_23_00_utc: 0
+    last_cost_event_utc: "2026-11-22T22:06:33Z"
+    corroboration_judge_topics_30d: 338
+    corroboration_stored_verdict_entries_30d: 747
+    corroboration_positive_topics_30d: 66
+    corroboration_judge_measured_responses_30d: 502
+    low_yield_source_exclusion_applied: false
+    legacy_openai_quota_events: 11
+    legacy_quota_events_with_openai_start_config: 8
+    legacy_quota_events_without_start_config: 3
+    historical_402_runs: 13
+    historical_402_runs_with_gemini_adapter_config: 6
+    historical_402_runs_without_start_config: 7
+    rss_threshold_sweep_2026_11_24:
+      candidates: 355
+      unique_topics: 315
+      deterministic_verified_topics: 89
+      gray_topics_at_0_20: 177
+      judge_candidate_pairs_at_0_20: 437
+      no_candidate_topics: 49
+      candidate_pairs_at_0_24: 292
+      candidate_pairs_at_0_26: 243
+      candidate_pairs_at_0_28: 207
+      candidate_pairs_at_0_30: 185
+      candidate_pairs_at_0_32: 163
+      threshold_changed: false
+      ground_truth_for_dropped_pairs: unavailable
+  account_balance_status: not_visible_to_server_or_this_session
+  monthly_newsletter: unavailable_missing_provider_credentials
+  ad_sense: unavailable_missing_publisher_configuration
+  content_inventory:
+    total_article_records: 214
+    published: 155
+    published_last_30_days: 60
+    draft: 1
+    archived: 58
+    published_without_source: 0
+    published_risk_red: 12
+    published_risk_red_review_required: 12
+    published_risk_red_auto_published: 0
+    published_risk_red_without_pipeline_evidence_flag: 7
+    risk_red_meaning: sensitive_topic_review_gate_not_factuality_verdict
+    published_bot_rows_with_zero_source_score: 8
+    zero_source_score_meaning: legacy_unscored_not_a_zero_quality_result
+    bot_dashboard_displays_zero_source_score_as_unknown: true
+  legal_masthead_audit:
+    site_describes_itself_as_an_independent_news_platform: true
+    official_hosting_provider_disclosed: netcup_GmbH_Karlsruhe
+    hosting_provider_source: https://www.netcup.com/en/contact/legal-notice
+    additional_publisher_identity_and_contact_fields_needed: true
+    owner_confirmation_pending_for_legal_status_and_public_details: true
+    no_missing_public_legal_values_were_invented: true
+  api_and_schedule_inventory:
+    selected_model_route: Google_Generative_Language_Gemini_2_5_Flash
+    admin_provider_label: Google_Gemini_API
+    legacy_deepseek_named_google_route_normalized: true
+    gemini_25_flash_future_usage_priced_in_app_ledger: true
+    historical_gemini_cost_events_reconciled_to_invoice: false
+    model_api_calls_currently_enabled: false
+    active_site_timers:
+      - gf-nobet_zero-spend_watchdog
+      - gf-yedek_local_backup
+      - gelecekfinans-index
+      - gelecekfinans-gsc
+      - gelecekfinans-hit
+      - gelecekfinans-hit-olcum
+    inactive_site_timers:
+      - gelecekfinans-news
+      - gelecekfinans-guide
+      - gelecekfinans-image
+    configured_free_data_services:
+      - TCMB_EVDS_hourly_cache
+      - CoinGecko_public_API_5_minute_cache
+      - Pixabay_stock_images_7_day_cache
+      - Google_Search_Console
+    mail_delivery: disabled_resend_key_missing
+  gsc_froto_followup:
+    www_redirects_to_apex: true
+    apex_sitemap_and_canonical: correct
+    apex_inspection: discovered_not_indexed
+    general_sitemap_resubmitted_utc: "2026-11-23T21:49:25Z"
+    sitemap_last_downloaded_utc: "2026-11-23T21:49:26Z"
+    sitemap_state_after_submit: downloaded_not_pending_zero_warnings_errors
+    apex_indexing_after_download: still_discovered_not_indexed
+  latest_deployment:
+    date: 2026-11-24
+    build_id: E1EpMYBPbTN6mlpU2pW46
+    change: turkish_stemmed_duplicate_guard_before_judge
+    service_active: true
+    service_restarts: 0
+    working_directory: /opt/gf-stage-repeat-guard-20261124a
+    previous_working_directory: /opt/gf-stage-sgk-event-rescue-20261124a
+    rollback_snapshot: /root/gf-release-before-repeat-guard-20261124/20-release.conf
+    shared_article_image_directory: /opt/gelecekfinans/public/gorseller
+    homepage_http: 200
+    masthead_http: 200
+    masthead_hosting_provider_visible: true
+    admin_source_score_zero_rendered_unknown: true
+    borsa_http: 200
+    doviz_http: 200
+    published_article_http: 200
+    news_sitemap_http: 200
+    admin_ai_provider_http: 401
+    all_300_static_pages_generated: true
+    production_provider_resolved_as: gemini
+    production_writer_model: gemini-2.5-flash
+    production_verifier_model: gemini-2.5-flash
+    production_model_endpoint_host: generativelanguage.googleapis.com
+    ai_automation_enabled: false
+    daily_spend_limit_usd: 0
+    openai_account_balance: unknown
+    model_calls_during_build_or_deploy: 0
+    fresh_database_backup_before_deploy_bytes: 1275894
+    fresh_database_backup_mode: "600"
+    judge_not_evaluated_outcomes_distinguished: true
+    judge_not_evaluated_reasons:
+      - automation_disabled
+      - budget_limit
+      - provider_failure
+    news_minimum_word_count: 650
+    short_and_long_word_count_issues_are_reviewable: true
+    factual_and_plagiarism_issues_remain_hard_stops: true
+    review_draft_evidence_packet_retained: true
+    review_draft_source_score_recorded: true
+    review_draft_block_reason_specific: true
+    dashboard_evidence_details_visible: true
+    admin_historical_cost_estimate_visible: true
+    admin_reservation_upper_bound_visible: true
+    legacy_quota_message_qualified: true
+    historical_gemini_30d_calls: 879
+    historical_gemini_30d_paid_tier_estimate_usd: 3.29
+    gemini_35_flash_lite_price_estimator_ready: true
+    gemini_model_auto_route_date: "2026-12-01"
+    writer_quality_on_successor_tested: false
+    rollback_snapshot: /root/gf-release-before-tristate-judge-20261124
+    systemd_release_override: /etc/systemd/system/gelecekfinans.service.d/20-release.conf
+  writing_efficiency_snapshot_30d:
+    zero_articles_added_cost_runs: 40
+    zero_added_runs_completed: 33
+    zero_added_runs_failed: 7
+    zero_added_writer_responses: 178
+    zero_added_verifier_responses: 37
+    zero_added_judge_responses: 206
+    zero_added_writer_priced_estimate_usd: 0.498112
+    zero_added_other_priced_estimate_usd: 0.003186
+    article_added_cost_runs: 50
+    article_added_unpriced_responses: 650
+    bot_published_articles_under_500_words: 43
+    bot_published_articles_under_650_words: 51
+    bot_published_articles_count: 58
+    bot_articles_published_since_2026_11_23_00_utc: 0
+    article_length_findings_are_content_quality_proof: false
+  live_rss_corroboration_snapshot:
+    audited_at: 2026-11-24
+    configured_feeds: 30
+    feed_errors: 0
+    classified_feed_items: 348
+    near_unique_topics: 308
+    two_source_text_match_topics: 88
+    gray_band_topics: 166
+    no_candidate_topics: 53
+    source_priority_uniform_in_diagnostic: true
+    model_calls: 0
+    hürriyet_topics: 17
+    hürriyet_automatic_matches: 0
+    hürriyet_gray_candidates: 0
+    hürriyet_removed: false
+    production_get_topics_24:
+      selected: 24
+      verified: 16
+      gray_band: 8
+      candidate_pairs: 22
+      no_second_source_path: 0
+      model_calls: 0
+    high_volume_sources:
+      dünya:
+        topics: 36
+        automatic_matches: 11
+        gray_topics: 21
+      cumhuriyet:
+        topics: 28
+        automatic_matches: 6
+        gray_topics: 18
+      forinvest:
+        topics: 24
+        automatic_matches: 6
+        gray_topics: 15
+      sozcu_economy:
+        topics: 23
+        automatic_matches: 7
+        gray_topics: 14
+      yenisafak:
+        topics: 21
+        automatic_matches: 10
+        gray_topics: 11
+  database_backup:
+    daily_script_atomic_write: true
+    zero_byte_archive_found: gf-20261121.dump
+    current_dump: /opt/gelecekfinans-db/yedek/gf-20261124.dump
+    current_dump_bytes: 1275894
+    current_dump_mode: "600"
+    pg_restore_list_valid: true
+    latest_restore_rehearsal:
+      status: successful_before_latest_dump_refresh
+      dump_bytes: 1284691
+      restored_public_tables: 14
+      restored_article_rows: 214
+    scheduled_timer_run: "2026-11-24T03:20:00+01:00"
+    scheduled_run_result: success
+    scheduled_archive_isolated_restore: successful
+    offsite_copy_configured: false
+  latest_rss_matching_diagnostic:
+    measured_at: 2026-11-24T06:17:45+03:00
+    measured_on: production_host
+    script: scripts/measure-corroboration.ts
+    configured_feeds: 30
+    fetched_feeds: 30
+    failed_feeds: 0
+    finance_candidates: 351
+    unique_topics: 311
+    deterministically_verified_topics: 89
+    gray_band_topics_at_0_20: 172
+    no_candidate_topics: 50
+    judge_candidate_pairs:
+      "0.16": 528
+      "0.18": 489
+      "0.20": 424
+      "0.24": 288
+      "0.26": 239
+      "0.28": 203
+      "0.30": 181
+      "0.32": 162
+    uniform_source_priority_in_diagnostic: true
+    model_calls: 0
+    threshold_changed: false
+    ground_truth_for_excluded_pairs: unavailable
+    script_reports_feed_failures: true
+    parser_retries_parse_failure_with_production_style_fallback: true
+    additional_topics_at_0_16: 18
+    additional_candidate_pairs_at_0_16: 104
+    likely_false_negative:
+      topic: "SGK control medical examination coverage"
+      title_similarity: 0.16
+      sources: [cumhuriyet.com.tr, sozcu.com.tr]
+      evidence: "same expert and core event details; same-day coverage"
+    targeted_headline_rescue:
+      topic: "BDDK credit-card minimum-payment decision"
+      title_similarity: 0.17
+      sources: [cumhuriyet.com.tr, trthaber.com]
+      official_decision_date: 2026-11-19
+  latest_headline_rescue_validation:
+    measured_at: 2026-11-24T06:57:49+03:00
+    measured_on: operator_workstation
+    configured_feeds: 30
+    fetched_feeds: 30
+    failed_feeds: 0
+    finance_candidates: 349
+    unique_topics: 308
+    prior_rule_topics_with_judge_candidate: 169
+    prior_rule_candidate_pairs: 417
+    deployed_rule_topics_with_judge_candidate: 172
+    deployed_rule_candidate_pairs: 423
+    additional_candidate_pairs: 6
+    additional_topics: 3
+    title_similarity_minimum: 0.4
+    title_token_jaccard_minimum: 0.2
+    pension_event_similarity_minimum: 0.4
+    pension_event_token_jaccard_minimum: 0.2
+    recovered_event: BDDK_credit_card_minimum_payment
+    additional_pension_event_pairs_vs_title_rule: 2
+    sgk_control_exam_example_recovered: true
+    model_calls: 0
+    global_floor_changed: false
+    judge_selection_reason_logged: true
+  latest_top5_duplicate_probe:
+    measured_date: 2026-11-24
+    source: production_getTopics_limit_5_RSS_only
+    karahan_statement_variants_in_first_five: 4
+    variants_caught_before_stemming: 2
+    variants_caught_after_turkish_stemming: 3
+    unrelated_rice_export_story_caught: false
+    duplicate_guard_runs_before_judge: true
+    direct_smoke_selected_third_variant_as_duplicate: true
+    model_calls: 0
+  operations_runbook: docs/operations.md
+updated_at: 2026-11-24T07:11:57+03:00

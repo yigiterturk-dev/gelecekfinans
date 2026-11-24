@@ -70,6 +70,14 @@ export default function Kunye() {
           <a href="mailto:reklam@gelecekfinans.com" style={{ color: "var(--accent)" }}>reklam@gelecekfinans.com</a>
         </p>
 
+        <p>
+          <strong>Yer sağlayıcı:</strong>{" "}
+          <a href="https://www.netcup.com/en/contact/legal-notice" target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>
+            netcup GmbH
+          </a>
+          , Emmy-Noether-Straße 10, D-76131 Karlsruhe, Almanya.
+        </p>
+
         <h2>Editoryal İlkeler ve Politikalar</h2>
         <p>
           Yayın sürecimiz ve düzeltme politikamız için{" "}

@@ -1,4 +1,4 @@
-type OpenAIErrorLike = {
+type ProviderErrorLike = {
   status?: number;
   code?: string;
   message?: string;
@@ -21,26 +21,90 @@ export class AIProviderFatalError extends Error {
   }
 }
 
-export class OpenAIQuotaError extends AIProviderFatalError {
+export class AIProviderQuotaError extends AIProviderFatalError {
+  readonly provider: string;
+  readonly providerEndpointHost: string | null;
+  readonly providerErrorCode: string | null;
+  readonly providerStatus: number | null;
+  readonly quotaReason: string;
+
+  constructor(provider: string, error?: unknown, providerEndpointHost?: string) {
+    const details = getProviderQuotaDetails(error);
+    const reason = describeProviderQuota(details.providerErrorCode);
+    const prefix = provider === "openai"
+      ? "OpenAI API isteği durduruldu"
+      : "Seçili yapay zekâ sağlayıcısı kota veya harcama sınırı nedeniyle isteği durdurdu";
+    super(
+      `${prefix}: ${reason}${details.providerErrorCode ? ` (sağlayıcı kodu: ${details.providerErrorCode})` : ""}.`,
+      "AI_PROVIDER_QUOTA_EXHAUSTED",
+    );
+    this.provider = provider;
+    this.providerEndpointHost = providerEndpointHost || null;
+    this.providerErrorCode = details.providerErrorCode;
+    this.providerStatus = details.providerStatus;
+    this.quotaReason = reason;
+    this.name = "AIProviderQuotaError";
+  }
+
+  toMetadata() {
+    return {
+      provider: this.provider,
+      providerEndpointHost: this.providerEndpointHost,
+      providerErrorCode: this.providerErrorCode,
+      providerStatus: this.providerStatus,
+      quotaReason: this.quotaReason,
+    };
+  }
+}
+
+/** Keep the OpenAI-specific code so its existing cooldown remains effective. */
+export class OpenAIQuotaError extends AIProviderQuotaError {
   readonly code = "OPENAI_QUOTA_EXHAUSTED";
 
-  constructor() {
-    super(
-      "OpenAI API kota/limit hatası nedeniyle üretim durduruldu. Bakiye, proje/kuruluş harcama sınırı ve kullanım limitlerini kontrol edin; bu hata tek başına bakiyenin bittiğini göstermez.",
-      "OPENAI_QUOTA_EXHAUSTED",
-    );
+  constructor(error?: unknown, providerEndpointHost?: string) {
+    super("openai", error, providerEndpointHost);
     this.name = "OpenAIQuotaError";
   }
 }
 
+export function providerQuotaError(
+  provider: string,
+  error?: unknown,
+  providerEndpointHost?: string,
+): AIProviderQuotaError {
+  return provider === "openai"
+    ? new OpenAIQuotaError(error, providerEndpointHost)
+    : new AIProviderQuotaError(provider, error, providerEndpointHost);
+}
+
 /** A payment-required response means this provider cannot process requests. */
 export class AIProviderBillingError extends AIProviderFatalError {
-  constructor() {
+  readonly providerEndpointHost: string | null;
+  readonly providerErrorCode: string | null;
+  readonly providerStatus: number | null;
+  readonly billingReason: string;
+
+  constructor(provider: string, error?: unknown, providerEndpointHost?: string) {
+    const details = getProviderQuotaDetails(error);
+    const billingReason = describeProviderBilling(details.providerErrorCode);
     super(
-      "Yapay zekâ sağlayıcısı 402 ödeme/bakiye hatası verdi; bu koşudaki yeni model çağrıları durduruldu.",
+      `${provider} sağlayıcısı 402 ödeme/faturalandırma yanıtı verdi: ${billingReason}. Bu koşudaki yeni model çağrıları durduruldu.`,
       "AI_PROVIDER_BILLING_ERROR",
     );
+    this.providerEndpointHost = providerEndpointHost || null;
+    this.providerErrorCode = details.providerErrorCode;
+    this.providerStatus = details.providerStatus;
+    this.billingReason = billingReason;
     this.name = "AIProviderBillingError";
+  }
+
+  toMetadata() {
+    return {
+      providerEndpointHost: this.providerEndpointHost,
+      providerErrorCode: this.providerErrorCode,
+      providerStatus: this.providerStatus,
+      billingReason: this.billingReason,
+    };
   }
 }
 
@@ -74,17 +138,70 @@ export class AIProviderConfigurationError extends AIProviderFatalError {
   }
 }
 
-export function isOpenAIQuotaError(error: unknown): boolean {
-  const value = (error || {}) as OpenAIErrorLike;
-  const message = `${value.message || ""} ${value.error?.message || ""}`.toLocaleLowerCase("en-US");
-  const code = `${value.code || ""} ${value.error?.code || ""}`.toLocaleLowerCase("en-US");
+export function isProviderQuotaError(error: unknown): boolean {
+  const { providerStatus, providerErrorCode, providerMessage } = getProviderQuotaDetails(error);
+  const message = providerMessage.toLocaleLowerCase("en-US");
+  const code = (providerErrorCode || "").toLocaleLowerCase("en-US");
+  const quotaCodes = new Set([
+    "insufficient_quota",
+    "credit_balance_exhausted",
+    "organization_spend_limit_exceeded",
+    "project_spend_limit_exceeded",
+    "organization_usage_limit_exceeded",
+    "billing_not_active",
+  ]);
+  if (quotaCodes.has(code)) return true;
   const hasQuotaSignal = (
     code.includes("insufficient_quota") ||
+    code.includes("spend_limit_exceeded") ||
+    code.includes("usage_limit_exceeded") ||
     message.includes("no credits remaining") ||
     message.includes("exceeded your current quota") ||
     message.includes("billing")
   );
-  return hasQuotaSignal && (value.status === 429 || code.includes("insufficient_quota") || message.includes("429"));
+  return hasQuotaSignal && (providerStatus === 429 || code.includes("insufficient_quota") || message.includes("429"));
+}
+
+/** @deprecated Use the provider-neutral name; retained for older consumers. */
+export const isOpenAIQuotaError = isProviderQuotaError;
+
+function getProviderQuotaDetails(error: unknown) {
+  const value = (error || {}) as ProviderErrorLike;
+  return {
+    providerStatus: Number.isFinite(value.status) ? value.status! : null,
+    providerErrorCode: value.error?.code || value.code || null,
+    providerMessage: `${value.message || ""} ${value.error?.message || ""}`.trim(),
+  };
+}
+
+function describeProviderQuota(code: string | null): string {
+  switch (code?.toLocaleLowerCase("en-US")) {
+    case "credit_balance_exhausted":
+      return "ön ödemeli API kredisi tükenmiş";
+    case "organization_spend_limit_exceeded":
+      return "kuruluş harcama sınırına ulaşılmış";
+    case "project_spend_limit_exceeded":
+      return "proje harcama sınırına ulaşılmış";
+    case "organization_usage_limit_exceeded":
+      return "kuruluş kullanım limitine ulaşılmış";
+    case "billing_not_active":
+      return "API sağlayıcısında faturalandırma etkin değil";
+    case "insufficient_quota":
+      return "kota yetersiz; bakiye veya limit nedeni ayrıca doğrulanmalı";
+    default:
+      return "kota ya da harcama limiti hatası; bakiye nedeni ayrıca doğrulanmalı";
+  }
+}
+
+function describeProviderBilling(code: string | null): string {
+  switch (code?.toLocaleLowerCase("en-US")) {
+    case "credit_balance_exhausted": return "ön ödemeli API kredisi tükenmiş";
+    case "organization_spend_limit_exceeded": return "kuruluş harcama sınırına ulaşılmış";
+    case "project_spend_limit_exceeded": return "proje harcama sınırına ulaşılmış";
+    case "organization_usage_limit_exceeded": return "kuruluş kullanım limitine ulaşılmış";
+    case "billing_not_active": return "faturalandırma etkin değil";
+    default: return "ödeme yanıtı alındı; bakiye veya limit nedeni doğrulanamadı";
+  }
 }
 
 export function isAnthropicBillingError(error: unknown): boolean {
@@ -110,7 +227,7 @@ export function isProviderBillingError(error: unknown): boolean {
  * maili gider.
  */
 export function isProviderRequestConfigurationError(error: unknown): boolean {
-  const value = (error || {}) as OpenAIErrorLike;
+  const value = (error || {}) as ProviderErrorLike;
   if (value.status !== 400 && value.status !== 404) return false;
   const message = `${value.message || ""} ${value.error?.message || ""}`.toLocaleLowerCase("en-US");
   const code = `${value.code || ""} ${value.error?.code || ""}`.toLocaleLowerCase("en-US");
@@ -147,6 +264,8 @@ export interface BlockedDraftPayload {
   source: string;
   wordCount: number;
   objections: string[];
+  /** Evidence used by the writer, retained so an editor can inspect citations. */
+  evidencePacket?: unknown;
 }
 
 /**

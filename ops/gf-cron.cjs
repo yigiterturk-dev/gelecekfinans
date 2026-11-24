@@ -74,17 +74,28 @@ async function runJob(job, { env = process.env, request = fetch } = {}) {
   let httpStatus = null;
   const startedAt = new Date().toISOString();
   const provider = env.ARTICLE_AI_PROVIDER?.trim().toLowerCase();
-  const providerKey = { openai: "OPENAI_API_KEY", anthropic: "ANTHROPIC_API_KEY", deepseek: "DEEPSEEK_API_KEY" }[provider];
+  const providerKey = {
+    openai: "OPENAI_API_KEY",
+    anthropic: "ANTHROPIC_API_KEY",
+    deepseek: "DEEPSEEK_API_KEY",
+    gemini: "GEMINI_API_KEY",
+  }[provider];
   const automationDisabled = ["news", "guide"].includes(job)
     && env.AI_AUTOMATION_ENABLED?.trim().toLowerCase() !== "true";
+  const openAISpendingDisabled = ["news", "guide"].includes(job)
+    && provider === "openai"
+    && env.AI_OPENAI_SPENDING_ENABLED?.trim().toLowerCase() !== "true";
   const missingAI = ["news", "guide"].includes(job) && (!providerKey || !env[providerKey]);
-  const missingMail = job === "newsletter" && (!env.RESEND_API_KEY || !env.NEWSLETTER_SECRET);
+  const hasNewsletterSecret = env.NEWSLETTER_SECRET || env.NEXTAUTH_SECRET || env.CRON_SECRET;
+  const missingMail = job === "newsletter" && (!env.RESEND_API_KEY || !hasNewsletterSecret);
   try {
     if (!env.CRON_SECRET) throw new Error("Missing cron secret");
     // Kapalı yazı hattı için endpoint'e bile gitme; model çağrısı yapılmayacağını
     // uygulama zaten garanti eder, cron da gereksiz isteği ve hatalı alarmı önler.
     if (automationDisabled) {
       result = { level: "warning", code: "AI_AUTOMATION_DISABLED" };
+    } else if (openAISpendingDisabled) {
+      result = { level: "warning", code: "OPENAI_SPENDING_DISABLED" };
     } else if (missingAI) {
       throw new Error("Missing AI key");
     // Resend config yokken endpoint'i çağırma: hiçbir e-posta gönderilemez.

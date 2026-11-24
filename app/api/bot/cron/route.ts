@@ -4,6 +4,7 @@ import { getSettings } from "@/lib/settings";
 import { prisma } from "@/lib/db";
 import { startOfIstanbulWeek } from "@/lib/bot/ai-budget";
 import { acquireCronLock, releaseCronLock } from "@/lib/bot/cron-lock";
+import { withBotRequestSignal } from "@/lib/bot/request-context";
 
 export const maxDuration = 300;
 const PRIVATE_HEADERS = { "Cache-Control": "private, no-store, max-age=0" };
@@ -45,12 +46,12 @@ export async function GET(req: NextRequest) {
       }, { headers: PRIVATE_HEADERS });
     }
 
-    const result = await runPublishingPipeline({
+    const result = await withBotRequestSignal(req.signal, () => runPublishingPipeline({
       trigger: "cron",
       count: Math.min(settings.autonomy?.dailyArticleCount ?? 1, remainingThisWeek),
       targetWords: settings.autonomy?.targetWords ?? 550,
       autoPublish: false,
-    });
+    }));
     return NextResponse.json(result, { headers: PRIVATE_HEADERS });
   } finally {
     await releaseCronLock(lock).catch(() => {});

@@ -4,6 +4,7 @@ import { getSettings } from "@/lib/settings";
 import { prisma } from "@/lib/db";
 import { startOfIstanbulWeek } from "@/lib/bot/ai-budget";
 import { acquireCronLock, releaseCronLock } from "@/lib/bot/cron-lock";
+import { withBotRequestSignal } from "@/lib/bot/request-context";
 
 export const maxDuration = 300;
 const PRIVATE_HEADERS = { "Cache-Control": "private, no-store, max-age=0" };
@@ -56,12 +57,12 @@ export async function GET(req: NextRequest) {
     const requestedCount = Number.isSafeInteger(configuredCount) && configuredCount > 0
       ? configuredCount
       : WEEKLY_GUIDE_LIMIT;
-    const result = await runGuidePipeline({
+    const result = await withBotRequestSignal(req.signal, () => runGuidePipeline({
       trigger: "cron",
       count: Math.min(remainingThisWeek, requestedCount),
       targetWords: 1200,
       autoPublish: false,
-    });
+    }));
     return NextResponse.json(result, { headers: PRIVATE_HEADERS });
   } finally {
     await releaseCronLock(lock).catch(() => {});

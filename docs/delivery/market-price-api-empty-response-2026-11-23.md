@@ -7,5 +7,7 @@ uyarı olarak gösterir. TCMB metin değerleri tam ondalık biçimde ayrıştır
 bozuk veya sıfır fiyatlar başarı yanıtına taşınmaz.
 
 Canlı doğrulama: üretim build'i başarılı; `/api/fiyatlar` HTTP 200 döndürdü ve
-pozitif fiyat alanları içerdi. Tüm kaynakların başarısız olduğu durum canlıda
+USD, EUR, altın, Bitcoin ve BIST için pozitif fiyat alanları içerdi. TCMB XML
+ayrıştırıcısının değerleri sayı türünde verdiği bulundu; ondalık yardımcı artık
+sonlu sayıları da kabul ediyor. Tüm kaynakların başarısız olduğu durum canlıda
 zorlanmadı; 503/no-store davranışı kaynak kodunda ve build çıktısında doğrulandı.

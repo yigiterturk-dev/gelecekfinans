@@ -231,7 +231,7 @@ export function countDraftWords(draft: ArticleDraft): number {
  *
  * Haber ve rehber aynı kapıdan geçmez ama rehber kapısı GEVŞEK değildir:
  * yalnızca farklı ölçütlere bakar. Haberde "iki bağımsız yayıncı" ve 280-800
- * kelime doğru ölçüttür; rehberde doğru ölçüt tek bir resmî kaynak ve daha
+ * 650-800 kelime doğru ölçüttür; rehberde doğru ölçüt tek bir resmî kaynak ve daha
  * uzun, daha derin metindir. Sayıların kanıtla desteklenmesi, uydurma yasağı,
  * yatırım tavsiyesi uyarısı gibi kurallar iki şeritte de aynen geçerlidir.
  */
@@ -276,7 +276,7 @@ export interface QualityPreset {
 }
 
 export const NEWS_QUALITY_PRESET: QualityPreset = {
-  minWords: 280,
+  minWords: 650,
   maxWords: 800,
   minIndependentSources: 2,
   label: "haber",
@@ -401,11 +401,13 @@ export function validateDraft(
   // okur açısından hiçbir fark yok, ama kapı makalenin tamamını atıyordu.
   // Üst sınır aynı kalır; uzun meta gerçekten kırpılır.
   if (draft.meta.length < 110 || draft.meta.length > 180) cosmetic(`Meta uzunluğu uygun değil: ${draft.meta.length}`);
+  // Word count affects editorial fit, not factual integrity. Keep otherwise
+  // safe short/long drafts in human review instead of discarding paid work.
   if (wordCount < preset.minWords) {
-    issues.push(`Metin fazla kısa: ${wordCount} kelime (${preset.label} alt sınırı ${preset.minWords})`);
+    cosmetic(`Metin fazla kısa: ${wordCount} kelime (${preset.label} alt sınırı ${preset.minWords})`);
   }
   if (wordCount > preset.maxWords) {
-    issues.push(`Metin gereksiz uzun: ${wordCount} kelime (${preset.label} üst sınırı ${preset.maxWords})`);
+    cosmetic(`Metin gereksiz uzun: ${wordCount} kelime (${preset.label} üst sınırı ${preset.maxWords})`);
   }
   if (!draft.lede.toLocaleLowerCase("tr-TR").includes(draft.keyword.toLocaleLowerCase("tr-TR"))) {
     cosmetic("Odak anahtar kelime giriş paragrafında yok");

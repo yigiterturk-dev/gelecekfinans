@@ -2,10 +2,8 @@
 
 [![CI](https://github.com/yigiterturk-dev/gelecekfinans/actions/workflows/ci.yml/badge.svg)](https://github.com/yigiterturk-dev/gelecekfinans/actions/workflows/ci.yml)
 [![Next.js 16](https://img.shields.io/badge/Next.js-16.3-111111?logo=nextdotjs)](https://nextjs.org/)
-[![Tests](https://img.shields.io/badge/tests-11%2F11-0a8f4e)](./tests)
-[![Security audit](https://img.shields.io/badge/npm_audit-0_vulnerabilities-0a8f4e)](./docs/showcase-audit.md)
 
-An editorial finance platform built around a clear publishing boundary: automated research can create drafts, but only an authenticated editor can publish them. The application combines financial content, third-party market-data adapters, SEO tooling, newsletter delivery, and a private operations console in one production-oriented Next.js codebase.
+An editorial finance platform with a review-gated article workflow, third-party market-data adapters, SEO tooling, newsletter delivery, and a private operations console. Production AI writing automation is currently off and its daily model spend limit is `$0`; publishing remains under authenticated editor control.
 
 > GelecekFinans is an information product, not a brokerage or trading system. Market data comes from third-party sources and may be delayed. Nothing in the product is investment advice.
 
@@ -14,10 +12,10 @@ An editorial finance platform built around a clear publishing boundary: automate
 ## What is implemented
 
 - Editorial workflow with `DRAFT`, `PUBLISHED`, `REJECTED`, and `ARCHIVED` states
-- Review-gated OpenAI article pipeline; bot-created articles remain drafts
+- Provider-configurable AI research and writing pipeline with corroboration and editorial gates; production automation is disabled
 - Authenticated admin console for articles, settings, breaking news, subscribers, bot runs, and analytics
 - Market pages and calculators for currencies, gold, crypto assets, credit, deposits, and inflation
-- 31 App Router API handlers covering content, market adapters, auth, newsletters, admin operations, and scheduled jobs
+- 41 App Router API handlers covering content, market adapters, auth, newsletters, admin operations, and scheduled jobs
 - Signed double opt-in and unsubscribe tokens with preference-based newsletter segmentation and A/B subject testing
 - RSS, sitemap, structured data, Open Graph metadata, and dynamic SEO settings
 - Responsive light/dark interface with keyboard focus states, a skip link, and reduced-motion handling
@@ -43,7 +41,7 @@ Public Next.js UI
   └─ page views and bot-run ledger
 ```
 
-The AI writer and external integrations are lazy-initialized, so missing optional provider keys do not prevent the application from building. Operations that need secrets fail closed at request time.
+The AI writer and external integrations are lazy-initialized, so missing optional provider keys do not prevent the application from building. Operations that need secrets fail closed at request time. Production currently selects the Gemini 2.5 Flash model through Google's OpenAI-compatible endpoint; the AI automation switch and daily spend cap keep it from making model calls. See the [live release record](docs/delivery/current-live-release-2026-11-23.md) and [AI cost audit](docs/delivery/ai-cost-audit-2026-11-23.md) for observed state and historical cost limits.
 
 ## Local development
 
@@ -79,7 +77,7 @@ npm run build
 npm audit
 ```
 
-CI repeats these checks against an ephemeral PostgreSQL 16 service. The current evidence set is 11 passing tests, a successful production build, and zero known npm audit vulnerabilities. See the [showcase audit](docs/showcase-audit.md) for scope and limitations.
+CI runs lint, tests, a production build, and a production-dependency audit against an ephemeral PostgreSQL 16 service. See the [CI workflow](.github/workflows/ci.yml) for the exact commands. For live health, backup verification, AI spend state, and rollback steps, use the [production operations runbook](docs/operations.md).
 
 ## Security model
 

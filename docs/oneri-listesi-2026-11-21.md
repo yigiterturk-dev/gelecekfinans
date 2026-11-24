@@ -1,5 +1,26 @@
 # GelecekFinans — Claude'a verilecek görev briefi (2026-11-21)
 
+> **Tarihsel snapshot; canlı durumun kaynağı değil.** Bu brief 21 Kasım 2026
+> ölçümlerini ve o tarihteki görev/onay varsayımlarını içerir. 23 Kasım canlı
+> kontrolde `/rehber`, `/doviz`, `/doviz/usd-try`, `/sitemap.xml` ve
+> `/news-sitemap.xml` HTTP 200 döndü; tek istek TTFB ölçümleri sırasıyla
+> 0,074 / 0,025 / 0,029 / 0,088 / 0,056 saniyeydi. `gf-yedek`, GSC ve index
+> servisleri son koşumda başarılı; ilgili timer'lar aktif. Şu anki sürüm ve
+> AI maliyet/harcama korumaları için [canlı release notlarına](delivery/current-live-release-2026-11-23.md)
+> ve [AI maliyet denetimine](delivery/ai-cost-audit-2026-11-23.md) bakın.
+> AI yazı otomasyonu kapalı ve harcama tavanı $0. VPS dışı yedek hedefi ile
+> OpenAI hesap bakiyesi hâlâ doğrulanmadı; sunucuya ait eski ölçümleri güncel
+> durum diye kullanmayın. 24 Kasım kontrolünde `RESEND_API_KEY`, AdSense
+> publisher ID'si, newsletter zamanlayıcısı ve canlı sayfadaki AdSense işareti
+> yoktu; bülten ve reklam geliri entegrasyonları hâlâ kurulu değil.
+> VPS'teki çapraz proje Nocturn Gap taraması da son koşumda tahminen $0.166
+> harcıyordu; kullanım kesinleşene kadar 24 Kasım'da zamanlayıcısı kapatıldı.
+> Ayrıntı: [AI maliyet denetimi](delivery/ai-cost-audit-2026-11-23.md).
+> GSC'nin son tamamlanmış 28 günlük penceresinde 2.505 gösterim ve 4 tık var;
+> başlıca kur sayfalarının ortalama konumu 69–72. Aralık düşük olduğu için
+> başlık değişikliği tek başına trafik çözümü sayılmıyor; [ağırlıklı GSC raporu](delivery/gsc-report-cli-2026-11-23.md)
+> ölçüm ayrıntılarını içeriyor.
+
 Bu dosyayı olduğu gibi Claude Code'a ver. Bağlam, kanıt ve öncelik sırası içinde.
 
 ---
