@@ -89,3 +89,22 @@ the apex sitemap. `robots.txt` does not disallow `/borsa`. The visible page
 signals therefore do not show a site-side indexing block. The sitemap was
 already fetched successfully after its prior submission; do not submit it again
 while waiting for Google to discover/crawl this URL. No model API was called.
+
+### Search demand and metadata sweep — 2026-11-24
+
+The read-only 28-day Search Console window (25 Oct–21 Nov) shows
+`/doviz/usd-try` at 420 impressions, 4 clicks, average position 68.2, and
+`/araclar/mevduat-faiz-hesaplama` at 92 impressions, 0 clicks, position 66.7.
+The latter's visible queries are also mostly below position 40; its largest
+query examples are “anapara faizi hesaplama” (9 impressions, position 79.2)
+and “faiz getiri hesaplama” (8 impressions, position 92.1). The page title
+already contains “Mevduat Faizi Hesaplama” and the result does not show a
+title-only fix supported by this low-ranking sample. Ranking/discovery is the
+larger measured gap.
+
+A separate live metadata scan of all 175 general/news sitemap URLs found no
+duplicate titles, missing titles/descriptions, missing or mismatched
+canonicals, `noindex` pages, HTTP failures, or pages with other than one H1.
+The character-count screen flagged 108 titles over 70 characters and 11
+descriptions over 170; those lengths are review cues, not proof of a defect,
+so no bulk title shortening was applied. No model API was called.
