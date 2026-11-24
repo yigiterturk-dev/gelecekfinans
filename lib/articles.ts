@@ -9,6 +9,18 @@ export type { Article } from "./types";
 export type { ArticleListItem } from "./types";
 
 /**
+ * Next's persistent data cache serializes Prisma Date values as strings.
+ * Normalize either representation before building article view models.
+ */
+function toIsoTimestamp(value: Date | string): string {
+  const date = value instanceof Date ? value : new Date(value);
+  if (!Number.isFinite(date.getTime())) {
+    throw new TypeError("Makale tarihi geçersiz");
+  }
+  return date.toISOString();
+}
+
+/**
  * Veritabanina ULASILAMADI — "kayit yok" ile ayni sey DEGIL.
  *
  * Onceden `getArticleBySlug` her hatada `null` donuyordu ve makale sayfasi bunu
@@ -180,12 +192,12 @@ export const getAllArticles = cache(async function getAllArticles(
     category: r.category,
     image_path: null,
     source: r.source || "",
-    created_at: (r.publishedAt || r.createdAt).toISOString(),
+    created_at: toIsoTimestamp(r.publishedAt || r.createdAt),
     slug: r.slug,
     filename: r.id,
     imageUrl: r.imageUrl,
     views: viewMap.get(`/${r.slug}`) || 0,
-    updatedAt: r.updatedAt.toISOString(),
+    updatedAt: toIsoTimestamp(r.updatedAt),
     // Kolon yokken `premium` undefined gelir; default(false) semantiğiyle uyumlu.
     premium: r.premium ?? false,
   }));
@@ -279,11 +291,11 @@ export const getArticleBySlug = cache(async function getArticleBySlug(
     content: r.content,
     image_path: null,
     source: r.source || "",
-    created_at: (r.publishedAt || r.createdAt).toISOString(),
+    created_at: toIsoTimestamp(r.publishedAt || r.createdAt),
     slug: r.slug,
     filename: r.id,
     imageUrl: r.imageUrl,
-    updatedAt: r.updatedAt.toISOString(),
+    updatedAt: toIsoTimestamp(r.updatedAt),
     // Kolon yokken `premium` undefined gelir; default(false) semantiğiyle uyumlu.
     premium: r.premium ?? false,
     // Kolon yoksa / değer geçersizse coerceExtras null döner → kutu gizlenir.
@@ -406,12 +418,12 @@ const getPublishedArticlePage = cache(async function getPublishedArticlePage(
     category: row.category,
     image_path: null,
     source: row.source || "",
-    created_at: (row.publishedAt || row.createdAt).toISOString(),
+    created_at: toIsoTimestamp(row.publishedAt || row.createdAt),
     slug: row.slug,
     filename: row.id,
     imageUrl: row.imageUrl,
     views: viewMap.get(`/${row.slug}`) || 0,
-    updatedAt: row.updatedAt.toISOString(),
+    updatedAt: toIsoTimestamp(row.updatedAt),
   }));
 });
 
@@ -476,12 +488,12 @@ export const searchPublishedArticles = cache(async function searchPublishedArtic
     category: row.category,
     image_path: null,
     source: row.source || "",
-    created_at: (row.publishedAt || row.createdAt).toISOString(),
+    created_at: toIsoTimestamp(row.publishedAt || row.createdAt),
     slug: row.slug,
     filename: row.id,
     imageUrl: row.imageUrl,
     views: viewMap.get(`/${row.slug}`) || 0,
-    updatedAt: row.updatedAt.toISOString(),
+    updatedAt: toIsoTimestamp(row.updatedAt),
   }));
   return { total: matches.length, articles };
 });
@@ -572,12 +584,12 @@ export const getGuides = cache(async function getGuides(limit = 100, category?: 
     category: r.category,
     image_path: null,
     source: r.source || "",
-    created_at: (r.publishedAt || r.createdAt).toISOString(),
+    created_at: toIsoTimestamp(r.publishedAt || r.createdAt),
     slug: r.slug,
     filename: r.id,
     imageUrl: r.imageUrl,
     views: viewMap.get(`/${r.slug}`) || 0,
-    updatedAt: r.updatedAt.toISOString(),
+    updatedAt: toIsoTimestamp(r.updatedAt),
     cluster: r.cluster,
   }));
 });

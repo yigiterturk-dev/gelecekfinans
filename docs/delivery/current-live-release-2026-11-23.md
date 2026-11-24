@@ -283,3 +283,21 @@ After activation the service is active with zero restarts; /, /borsa, /doviz,
 provider endpoint returns 401. Gemini remains configured, AI remains disabled
 with a $0 cap, and no model calls were made. Rollback snapshot:
 /root/gf-release-before-repeat-guard-20261124.
+
+Build 5GSD6fGWHLFg7YXjbFQze fixes the category and archive 500s caused by
+cached Prisma timestamps returning as strings. Article view-model mapping now
+accepts both Date objects and ISO date strings for created/updated timestamps.
+The production stack trace was `(a.publishedAt || a.createdAt).toISOString is
+not a function` across five `/kategori/*` URLs.
+
+The isolated build generated all 300 static pages with model keys blank,
+automation disabled, daily spend `$0`, and its database connection read-only.
+A fresh 1,279,554-byte database dump passed `pg_restore --list`. In the stage
+server, all five affected category pages and `/arsiv` returned 200 on both
+cold and cached requests. After release, all 175 URLs listed in the general
+and news sitemaps returned 200, with no missing, mismatched, or noindex
+canonical metadata. The service is active with zero restarts; the unauthenticated
+provider endpoint returns 401. AI automation remains off with a `$0` cap; no
+model calls were made. Rollback snapshot:
+`/root/gf-release-before-category-date-cache-20261124/20-release.conf`;
+previous build: `/opt/gf-stage-repeat-guard-20261124a`.

@@ -152,7 +152,7 @@ open_decisions:
   - Select a licensed editorial media provider and connect its adapter credentials.
   - Configure AdSense publisher ID and a Google-certified CMP before serving ads to regulated regions.
 active_handoff: projects/gelecekfinans/brief/delta-brief.md
-updated_at: 2026-11-24T07:11:57+03:00
+updated_at: 2026-11-24T07:53:44+03:00
 
 # Verified production override (2026-11-24); supersedes the historical
 # Verified production provider and billing state as of 2026-11-24.
@@ -293,13 +293,13 @@ current_runtime_audit:
     apex_indexing_after_download: still_discovered_not_indexed
   latest_deployment:
     date: 2026-11-24
-    build_id: E1EpMYBPbTN6mlpU2pW46
-    change: turkish_stemmed_duplicate_guard_before_judge
+    build_id: 5GSD6fGWHLFg7YXjbFQze
+    change: normalize_cached_prisma_timestamps_for_article_lists
     service_active: true
     service_restarts: 0
-    working_directory: /opt/gf-stage-repeat-guard-20261124a
-    previous_working_directory: /opt/gf-stage-sgk-event-rescue-20261124a
-    rollback_snapshot: /root/gf-release-before-repeat-guard-20261124/20-release.conf
+    working_directory: /opt/gf-stage-article-date-cache-20261124a
+    previous_working_directory: /opt/gf-stage-repeat-guard-20261124a
+    rollback_snapshot: /root/gf-release-before-category-date-cache-20261124/20-release.conf
     shared_article_image_directory: /opt/gelecekfinans/public/gorseller
     homepage_http: 200
     masthead_http: 200
@@ -309,6 +309,11 @@ current_runtime_audit:
     doviz_http: 200
     published_article_http: 200
     news_sitemap_http: 200
+    sitemap_url_count_checked: 175
+    sitemap_url_status_failures: 0
+    sitemap_metadata_issues: 0
+    category_routes_recovered_from_500: 5
+    archive_route_cold_and_cached_http: 200
     admin_ai_provider_http: 401
     all_300_static_pages_generated: true
     production_provider_resolved_as: gemini
@@ -492,4 +497,4 @@ current_runtime_audit:
     direct_smoke_selected_third_variant_as_duplicate: true
     model_calls: 0
   operations_runbook: docs/operations.md
-updated_at: 2026-11-24T07:11:57+03:00
+updated_at: 2026-11-24T07:53:44+03:00

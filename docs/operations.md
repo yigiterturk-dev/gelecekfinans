@@ -78,14 +78,14 @@ active, `NRestarts=0`, the homepage and changed route return `200`, and the
 unauthenticated provider endpoint returns `401`. Retain the previous build and
 override until those checks pass.
 
-The current build is `E1EpMYBPbTN6mlpU2pW46` in
-`/opt/gf-stage-repeat-guard-20261124a`. Its rollback snapshot is
-`/root/gf-release-before-repeat-guard-20261124/20-release.conf`; the previous
-build is `/opt/gf-stage-sgk-event-rescue-20261124a`. To restore the previous
-override:
+The current build is `5GSD6fGWHLFg7YXjbFQze` in
+`/opt/gf-stage-article-date-cache-20261124a`. Its rollback snapshot is
+`/root/gf-release-before-category-date-cache-20261124/20-release.conf`; the
+previous build is `/opt/gf-stage-repeat-guard-20261124a`. To restore the
+previous override:
 
 ```bash
-ssh netcup 'install -m 644 /root/gf-release-before-repeat-guard-20261124/20-release.conf /etc/systemd/system/gelecekfinans.service.d/20-release.conf && systemctl daemon-reload && systemctl restart gelecekfinans.service'
+ssh netcup 'install -m 644 /root/gf-release-before-category-date-cache-20261124/20-release.conf /etc/systemd/system/gelecekfinans.service.d/20-release.conf && systemctl daemon-reload && systemctl restart gelecekfinans.service'
 ```
 
 Then repeat the health checks above. Rollback changes the application version;
