@@ -76,6 +76,14 @@ runs were made for this review.
   has `prisma/schema.prisma` and two SQL support files but no Prisma migration
   history; schema changes therefore need a deliberate migration plan before
   production rollout.
+- The integration scanner produced 29 heuristic candidates. Manual review of
+  the flagged snippets found no confirmed fail-open path: URL, sender, TTL,
+  model, and endpoint defaults are non-secret configuration; the flagged
+  output is public-feed scoring or a password placeholder. Newsletter signup
+  denies service before writing when mail/token configuration is absent;
+  scheduled routes reject a missing cron secret; newsletter confirmation uses
+  signed tokens and unsubscribe GET is read-only. This source review is not a
+  penetration test.
 
 ## Next evidence-backed actions
 
