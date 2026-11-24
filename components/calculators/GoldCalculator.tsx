@@ -56,7 +56,6 @@ export default function GoldCalculator() {
   useEffect(() => {
     let active = true;
     const controller = new AbortController();
-    setLoaded(false);
     fetch("/api/altin", { signal: controller.signal })
       .then((response) => {
         if (!response.ok) throw new Error("Altın fiyatı isteği başarısız");
@@ -123,7 +122,7 @@ export default function GoldCalculator() {
         ) : unitPrice == null ? (
           <div className="conv-muted" role="alert">
             Altın fiyatı verisi alınamadı.
-            <button type="button" className="search-retry" onClick={() => setRetryKey((key) => key + 1)}>
+            <button type="button" className="search-retry" onClick={() => { setLoaded(false); setRetryKey((key) => key + 1); }}>
               Yeniden Dene
             </button>
           </div>
@@ -152,7 +151,7 @@ export default function GoldCalculator() {
           </>
         )}
       </div>
-      <p className="conv-note">Gram altın 24 ayar spot değerden; çeyrek, yarım ve tam Cumhuriyet ziynet altınları Darphane'nin 22 ayar ağırlık ve saflık standardından hesaplanır. Sonuç yaklaşık metal karşılığıdır; sikke primi, işçilik, alış-satış makası ve kurum marjı dahil değildir. <a href="https://www.darphane.gov.tr/cumhuriyet-altini-uretimi" target="_blank" rel="noopener noreferrer">Darphane ağırlık ve ayar bilgileri</a>.</p>
+      <p className="conv-note">Gram altın 24 ayar spot değerden; çeyrek, yarım ve tam Cumhuriyet ziynet altınları Darphane&apos;nin 22 ayar ağırlık ve saflık standardından hesaplanır. Sonuç yaklaşık metal karşılığıdır; sikke primi, işçilik, alış-satış makası ve kurum marjı dahil değildir. <a href="https://www.darphane.gov.tr/cumhuriyet-altini-uretimi" target="_blank" rel="noopener noreferrer">Darphane ağırlık ve ayar bilgileri</a>.</p>
     </div>
   );
 }

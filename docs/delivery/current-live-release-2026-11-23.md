@@ -327,3 +327,26 @@ previous build: `/opt/gf-stage-article-date-cache-20261124a`.
 The lint run reports 21 errors and 4 warnings across existing page, dashboard,
 search, and calculator code. These were not part of the dependency fix and
 were not changed in this security release.
+
+## Lint and client-state cleanup — 24 November 2026
+
+Fixed the 21 lint errors and four warnings. User-triggered loading states now
+start in their event handlers; mount and query effects schedule their fetches
+without synchronous cascading state updates. Search results are memoized for
+keyboard navigation, market freshness no longer calls `Date.now()` during
+render, dashboard sign-in links use Next links, and JSX punctuation is escaped.
+The corroboration measurement now prints the already-computed distinctive
+title sweep instead of discarding it.
+
+`npm run lint` and `npx tsc --noEmit` pass. The isolated production build
+completed TypeScript and generated all 300 static pages with a read-only
+database connection, blank model keys, automation disabled, and a `$0` daily
+spend limit. A fresh database dump passed `pg_restore --list`; no test suite or
+model API calls were run.
+
+Build `l5TkNzH5Ctz3sPmg20qPT` is live from
+`/opt/gf-stage-lint-clean-20261124a`, active with zero restarts. Homepage,
+`/rehber`, `/borsa`, `/doviz`, `/arsiv`, `/kategori/ekonomi`, and
+`/news-sitemap.xml` returned 200; unauthenticated admin provider returned 401.
+Rollback snapshot: `/root/gf-release-before-lint-clean-20261124/20-release.conf`;
+previous build: `/opt/gf-stage-dependency-security-20261124a`.

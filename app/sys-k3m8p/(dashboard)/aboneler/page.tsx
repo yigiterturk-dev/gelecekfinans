@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import Select from "@/components/Select";
 
 interface Sub {
@@ -44,8 +45,6 @@ export default function SubscribersPage() {
   const [filter, setFilter] = useState<"all" | "active" | "inactive">("all");
 
   const fetchSubs = useCallback(async (signal?: AbortSignal) => {
-    setLoading(true);
-    setLoadError(null);
     try {
       const response = await fetch(`/api/admin/subscribers?filter=${filter}`, { signal });
       if (response.status === 401) throw new Error("Oturum süreniz dolmuş olabilir. Yeniden giriş yapın.");
@@ -71,11 +70,13 @@ export default function SubscribersPage() {
     }
   }, [filter]);
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- mount/filtre değişiminde veri çek (kasıtlı)
   useEffect(() => {
     const controller = new AbortController();
-    void fetchSubs(controller.signal);
-    return () => controller.abort();
+    const timer = window.setTimeout(() => void fetchSubs(controller.signal), 0);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
   }, [fetchSubs]);
 
   async function toggleSub(id: string, active: boolean) {
@@ -88,6 +89,8 @@ export default function SubscribersPage() {
       });
       const data = await response.json().catch(() => null);
       if (!response.ok) throw new Error(typeof data?.error === "string" ? data.error : "Abone durumu değiştirilemedi.");
+      setLoading(true);
+      setLoadError(null);
       await fetchSubs();
     } catch (cause) {
       setActionError(cause instanceof Error ? cause.message : "Abone durumu değiştirilemedi.");
@@ -105,6 +108,8 @@ export default function SubscribersPage() {
       });
       const data = await response.json().catch(() => null);
       if (!response.ok) throw new Error(typeof data?.error === "string" ? data.error : "Abone silinemedi.");
+      setLoading(true);
+      setLoadError(null);
       await fetchSubs();
     } catch (cause) {
       setActionError(cause instanceof Error ? cause.message : "Abone silinemedi.");
@@ -179,7 +184,7 @@ export default function SubscribersPage() {
 
       <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
         {(["all", "active", "inactive"] as const).map(f => (
-          <button key={f} onClick={() => setFilter(f)} className={`adm-pill${filter === f ? " on" : ""}`}>
+          <button key={f} onClick={() => { setLoading(true); setLoadError(null); setFilter(f); }} className={`adm-pill${filter === f ? " on" : ""}`}>
             {f === "all" ? "Tümü" : f === "active" ? "Aktif" : "Pasif"}
           </button>
         ))}
@@ -189,8 +194,8 @@ export default function SubscribersPage() {
       {loadError && (
         <p role="alert" style={{ color: "var(--dn, #dc2626)" }}>
           {loadError}{" "}
-          <button type="button" className="adm-btn" onClick={() => void fetchSubs()}>Yeniden dene</button>{" "}
-          <a href="/sys-k3m8p/giris" style={{ color: "inherit", textDecoration: "underline" }}>Yönetim paneline giriş</a>
+          <button type="button" className="adm-btn" onClick={() => { setLoading(true); setLoadError(null); void fetchSubs(); }}>Yeniden dene</button>{" "}
+          <Link href="/sys-k3m8p/giris" style={{ color: "inherit", textDecoration: "underline" }}>Yönetim paneline giriş</Link>
         </p>
       )}
 

@@ -179,7 +179,7 @@ const GUIDES: Record<string, Block[]> = {
         "Erken ödeme: tüketici kredisinde erken ödenen tutara göre faiz ve diğer maliyetlerde indirim yapılır. Erken ödeme tazminatı, yalnızca sabit faizli konut finansmanında sözleşmede yer alması koşuluyla istenebilir; değişken faizli konut kredisinde istenemez.",
       ],
       p: [
-        <>Sabit faizli konut finansmanında tazminat, erken ödenen anaparanın kalan vadesi 36 ayı aşmıyorsa %1'ini, aşıyorsa %2'sini geçemez ve sözleşmede yer almalıdır. Ayrıntılar için <a href="https://tuketici.ticaret.gov.tr/yayinlar/tuketici-bilgi-rehberi/tuketici-kredisi-sozlesmeleri-hakkinda-bilgilendirme" target="_blank" rel="noopener noreferrer">Ticaret Bakanlığının tüketici kredisi rehberine</a> ve <a href="https://tuketici.ticaret.gov.tr/yayinlar/tuketici-bilgi-rehberi/konut-finansmani-sozlesmeleri-hakkinda-bilgilendirme" target="_blank" rel="noopener noreferrer">konut finansmanı rehberine</a> bakın.</>,
+        <>Sabit faizli konut finansmanında tazminat, erken ödenen anaparanın kalan vadesi 36 ayı aşmıyorsa %1&apos;ini, aşıyorsa %2&apos;sini geçemez ve sözleşmede yer almalıdır. Ayrıntılar için <a href="https://tuketici.ticaret.gov.tr/yayinlar/tuketici-bilgi-rehberi/tuketici-kredisi-sozlesmeleri-hakkinda-bilgilendirme" target="_blank" rel="noopener noreferrer">Ticaret Bakanlığının tüketici kredisi rehberine</a> ve <a href="https://tuketici.ticaret.gov.tr/yayinlar/tuketici-bilgi-rehberi/konut-finansmani-sozlesmeleri-hakkinda-bilgilendirme" target="_blank" rel="noopener noreferrer">konut finansmanı rehberine</a> bakın.</>,
       ],
     },
   ],

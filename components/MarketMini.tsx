@@ -82,6 +82,7 @@ export default function MarketMini() {
   const [loaded, setLoaded] = useState(false);
   const [marketCheckedAt, setMarketCheckedAt] = useState<Date | null>(null);
   const [cryptoCheckedAt, setCryptoCheckedAt] = useState<Date | null>(null);
+  const [now, setNow] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -142,6 +143,7 @@ export default function MarketMini() {
           );
         }
       }
+      setNow(Date.now());
       setLoaded(true);
       // Sabit interval yerine tur tamamlandıktan sonra bekle; yavaş istekler üst üste binmez.
       timer = setTimeout(() => void go(), 60_000);
@@ -165,7 +167,7 @@ export default function MarketMini() {
   const pricedRows = rows.filter((row) => typeof row.price === "number" && Number.isFinite(row.price) && row.price > 0);
   const hasPrice = pricedRows.length > 0;
   const missingPrices = pricedRows.length < rows.length;
-  const staleData = pricedRows.some((row) => !row.checkedAt || Date.now() - row.checkedAt.getTime() > SOURCE_STALE_AFTER_MS);
+  const staleData = pricedRows.some((row) => !row.checkedAt || now - row.checkedAt.getTime() > SOURCE_STALE_AFTER_MS);
   const statusColor = !loaded || (hasPrice && (staleData || missingPrices)) ? "#d97706" : hasPrice ? "#15803d" : "#dc2626";
   const statusText = !loaded
     ? "Veri yükleniyor"

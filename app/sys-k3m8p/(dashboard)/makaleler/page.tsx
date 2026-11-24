@@ -45,8 +45,6 @@ export default function ArticleList() {
     const controller = new AbortController();
     fetchController.current = controller;
     const { signal } = controller;
-    setLoading(true);
-    setLoadError("");
     const params = new URLSearchParams({ page: String(page) });
     if (filter) params.set("status", filter);
     if (search) params.set("q", search);
@@ -81,10 +79,12 @@ export default function ArticleList() {
     }
   }, [page, filter, search]);
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- mount/filtre değişiminde veri çek (kasıtlı)
   useEffect(() => {
-    void fetchArticles();
-    return () => fetchController.current?.abort();
+    const timer = window.setTimeout(() => void fetchArticles(), 0);
+    return () => {
+      window.clearTimeout(timer);
+      fetchController.current?.abort();
+    };
   }, [fetchArticles]);
 
   function toggleSelect(id: string) {
@@ -127,6 +127,8 @@ export default function ArticleList() {
       const publishFailures = "gorselsizKalan" in result && typeof result.gorselsizKalan === "number"
         ? result.gorselsizKalan
         : 0;
+      setLoading(true);
+      setLoadError("");
       await fetchArticles();
       if (publishFailures > 0) {
         setLoadError(`${publishFailures} makale için kapak görseli üretilemedi; bu kayıtların toplu yayın işlemi tamamlanmadı.`);
@@ -142,6 +144,8 @@ export default function ArticleList() {
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
+    setLoading(true);
+    setLoadError("");
     setSearch(searchInput);
     setPage(1);
   }
@@ -173,12 +177,12 @@ export default function ArticleList() {
         <input value={searchInput} onChange={e => setSearchInput(e.target.value)} placeholder="Başlıkta ara..."
           className="adm-input" style={{ flex: 1 }} />
         <button type="submit" className="adm-btn">Ara</button>
-        {search && <button type="button" onClick={() => { setSearch(""); setSearchInput(""); setPage(1); }} className="adm-btn">Temizle</button>}
+        {search && <button type="button" onClick={() => { setLoading(true); setLoadError(""); setSearch(""); setSearchInput(""); setPage(1); }} className="adm-btn">Temizle</button>}
       </form>
 
       <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
         {["", "PUBLISHED", "DRAFT", "REJECTED", "ARCHIVED"].map(s => (
-          <button key={s} onClick={() => { setFilter(s); setPage(1); }}
+          <button key={s} onClick={() => { setLoading(true); setLoadError(""); setFilter(s); setPage(1); }}
             className={`adm-pill${filter === s ? " on" : ""}`}>
             {s || "Tümü"}
           </button>
@@ -257,11 +261,11 @@ export default function ArticleList() {
       )}
 
       <div style={{ display: "flex", gap: 8, marginTop: 20, justifyContent: "center" }}>
-        <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="adm-btn">
+        <button onClick={() => { setLoading(true); setLoadError(""); setPage(p => Math.max(1, p - 1)); }} disabled={page === 1} className="adm-btn">
           ← Önceki
         </button>
         <span style={{ padding: "6px 12px", fontSize: 12, color: "var(--muted)", fontFamily: "var(--mono)" }}>Sayfa {page}</span>
-        <button onClick={() => setPage(p => p + 1)} disabled={articles.length < 20} className="adm-btn">
+        <button onClick={() => { setLoading(true); setLoadError(""); setPage(p => p + 1); }} disabled={articles.length < 20} className="adm-btn">
           Sonraki →
         </button>
       </div>

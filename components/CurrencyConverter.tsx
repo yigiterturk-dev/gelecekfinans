@@ -46,7 +46,6 @@ export default function CurrencyConverter({ defaultFrom = "USD" }: { defaultFrom
   useEffect(() => {
     let active = true;
     const controller = new AbortController();
-    setLoadState("loading");
     fetch("/api/doviz", { signal: controller.signal })
       .then((response) => {
         if (!response.ok) throw new Error("Kur isteği başarısız");

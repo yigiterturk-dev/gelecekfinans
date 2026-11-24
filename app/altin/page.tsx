@@ -61,7 +61,7 @@ export default async function AltinHub() {
       </nav>
       <h1 className="page-header">Altın Fiyatları</h1>
       <p className="market-lede">
-        Gram ve ons altının spot değerleri ile Darphane'nin 22 ayar ziynet altını standardına göre türetilen çeyrek, yarım ve tam altın metal karşılığı. Kuyumcu ve banka alış-satış fiyatları prim, makas ve marjlar nedeniyle farklılık gösterebilir.
+        Gram ve ons altının spot değerleri ile Darphane&apos;nin 22 ayar ziynet altını standardına göre türetilen çeyrek, yarım ve tam altın metal karşılığı. Kuyumcu ve banka alış-satış fiyatları prim, makas ve marjlar nedeniyle farklılık gösterebilir.
         {goldUpdated && <> Altın kotasyon zamanı: {fmtGoldQuoteUpdated(goldUpdated)}.</>}
         {updated && <> USD/TRY referans tarihi: {fmtUpdated(updated)}.</>}
       </p>

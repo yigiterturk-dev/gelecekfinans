@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import SafeImage from "@/components/SafeImage";
@@ -35,22 +35,16 @@ export default function Search() {
   const router                = useRouter();
 
   const query = q.trim();
-  const results = query.length >= 2 && resultQuery === query ? articles : [];
+  const results = useMemo(() => query.length >= 2 && resultQuery === query ? articles : [], [query, resultQuery, articles]);
   const loadingArticles = query.length >= 2 && (resultQuery !== query || searchState === "loading" || searchState === "idle");
   const loadFailed = query.length >= 2 && resultQuery === query && searchState === "error";
 
   useEffect(() => {
     if (!open) return;
-    if (query.length < 2) {
-      setArticles([]);
-      setResultQuery(query);
-      setSearchState("idle");
-      return;
-    }
+    if (query.length < 2) return;
 
     const controller = new AbortController();
     let active = true;
-    setSearchState("loading");
     const timeout = window.setTimeout(() => {
       fetch(`/api/articles/search?q=${encodeURIComponent(query)}`, { signal: controller.signal })
       .then((response) => {
@@ -159,7 +153,11 @@ export default function Search() {
             aria-expanded={results.length > 0}
             aria-controls="search-results"
             aria-activedescendant={results[idx] ? `search-result-${idx}` : undefined}
-            value={q} onChange={e => setQ(e.target.value)}
+            value={q} onChange={e => {
+              const value = e.target.value;
+              setQ(value);
+              setSearchState(value.trim().length >= 2 ? "loading" : "idle");
+            }}
           />
           {q && <button type="button" onClick={() => setQ("")} className="search-clear" aria-label="Aramayı temizle">×</button>}
         </div>

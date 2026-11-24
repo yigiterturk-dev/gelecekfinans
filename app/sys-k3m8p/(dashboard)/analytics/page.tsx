@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 interface TopArticle {
   path: string;
@@ -71,7 +72,7 @@ export default function AnalyticsPage() {
     return (
       <p role="alert" style={{ color: "var(--dn, #dc2626)" }}>
         {error ?? "Analitik verileri şu anda alınamıyor."} {" "}
-        <a href="/sys-k3m8p/giris" style={{ color: "inherit", textDecoration: "underline" }}>Yönetim paneline giriş</a>
+        <Link href="/sys-k3m8p/giris" style={{ color: "inherit", textDecoration: "underline" }}>Yönetim paneline giriş</Link>
       </p>
     );
   }

@@ -133,7 +133,7 @@ export default async function AltinDetail({ params }: { params: Promise<{ type: 
         ))}
         <p className="market-prose">
           Bu sayfadaki değer uluslararası ons altın fiyatı ve dolar/TL kurundan türetilir; çeyrek, yarım ve tam Cumhuriyet
-          ziynet altınında Darphane'nin nominal ağırlığı ile 22 ayar saflık oranı uygulanır. Yaklaşık 10 dakikada bir
+          ziynet altınında Darphane&apos;nin nominal ağırlığı ile 22 ayar saflık oranı uygulanır. Yaklaşık 10 dakikada bir
           güncellenir. Gösterilen değer tahmini metal karşılığıdır; sikke primi, işçilik, alış-satış makası ve kurum
           marjı dahil değildir. Kapalıçarşı ve banka fiyatları farklılık gösterebilir.
           Güncel gelişmeler için <Link href="/kategori/altin">altın haberleri</Link> sayfamızı takip edin.

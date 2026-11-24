@@ -209,7 +209,7 @@ async function main() {
     const strong = sweep(threshold, "strong-title");
     const summary = sweep(threshold, "summary-overlap");
     const eventTitle = sweep(threshold, "event-title");
-    console.log(`  ${threshold.toFixed(2)} | combined ${combined.eligibleTopics}/${combined.candidateCount} | max(title,combined) ${maxTitle.eligibleTopics}/${maxTitle.candidateCount} | title J≥.20 & score≥.40 ${strong.eligibleTopics}/${strong.candidateCount} | summary gate ${summary.eligibleTopics}/${summary.candidateCount} | Turkish event tokens ${eventTitle.eligibleTopics}/${eventTitle.candidateCount}`);
+    console.log(`  ${threshold.toFixed(2)} | combined ${combined.eligibleTopics}/${combined.candidateCount} | max(title,combined) ${maxTitle.eligibleTopics}/${maxTitle.candidateCount} | distinctive title ${distinctive.eligibleTopics}/${distinctive.candidateCount} | title J≥.20 & score≥.40 ${strong.eligibleTopics}/${strong.candidateCount} | summary gate ${summary.eligibleTopics}/${summary.candidateCount} | Turkish event tokens ${eventTitle.eligibleTopics}/${eventTitle.candidateCount}`);
   }
   console.log("\nTurkish event-token candidates appended after the current ranking (limit 3):");
   let eventAddedPairs = 0, eventAddedTopics = 0;

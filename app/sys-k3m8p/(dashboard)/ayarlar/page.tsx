@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 type SettingsForm = {
   ga4Id: string;
@@ -72,8 +73,6 @@ export default function SettingsPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    setLoading(true);
-    setLoadError(null);
     void (async () => {
       try {
         const response = await fetch("/api/admin/settings", { signal: controller.signal });
@@ -123,8 +122,8 @@ export default function SettingsPage() {
   if (loadError) return (
     <div role="alert" style={{ color: "var(--dn, #dc2626)" }}>
       <p>{loadError}</p>
-      <button type="button" className="adm-btn" onClick={() => setReloadKey((key) => key + 1)}>Yeniden dene</button>{" "}
-      <a href="/sys-k3m8p/giris" style={{ color: "inherit", textDecoration: "underline" }}>Yönetim paneline giriş</a>
+      <button type="button" className="adm-btn" onClick={() => { setLoading(true); setLoadError(null); setReloadKey((key) => key + 1); }}>Yeniden dene</button>{" "}
+      <Link href="/sys-k3m8p/giris" style={{ color: "inherit", textDecoration: "underline" }}>Yönetim paneline giriş</Link>
     </div>
   );
 
@@ -235,10 +234,7 @@ function Field({ label, value, onChange, placeholder }: { label: string; value: 
 function NumberField({ label, value, onChange, min, max, step = 1 }: { label: string; value: number; onChange: (v: number) => void; min: number; max: number; step?: number }) {
   const [draft, setDraft] = useState(String(value));
   const [focused, setFocused] = useState(false);
-
-  useEffect(() => {
-    if (!focused) setDraft(String(value));
-  }, [value, focused]);
+  const displayedDraft = focused ? draft : String(value);
 
   function commitDraft() {
     const parsed = draft.trim() ? Number(draft) : value;
@@ -254,8 +250,8 @@ function NumberField({ label, value, onChange, min, max, step = 1 }: { label: st
   return (
     <label style={{ display: "block" }}>
       <span className="adm-label">{label}</span>
-      <input type="number" value={draft} min={min} max={max} step={step}
-        onFocus={() => setFocused(true)}
+      <input type="number" value={displayedDraft} min={min} max={max} step={step}
+        onFocus={() => { setDraft(String(value)); setFocused(true); }}
         onChange={e => {
           const raw = e.target.value;
           setDraft(raw);

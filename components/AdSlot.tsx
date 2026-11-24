@@ -28,12 +28,7 @@ export default function AdSlot({ position }: Props) {
   const pushed = useRef(false);
 
   useEffect(() => {
-    if (consent !== "accepted") {
-      setEnabled(false);
-      setAdsenseId("");
-      setSlotId("");
-      return;
-    }
+    if (consent !== "accepted") return;
 
     let cancelled = false;
     getPublicSiteConfig()

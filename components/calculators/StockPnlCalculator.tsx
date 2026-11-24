@@ -61,7 +61,7 @@ export default function StockPnlCalculator() {
             onChange={(e) => setFee(e.target.value)} aria-label="Komisyon binde" />
         </label>
         <label className="calc-field">
-          <span>Komisyon BSMV'si (%)</span>
+          <span>Komisyon BSMV&apos;si (%)</span>
           <input type="number" inputMode="decimal" min={0} max={99.99} step="any" value={bsmv}
             onChange={(e) => setBsmv(e.target.value)} aria-label="Komisyon üzerinden BSMV oranı yüzde" />
         </label>
@@ -73,7 +73,7 @@ export default function StockPnlCalculator() {
           <>
             <div><span className="calc-result-lbl">Toplam Maliyet</span><strong>{fmt(cost)}</strong></div>
             <div><span className="calc-result-lbl">Toplam Komisyon</span><strong>{fmt(fees)}</strong></div>
-            <div><span className="calc-result-lbl">Komisyon BSMV'si</span><strong>{fmt(taxAmount)}</strong></div>
+            <div><span className="calc-result-lbl">Komisyon BSMV&apos;si</span><strong>{fmt(taxAmount)}</strong></div>
             <div><span className="calc-result-lbl">Net Kâr / Zarar</span><strong className="calc-out">{fmt(pnl)}</strong></div>
             <div><span className="calc-result-lbl">Getiri</span><strong>%{pct.toLocaleString("tr-TR", { maximumFractionDigits: 2 })}</strong></div>
           </>

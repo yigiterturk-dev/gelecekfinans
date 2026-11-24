@@ -109,7 +109,7 @@ export default function AraciKurumlarPage() {
         <ul className="market-prose">
           <li>
             <strong>SPK yetkisi.</strong> Kurumun Sermaye Piyasası Kurulu tarafından yetkilendirilmiş olması ilk
-            kontroldür. Kurumun yetkisini ve izin verilen faaliyetlerini SPK'nın güncel listesinden doğrulayın.
+            kontroldür. Kurumun yetkisini ve izin verilen faaliyetlerini SPK&apos;nın güncel listesinden doğrulayın.
           </li>
           <li>
             <strong>Kaydi varlıkların takibi.</strong> Paylar gibi kaydi sermaye piyasası araçları MKK kayıtlarında
@@ -118,7 +118,7 @@ export default function AraciKurumlarPage() {
           </li>
           <li>
             <strong>YTM kapsamı.</strong> Yatırımcı Tazmin Merkezi getiri veya yatırım zararı garantisi değildir.
-            SPK'nın tazmin kararı, yatırım kuruluşunun sermaye piyasası faaliyetinden doğan nakit ödeme ya da araç
+            SPK&apos;nın tazmin kararı, yatırım kuruluşunun sermaye piyasası faaliyetinden doğan nakit ödeme ya da araç
             teslim yükümlülüklerini yerine getirememesi gibi kanuni koşullara bağlıdır; kapsamı resmî mevzuattan
             doğrulayın.
           </li>
