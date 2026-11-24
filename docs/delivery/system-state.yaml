@@ -293,13 +293,13 @@ current_runtime_audit:
     apex_indexing_after_download: still_discovered_not_indexed
   latest_deployment:
     date: 2026-11-24
-    build_id: 5GSD6fGWHLFg7YXjbFQze
-    change: normalize_cached_prisma_timestamps_for_article_lists
+    build_id: sSxxPrQ0CdiT-qjNy6cAb
+    change: patch_production_dependency_vulnerabilities
     service_active: true
     service_restarts: 0
-    working_directory: /opt/gf-stage-article-date-cache-20261124a
-    previous_working_directory: /opt/gf-stage-repeat-guard-20261124a
-    rollback_snapshot: /root/gf-release-before-category-date-cache-20261124/20-release.conf
+    working_directory: /opt/gf-stage-dependency-security-20261124a
+    previous_working_directory: /opt/gf-stage-article-date-cache-20261124a
+    rollback_snapshot: /root/gf-release-before-dependency-security-20261124/20-release.conf
     shared_article_image_directory: /opt/gelecekfinans/public/gorseller
     homepage_http: 200
     masthead_http: 200
@@ -316,6 +316,11 @@ current_runtime_audit:
     archive_route_cold_and_cached_http: 200
     admin_ai_provider_http: 401
     all_300_static_pages_generated: true
+    next_version: 16.4.6
+    npm_audit_production_vulnerabilities: 0
+    core_route_smoke_checks_passed: true
+    automation_enabled: false
+    ai_daily_spend_limit_usd: 0
     production_provider_resolved_as: gemini
     production_writer_model: gemini-2.5-flash
     production_verifier_model: gemini-2.5-flash

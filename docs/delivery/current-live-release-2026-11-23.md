@@ -301,3 +301,29 @@ provider endpoint returns 401. AI automation remains off with a `$0` cap; no
 model calls were made. Rollback snapshot:
 `/root/gf-release-before-category-date-cache-20261124/20-release.conf`;
 previous build: `/opt/gf-stage-repeat-guard-20261124a`.
+
+## Dependency security release — 24 November 2026
+
+The production dependency audit found 12 vulnerabilities before remediation,
+including a critical Next.js issue. Compatible dependency updates and narrow
+overrides for Prisma's pinned `effect` dependency and Tailwind Typography's
+selector parser reduced `npm audit` to zero findings. Next.js 16.4.6 is live.
+No Prisma downgrade or schema migration was used.
+
+Before release, the production database backup was refreshed and passed
+`pg_restore --list`. The isolated release build used a read-only database
+connection, blank model API keys, disabled automation, and a `$0` daily spend
+limit. It compiled, passed TypeScript, and generated all 300 static pages. No
+model API calls or test suite runs occurred.
+
+Build `sSxxPrQ0CdiT-qjNy6cAb` is live from
+`/opt/gf-stage-dependency-security-20261124a`. The service is active with zero
+restarts. Homepage, `/rehber`, `/borsa`, `/doviz`, `/arsiv`,
+`/kategori/ekonomi`, and `/news-sitemap.xml` returned 200; the unauthenticated
+admin provider route returned 401. Rollback snapshot:
+`/root/gf-release-before-dependency-security-20261124/20-release.conf`;
+previous build: `/opt/gf-stage-article-date-cache-20261124a`.
+
+The lint run reports 21 errors and 4 warnings across existing page, dashboard,
+search, and calculator code. These were not part of the dependency fix and
+were not changed in this security release.
