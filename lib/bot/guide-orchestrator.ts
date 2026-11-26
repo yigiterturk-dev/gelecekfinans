@@ -5,6 +5,7 @@ import { isVerificationBlockedError } from "./errors";
 import { slugify } from "@/lib/slug";
 import { analyzeSeo } from "@/lib/seo";
 import { isDuplicate } from "@/lib/duplicate";
+import { insertToolCta, matchHookTopic } from "@/lib/bot/hook-topics";
 import { autoLink, linkEntitySources, linkGuideCluster } from "@/lib/bot/linker";
 import { ensureExternalLink } from "@/lib/bot/external-link";
 import { notifyIndexNow } from "@/lib/bot/indexnow";
@@ -256,6 +257,9 @@ export async function runGuidePipeline(options: GuidePipelineOptions) {
       content = isEntity
         ? linkEntitySources(content, (topic as EntityTopic).clusterArticles, slug)
         : await linkGuideCluster(content, keyword.cluster, slug, keyword.isHub);
+      // Haberdeki gibi: konu bir araca bağlanıyorsa ilk paragraftan sonra araç kutusu (11-26).
+      const hook = matchHookTopic(keyword.term) || matchHookTopic(article.title);
+      if (hook) content = insertToolCta(content, hook);
       /**
        * Rehber kavramsal üretiliyor, yani atıf verecek bir haber kaynağı yok.
        * Buna rağmen okuru resmî veri kaynağına yönlendiren tek bir dış bağlantı

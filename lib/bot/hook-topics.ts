@@ -57,7 +57,7 @@ export const HOOK_TOPICS: HookTopic[] = [
     id: "asgari-ucret",
     toolPath: "/araclar/brut-net-maas-hesaplama",
     ctaText: "Brüt net maaş hesaplama aracıyla elinize geçecek tutarı hesaplayın",
-    signals: ["asgari ücret", "asgari ücrete", "asgari ücretli"],
+    signals: ["asgari ücret", "asgari ücrete", "asgari ücretli", "net maaş", "brüt maaş", "brüt maaştan", "gelir vergisi dilim"],
     exclude: FOREIGN,
   },
   {
