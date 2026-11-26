@@ -264,8 +264,11 @@ export async function createChartCard(article: ArticleImageInput, chart: MarketS
   const up = changePct >= 0;
   const lineColor = up ? "#34d399" : "#f87171";
   const decimals = last >= 1000 ? 0 : last >= 10 ? 2 : 4;
-  const format = (value: number) =>
-    `${chart.unit}${value.toLocaleString("tr-TR", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
+  // Geist'te ₺ glifi yok (kutu çıkıyordu) → TL soneki.
+  const format = (value: number) => {
+    const n = value.toLocaleString("tr-TR", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+    return chart.unit === "₺" ? `${n} TL` : `${chart.unit}${n}`;
+  };
 
   const W = 1056;
   const H = 250;
