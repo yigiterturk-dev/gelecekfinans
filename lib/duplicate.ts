@@ -34,6 +34,18 @@ const STOPWORDS = new Set([
   "üzerinde", "üzerine", "karşı", "doğru", "altında", "üstünde",
 ]);
 
+// Rehber başlık kalıbı: konu söylemez, her rehberde geçer ("…nasıl hesaplanır:
+// kapsamlı rehber, adımlar ve dikkat edilmesi gerekenler"). 11-26: 3 ortak kelime
+// eşiği bunlarla doluyordu, sitede olmayan her yeni rehber "benzer" diye eleniyordu.
+const TITLE_BOILERPLATE = new Set([
+  "nedir", "nasıl", "nasil", "hesaplanır", "hesaplama", "hesaplaması", "hesaplamasi",
+  "rehber", "rehberi", "rehberde", "kapsamlı", "detaylı", "adım", "adımlar", "adımları",
+  "dikkat", "edilmesi", "edilecekler", "gereken", "gerekenler", "nelerdir", "neler",
+  "temel", "yöntem", "yöntemler", "yöntemleri", "tanım", "tanımı", "işleyiş", "işleyişi",
+  "etkileri", "etkiler", "önemli", "yapılır", "alınır", "çalışır", "belirlenir", "nedenleri",
+  "kavram", "örnek", "örnekler", "örneklerle", "yol", "haritası", "ipuçları", "püf", "noktaları",
+]);
+
 const TURKISH_SUFFIXES = [
   "larından", "lerinden", "larının", "lerinin", "larda", "lerde", "lara", "lere",
   "ları", "leri", "lardan", "lerden", "ların", "lerin", "dan", "den", "tan", "ten",
@@ -51,8 +63,9 @@ function meaningfulTokens(text: string): Set<string> {
   return new Set(
     normalize(text)
       .split(" ")
+      .filter((w) => !TITLE_BOILERPLATE.has(w))
       .map(stemTurkishWord)
-      .filter((w) => w.length >= 3 && !STOPWORDS.has(w)),
+      .filter((w) => w.length >= 3 && !STOPWORDS.has(w) && !TITLE_BOILERPLATE.has(w)),
   );
 }
 
