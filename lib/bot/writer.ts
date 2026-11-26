@@ -1210,6 +1210,10 @@ function keywordWindow(meta: string, needle: string, gate: number, min: number):
   return acceptable ? out : null;
 }
 
+export function stripMetaLabel(meta: string): string {
+  return meta.replace(/[\s.,;|–-]*\b(keyword|anahtar kelime|odak kelime)\s*[:=].*$/i, "").trim();
+}
+
 export function capMetaLength(
   meta: string,
   keyword: string,
@@ -1393,7 +1397,8 @@ export async function writeArticle(
    * girip modele geri göndersin.
    */
   const trimMeta = (candidate: ArticleDraft): ArticleDraft => {
-    const meta = capMetaLength(candidate.meta, candidate.keyword);
+    // Modelin metaya yapıştırdığı "Keyword: ..." ekini taslağı öldürmeden sil (11-26).
+    const meta = capMetaLength(stripMetaLabel(candidate.meta), candidate.keyword);
     return meta === candidate.meta ? candidate : { ...candidate, meta };
   };
 

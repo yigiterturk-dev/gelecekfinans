@@ -47,3 +47,10 @@ test("kelime 180'in ötesindeyse cümle penceresine indirgenir", () => {
   assert.ok(sonuc.length <= 180, `meta hâlâ uzun: ${sonuc.length}`);
   assert.ok(sonuc.toLocaleLowerCase("tr-TR").includes(kelime), "odak kelime kayboldu");
 });
+
+test("metadaki 'Keyword: ...' eki silinir, cümle kalır", async () => {
+  const { stripMetaLabel } = await import("../lib/bot/writer");
+  assert.equal(stripMetaLabel("Halka arz nasıl yapılır, adım adım anlattık. Keyword: halka arz"), "Halka arz nasıl yapılır, adım adım anlattık");
+  assert.equal(stripMetaLabel("Mevduat faizi hesaplama rehberi | Anahtar kelime = mevduat"), "Mevduat faizi hesaplama rehberi");
+  assert.equal(stripMetaLabel("Etiketsiz meta aynen kalır."), "Etiketsiz meta aynen kalır.");
+});
