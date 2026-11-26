@@ -45,7 +45,8 @@ export async function reserveModelSpend(args: {
   return prisma.$transaction(async (tx) => {
     // Serialize the read-check-write so concurrent pipelines cannot both
     // observe the same headroom and over-reserve it.
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`gelecekfinans-ai-spend:${dayKey}`}))`;
+    // ::text: Prisma void sütunu okuyamıyor ("Failed to deserialize column of type void").
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`gelecekfinans-ai-spend:${dayKey}`}))::text`;
     const events = await tx.automationEvent.findMany({
       where: {
         stage: { in: ["cost", "model_spend_reservation"] },
