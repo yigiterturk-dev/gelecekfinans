@@ -416,6 +416,36 @@ export async function getYahooSeriesUntil(
   }
 }
 
+/**
+ * TCMB EVDS'ten belirli tarihte biten günlük seri (resmî kaynak; Yahoo resmî
+ * olmayan uç). Kodlar: TP.DK.USD.S.YTL (TCMB döviz satış), TP.MK.F.BILESIK
+ * (BIST 100 kapanışı; 25.11.2026'da Yahoo XU100 ile birebir).
+ */
+export async function getEvdsSeriesUntil(code: string, end: Date, days = 45): Promise<DatedPoint[] | null> {
+  const key = process.env.EVDS_API_KEY?.replace(/"/g, "");
+  if (!key) return null;
+  const fmt = (d: Date) => `${String(d.getUTCDate()).padStart(2, "0")}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${d.getUTCFullYear()}`;
+  const start = new Date(end.getTime() - days * 86400000);
+  try {
+    const res = await fetch(
+      `https://evds3.tcmb.gov.tr/igmevdsms-dis/series=${code}&startDate=${fmt(start)}&endDate=${fmt(end)}&type=json`,
+      { headers: { key }, next: { revalidate: 3600 }, signal: AbortSignal.timeout(10000) },
+    );
+    if (!res.ok) return null;
+    const data = (await res.json()) as { items?: Array<Record<string, unknown>> };
+    const field = code.replace(/\./g, "_");
+    const points: DatedPoint[] = [];
+    for (const item of data.items || []) {
+      const close = Number(item[field]);
+      const [dd, mm, yyyy] = String(item.Tarih || "").split("-");
+      if (close > 0 && yyyy) points.push({ date: `${yyyy}-${mm}-${dd}`, close });
+    }
+    return points.length > 4 ? points : null;
+  } catch {
+    return null;
+  }
+}
+
 /** BIST 100 endeksinin son ~1 aylık günlük kapanışları. */
 export async function getBistHistory(): Promise<number[] | null> {
   return getYahooCloseSeries("XU100.IS");

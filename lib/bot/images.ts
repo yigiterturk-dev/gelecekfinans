@@ -1,7 +1,7 @@
 import React from "react";
 import { ImageResponse } from "next/og";
 import { storeImageBytes, storeRemoteImage } from "@/lib/local-images";
-import { getYahooSeriesUntil, CRYPTO_COINS, type DatedPoint } from "@/lib/market";
+import { getEvdsSeriesUntil, getYahooSeriesUntil, CRYPTO_COINS, type DatedPoint } from "@/lib/market";
 import { createVisualBrief, type VisualBrief } from "./visual-director";
 import { searchLicensedMedia, type LicensedMediaAsset } from "./licensed-media";
 
@@ -115,7 +115,7 @@ export interface MarketSeries { points: DatedPoint[]; label: string; unit: strin
 
 /**
  * Kategoriye göre GERÇEK günlük kapanış serisi, makalenin yayın gününde biter.
- * Tek kaynak Yahoo (tarih aralığı verebilen tek ücretsiz kaynak): kripto için
+ * Kaynak: döviz ve BIST 100 TCMB EVDS (resmî), altın/kripto/banka endeksi Yahoo. Kripto için
  * eskiden CoinGecko'nun "son 7 gün" sparkline'ı kullanılıyordu, o da tarih
  * alamadığı için geçmiş makalelere bugünün grafiğini basıyordu.
  */
@@ -132,16 +132,23 @@ export async function buildMarketSeries(cat: string, article: ArticleImageInput)
     const cfg = CRYPTO_COINS[slug === "tether" ? "bitcoin" : slug] || CRYPTO_COINS.bitcoin;
     return pick(`${cfg.symbol}-USD`, `${cfg.label} / USD`, "$");
   }
+  // Döviz ve BIST 100 önce TCMB EVDS'ten (resmî); ulaşılamazsa Yahoo.
+  const official = async (code: string, label: string, unit: string, source: string): Promise<MarketSeries | null> => {
+    const points = await getEvdsSeriesUntil(code, end);
+    return points ? { points, label, unit, source } : null;
+  };
   if (cat === "doviz") {
     const base = pickFxBase(text);
-    return pick(`${base}TRY=X`, `${base}/TRY`, "₺");
+    return (await official(`TP.DK.${base}.S.YTL`, `${base}/TRY`, "₺", "TCMB EVDS, döviz satış kuru"))
+      || pick(`${base}TRY=X`, `${base}/TRY`, "₺");
   }
   if (cat === "borsa") {
     if (/\bbanka/.test(text)) {
       const bank = await pick("XBANK.IS", "BIST Banka Endeksi", "");
       if (bank) return bank;
     }
-    return pick("XU100.IS", "BIST 100 Endeksi", "");
+    return (await official("TP.MK.F.BILESIK", "BIST 100 Endeksi", "", "TCMB EVDS (Borsa İstanbul), günlük kapanış"))
+      || pick("XU100.IS", "BIST 100 Endeksi", "");
   }
   if (cat === "altin") {
     /**
