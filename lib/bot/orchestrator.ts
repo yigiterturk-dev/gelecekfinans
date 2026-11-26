@@ -93,8 +93,9 @@ export async function runPublishingPipeline(options: OrchestratorOptions) {
   }
   const count = Math.max(1, Math.min(options.count || 1, 10));
   const targetWords = Math.max(400, Math.min(options.targetWords || 650, 1800));
-  // Bot çıktısı yayınlanmadan önce editör onayı almalı.
-  const autoPublishEnabled = false;
+  // Otomatik yayın yalnız çağıran açıkça isterse (cron: ayarlar > autonomy.enabled).
+  // 4842577 (11-23) bunu sabit false yapmıştı → haber hattı yayına hiç çıkmıyordu.
+  const autoPublishEnabled = options.autoPublish === true;
   const aiBudget = resolveArticleAIBudgetConfig();
   const aiConfig = resolveArticleAIConfig();
   const quotaGuard = await getOpenAIQuotaGuard(aiConfig.provider);

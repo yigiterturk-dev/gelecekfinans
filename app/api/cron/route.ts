@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
         trigger: "cron",
         count: settings.autonomy?.dailyArticleCount ?? 1,
         targetWords: settings.autonomy?.targetWords ?? 550,
-        autoPublish: false,
+        autoPublish: settings.autonomy?.enabled ?? false,
       });
     } finally {
       await releaseCronLock(lock).catch(() => {});

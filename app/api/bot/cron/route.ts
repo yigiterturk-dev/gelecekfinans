@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
       trigger: "cron",
       count: Math.min(settings.autonomy?.dailyArticleCount ?? 1, remainingThisWeek),
       targetWords: settings.autonomy?.targetWords ?? 550,
-      autoPublish: false,
+      autoPublish: settings.autonomy?.enabled ?? false,
     }));
     return NextResponse.json(result, { headers: PRIVATE_HEADERS });
   } finally {
