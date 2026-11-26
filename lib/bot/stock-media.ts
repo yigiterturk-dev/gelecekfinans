@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { LicensedMediaAsset } from "./media-types";
-import { pickInstitutionPhoto } from "./institution-media";
+import { matchInstitution, pickInstitutionPhoto } from "./institution-media";
 
 /**
  * Ücretsiz stok görsel sağlayıcıları — Pexels (birincil) ve Pixabay (yedek).
@@ -527,6 +527,11 @@ export async function searchStockMedia(
     cache.used = { ...cache.used, [`${institution.provider}:${institution.assetId}`]: Date.now() };
     await writeCache(cache);
     return { asset: institution, attempts: [{ provider: "commons", candidates: 1, picked: true }] };
+  }
+  // Kurum konusu ama havuz 60 günde tükendi: genel stoğa düşersek "TCMB nedir"e
+  // GameStop ekranı geliyor (11-26) → markalı kart.
+  if (matchInstitution(`${input.headline} ${input.query}`)) {
+    return { asset: null, attempts: [{ provider: "commons", candidates: 0, picked: false }] };
   }
   const subject = matchStockSubject({ title: input.headline, keyword: input.query });
   if (!subject || !stockMediaConfigured()) return { asset: null, attempts };
