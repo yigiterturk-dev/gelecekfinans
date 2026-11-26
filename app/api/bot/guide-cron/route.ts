@@ -8,7 +8,11 @@ import { withBotRequestSignal } from "@/lib/bot/request-context";
 
 export const maxDuration = 300;
 const PRIVATE_HEADERS = { "Cache-Control": "private, no-store, max-age=0" };
-const WEEKLY_GUIDE_LIMIT = 2;
+// GUIDE_WEEKLY_LIMIT ile yükseltilebilir (1-35); varsayılan 2.
+const configuredWeekly = Number(process.env.GUIDE_WEEKLY_LIMIT);
+const WEEKLY_GUIDE_LIMIT = Number.isSafeInteger(configuredWeekly) && configuredWeekly > 0
+  ? Math.min(configuredWeekly, 35)
+  : 2;
 
 /**
  * Şerit B — rehber üretimi.
@@ -61,7 +65,7 @@ export async function GET(req: NextRequest) {
       trigger: "cron",
       count: Math.min(remainingThisWeek, requestedCount),
       targetWords: 1200,
-      autoPublish: false,
+      autoPublish: true,
     }));
     return NextResponse.json(result, { headers: PRIVATE_HEADERS });
   } finally {

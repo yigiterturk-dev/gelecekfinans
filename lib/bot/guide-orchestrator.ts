@@ -69,8 +69,10 @@ export async function runGuidePipeline(options: GuidePipelineOptions) {
   }
   const count = Math.max(1, Math.min(options.count || 1, 5));
   const targetWords = Math.max(900, Math.min(options.targetWords || 1200, 1800));
-  // Rehber taslakları da editör onayı olmadan yayına çıkmaz.
-  const autoPublishEnabled = false;
+  // Varsayılan: editör onayı. GUIDE_AUTO_PUBLISH=true ise tüm kapılardan
+  // (kalite, intihal, doğrulayıcı, görsel, SEO ≥70) geçen rehber doğrudan yayına çıkar
+  // (2026-11-26: kuyrukta onaysız bekleyen taslaklar yüzünden siteye rehber düşmüyordu).
+  const autoPublishEnabled = options.autoPublish === true && process.env.GUIDE_AUTO_PUBLISH === "true";
   const aiBudget = resolveArticleAIBudgetConfig();
   /**
    * YAPILANDIRMA KAPISI — kelime seçilmeden ÖNCE.
