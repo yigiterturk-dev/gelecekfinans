@@ -143,6 +143,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     changeFrequency: "hourly" as const,
     priority: 0.85,
   }));
+  // Bilanço sayfaları çeyreklik değişir; banka/sanayi ayrımı yok, hepsi aynı şablon ucu.
+  const bilancoEntries = Object.entries(BIST_STOCKS)
+    .filter(([, c]) => !c.index)
+    .map(([h]) => ({
+      url: `${BASE}/borsa/${h}/bilanco`,
+      lastModified: PROFIL_TARIHLERI.hisse,
+      changeFrequency: "weekly" as const,
+      priority: 0.8,
+    }));
   const toolEntries = TOOL_CATALOG.map(({ slug }) => ({
     url: `${BASE}/araclar/${slug}`,
     lastModified: PROFIL_TARIHLERI.arac,
@@ -167,6 +176,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE}/cerez-politikasi`, lastModified: GUNCEL_KURUMSAL_SAYFA_TARIHI, changeFrequency: "yearly", priority: 0.2 },
     { url: `${BASE}/kullanim-kosullari`, lastModified: STATIK_SAYFA_TARIHI, changeFrequency: "yearly", priority: 0.2 },
     // Eğitim rehberleri: süreç anlatır, canlı rakam içermez; bu yüzden aylık tazelik iddiası dürüst.
+    { url: `${BASE}/borsa/bilanco-takvimi`, lastModified: PROFIL_TARIHLERI.hisse, changeFrequency: "weekly", priority: 0.85 },
     { url: `${BASE}/halka-arz`, lastModified: new Date("2026-11-22"), changeFrequency: "monthly", priority: 0.6 },
     { url: `${BASE}/araci-kurumlar`, lastModified: new Date("2026-11-22"), changeFrequency: "monthly", priority: 0.6 },
     ...marketHubs,
@@ -174,6 +184,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...goldEntries,
     ...cryptoEntries,
     ...bistEntries,
+    ...bilancoEntries,
     ...toolEntries,
     ...catEntries,
     ...articleEntries,
