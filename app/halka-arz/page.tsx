@@ -17,9 +17,9 @@ const BASE = "https://gelecekfinans.com";
 const URL = `${BASE}/halka-arz`;
 
 export const metadata: Metadata = (() => {
-  const title = "Halka Arz Nedir? Nasıl Katılınır, Süreç Nasıl İşler?";
+  const title = "Halka Arz Hisse Nedir, Nasıl Alınır? Süreç, Katılım ve Riskler";
   const description =
-    "Halka arz nedir, bir şirket borsaya nasıl açılır? SPK onayı, izahname, talep toplama, dağıtım ve borsada işlem görme adımları; halka arza katılmak için gerekenler, kavramlar ve riskler.";
+    "Halka arz hisse nedir, nasıl alınır? SPK onayı, izahname, talep toplama, dağıtım ve borsada işlem görme adımları; halka arza katılmak için gerekenler, kavramlar ve riskler.";
   return { title, description, alternates: { canonical: URL }, ...paylasimMeta({ url: URL, title, description }) };
 })();
 
